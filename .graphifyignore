@@ -1,0 +1,3 @@
+# Generated molecule / structure data embedded as JS, not code
+app/mols_*.js
+app/structures.js

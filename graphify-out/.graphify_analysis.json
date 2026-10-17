@@ -1,0 +1,272 @@
+{
+  "communities": {
+    "0": [
+      "dataclasses",
+      "os",
+      "pockets",
+      "pockets_element_from_name",
+      "pockets_fpocket",
+      "pockets_fpocket_available",
+      "pockets_fpocket_init",
+      "pockets_fpocket_run",
+      "pockets_fpocketerror",
+      "pockets_main",
+      "pockets_parse_info",
+      "pockets_parse_vert",
+      "pockets_py_runtimeerror",
+      "pockets_rationale_2",
+      "pockets_rationale_222",
+      "pockets_rationale_266",
+      "pockets_rationale_344",
+      "pockets_rationale_420",
+      "pockets_rationale_434",
+      "pockets_rationale_61",
+      "pockets_select_residues",
+      "pockets_split_cif",
+      "pockets_structure_receptor",
+      "re",
+      "tempfile"
+    ],
+    "1": [
+      "atexit",
+      "functools",
+      "generate",
+      "generate_find_neat_dir",
+      "generate_find_python",
+      "generate_rationale_2",
+      "generate_rationale_55",
+      "generate_runner_init",
+      "http_server",
+      "json",
+      "pathlib",
+      "serve",
+      "serve_main",
+      "serve_rationale_2",
+      "shutil",
+      "socketserver",
+      "subprocess",
+      "sys",
+      "threading",
+      "time",
+      "uuid",
+      "webbrowser"
+    ],
+    "2": [
+      "generate_generationerror",
+      "generate_py_runtimeerror",
+      "generate_rationale_36",
+      "serve_handler",
+      "serve_handler_body",
+      "serve_handler_buffer_structure",
+      "serve_handler_do_get",
+      "serve_handler_do_post",
+      "serve_handler_end_headers",
+      "serve_handler_find_pockets",
+      "serve_handler_generate",
+      "serve_handler_job_status",
+      "serve_handler_json",
+      "serve_handler_log_message",
+      "serve_handler_prepare",
+      "serve_rationale_197",
+      "serve_rationale_209",
+      "serve_rationale_222",
+      "serve_rationale_252"
+    ],
+    "3": [
+      "generate_job",
+      "generate_job_init",
+      "generate_job_molecules",
+      "generate_job_progress",
+      "generate_job_table",
+      "generate_rationale_115",
+      "generate_rationale_125",
+      "generate_rationale_94",
+      "generate_runner",
+      "generate_runner_available",
+      "generate_runner_describe",
+      "generate_runner_get",
+      "generate_runner_run",
+      "generate_runner_start",
+      "path"
+    ],
+    "4": [
+      "pockets_atom",
+      "pockets_atom_key",
+      "pockets_rationale_145",
+      "pockets_rationale_229",
+      "pockets_rationale_81",
+      "pockets_rationale_87",
+      "pockets_structure",
+      "pockets_structure_chains",
+      "pockets_structure_from_cif",
+      "pockets_structure_from_cif_col",
+      "pockets_structure_from_pdb",
+      "pockets_structure_from_text",
+      "pockets_structure_init",
+      "pockets_structure_len",
+      "pockets_structure_to_pdb"
+    ],
+    "5": [
+      "pockets_fpocketresult",
+      "pockets_fpocketresult_getitem",
+      "pockets_fpocketresult_init",
+      "pockets_fpocketresult_iter",
+      "pockets_fpocketresult_len",
+      "pockets_fpocketresult_meta",
+      "pockets_pocket",
+      "pockets_pocket_as_dict",
+      "pockets_pocket_centroid",
+      "pockets_pocket_n_spheres",
+      "pockets_pocket_selection",
+      "pockets_rationale_306",
+      "pockets_rationale_313",
+      "pockets_rationale_324",
+      "pockets_rationale_390"
+    ],
+    "6": [
+      "serve_preperror",
+      "serve_py_runtimeerror",
+      "serve_quickprep",
+      "serve_quickprep_available",
+      "serve_quickprep_init",
+      "serve_quickprep_run",
+      "serve_quickprep_version",
+      "serve_rationale_58",
+      "serve_rationale_62",
+      "serve_rationale_72"
+    ],
+    "7": [
+      "pockets_rationale_540",
+      "pockets_rationale_558",
+      "pockets_structurebuffer",
+      "pockets_structurebuffer_close",
+      "pockets_structurebuffer_evict",
+      "pockets_structurebuffer_get",
+      "pockets_structurebuffer_init",
+      "pockets_structurebuffer_put"
+    ],
+    "8": [
+      "start",
+      "start_sh__entry"
+    ]
+  },
+  "cohesion": {
+    "0": 0.11333333333333333,
+    "1": 0.12554112554112554,
+    "2": 0.1871345029239766,
+    "3": 0.18095238095238095,
+    "4": 0.17142857142857143,
+    "5": 0.1619047619047619,
+    "6": 0.24444444444444444,
+    "7": 0.2857142857142857,
+    "8": 1.0
+  },
+  "gods": [
+    {
+      "id": "serve_handler",
+      "label": "Handler",
+      "degree": 14
+    },
+    {
+      "id": "pockets_structure",
+      "label": "Structure",
+      "degree": 12
+    },
+    {
+      "id": "generate_job",
+      "label": "Job",
+      "degree": 8
+    },
+    {
+      "id": "generate_runner",
+      "label": "Runner",
+      "degree": 8
+    },
+    {
+      "id": "pockets_fpocketresult",
+      "label": "FpocketResult",
+      "degree": 8
+    },
+    {
+      "id": "pockets_structurebuffer",
+      "label": "StructureBuffer",
+      "degree": 8
+    },
+    {
+      "id": "pockets_fpocket",
+      "label": "Fpocket",
+      "degree": 7
+    },
+    {
+      "id": "generate_generationerror",
+      "label": "GenerationError",
+      "degree": 7
+    },
+    {
+      "id": "pockets_pocket",
+      "label": "Pocket",
+      "degree": 7
+    },
+    {
+      "id": "pockets_fpocketerror",
+      "label": "FpocketError",
+      "degree": 6
+    }
+  ],
+  "surprises": [
+    {
+      "source": "Handler",
+      "target": "FpocketError",
+      "source_files": [
+        "serve.py",
+        "pockets.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    },
+    {
+      "source": "Handler",
+      "target": "GenerationError",
+      "source_files": [
+        "serve.py",
+        "generate.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `Handler` connect `Handler` to `pockets.py`, `serve.py`?",
+      "why": "High betweenness centrality (0.156) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 2 inferred relationships involving `Handler` (e.g. with `GenerationError` and `FpocketError`) actually correct?",
+      "why": "`Handler` has 2 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `pockets.py` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.11333333333333333 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Structure` connect `Structure` to `pockets.py`?",
+      "why": "High betweenness centrality (0.122) - this node is a cross-community bridge."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `serve.py` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.12554112554112554 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Pocket` connect `FpocketResult` to `pockets.py`?",
+      "why": "High betweenness centrality (0.109) - this node is a cross-community bridge."
+    }
+  ]
+}
