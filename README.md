@@ -1,13 +1,13 @@
 # ProteinViewer
 
-A browser GUI for inspecting generated ligands against a receptor pocket: a 3D
-stage with a per-molecule inspector, ensemble and centroid-cloud views, and
-endpoint filters.
+A browser-based protein structure viewer. Fetch entries from the PDB — several
+at once if you like — browse their chains, residues, ligands and waters in a
+structure tree, select any part of one, and prepare it, find pockets in it, or
+generate binders for the pockets you pick.
 
-This is the **PaIspD Pocket Bench** viewer, copied here verbatim from the
-published artifact so it can be developed as a standalone tool. It currently
-ships with the NEAT-POCKET validation run baked in (9GC8 chain A, six
-generation arms, ~5 800 molecules).
+It began as the PaIspD Pocket Bench viewer, a browser for one NEAT-POCKET
+validation run. That bundled dataset (9GC8, six generation arms, ~5 800
+molecules) has been removed; it is in git history at `e38e6d2` if it is needed.
 
 ## Run
 
@@ -18,31 +18,119 @@ generation arms, ~5 800 molecules).
 Or `./start.sh`, which takes the same arguments but first stops a viewer
 already running on that port, so it doubles as a restart.
 
-Serves `app/` on <http://127.0.0.1:8000/> and opens a browser. A real HTTP
-origin is required — the page loads its data with dynamic `<script>` tags, so
-`file://` will not work. 3Dmol.js and the fonts come from CDNs, so the first
-load needs network access.
+Serves `app/` on <http://127.0.0.1:8000/> and opens a browser. Open the page
+through the server, not as a file: pockets, preparation and generation all go
+through its API. 3Dmol.js and the fonts come from CDNs, so the first load needs
+network access.
 
 ## Fetching other structures
 
 The **Fetch from PDB** box at the top of the control rail takes a four-character
 PDB ID (e.g. `1HSG`), downloads the entry from RCSB (`.pdb`, falling back to
 `.cif` for large entries with no legacy file) plus its title, method and
-resolution, and adds it as a `PDB <ID>` option under **Receptor**. It is drawn
-as a cartoon with hetero groups as sticks and waters hidden.
+resolution, and adds it to the **Receptor** panel. It is drawn as a cartoon
+with hetero groups as sticks and waters hidden.
 
-The fetched entry is shown in its own deposited frame — nothing is superposed
-onto 9GC8 — so the generated ligands, the A1IJS fragment and the
-pocket-relative readouts stay in the 9GC8 frame. Residue labels and the pocket
-surface are skipped for fetched entries. Fetching `9GC8` itself lands in the
-same frame and highlights the pocket residues on chain A.
+Nothing is bundled: the viewer opens empty. Every structure you fetch is added
+to the view rather than replacing what is there, each in its own cartoon colour
+and its own deposited frame — nothing is superposed. Fetching an entry that is
+already loaded shows it again instead of adding a copy.
+
+## Structure tree
+
+The **Receptor** panel lists every loaded structure as a collapsible tree: the
+entry at the root (with its colour swatch), then one folder per chain holding
+its residues, then **Ligands** and **Water**. A new structure opens one level
+deep; everything below starts folded. The caret, or the right and left arrow
+keys, unfold and fold a row; up and down move between rows.
+
+### Showing, hiding and removing
+
+Every row has an eye and a ×, not only the structure: on the structure row
+they are always there, below it they appear on hover or focus (an eye that is
+switched off stays in view). From the keyboard, **H** does the eye and
+**Delete** the × for the focused row.
+
+- **Hiding is inherited.** Hiding a structure, a chain or a folder hides
+  everything under it; those rows dim and their eye says what hides them
+  ("Hidden with Chain B"). A row hidden that way waits for its parent — its own
+  eye does nothing until the parent is shown again. Hiding is display only:
+  Prepare and Find pockets still see hidden parts.
+- **Waters start hidden**, as deposited files are full of them; the eye on
+  **Water** shows them as spheres.
+- **Removing is real.** × on a residue, ligand, water, chain or folder cuts
+  those atoms out of the structure's own text (the same cut as a selection, see
+  below) and parses it again, so Prepare, Find pockets and everything after work
+  on what is left. Folding, hiding and picks carry over wherever their node still
+  exists; pocket results for that structure are cleared, since they described
+  the atoms as they were. The structure row then says *edited*, and fetching the
+  same ID again adds a fresh copy (`1HSG-2`) instead of showing the edited one.
+- **Undo** in the panel header, or Ctrl/⌘-Z in the tree, puts back the last
+  removal — a part or a whole structure — up to twenty steps back.
+- Chain-end caps (ACE, NME, NH2), which Prepare puts at gaps it does not build,
+  are listed in their chain rather than under Ligands.
+
+Selection works as in a file manager:
+
+| action | effect |
+| --- | --- |
+| click | select that row (clicking the only selected row again clears it) |
+| Ctrl/⌘-click | add the row to the selection, or drop it |
+| Shift-click | select every row between the last pick and this one |
+| Esc, or **Clear selection** | clear the selection |
+
+Any row can be selected — a whole structure, a chain, a residue, a ligand, the
+Ligands or Water folder, a single water. The 3D view frames the selection; a
+selected chain or structure is recoloured, residues and ligands turn to orange
+sticks (labelled, up to a dozen at a time), and waters show as spheres.
+
+The tree is read from the model 3Dmol parsed, so each row selects exactly what
+is drawn. A `HETATM` residue with a peptide backbone (N, CA, C) or a nucleotide
+one (P, C1′) is listed in its chain as a modified residue (MSE, SEP, …) rather
+than as a ligand.
+
+### What the operations run on
+
+**Prepare** and **Find pockets** run on the selection, and the line above the
+Prepare button says exactly what that is — e.g. *1HSG · chain A, MK1 902*. With
+nothing selected they run on the whole structure, if only one is loaded or only
+one is shown; otherwise the panel asks you to pick one. A selection that spans
+two structures is refused: they sit in unrelated frames, so there is no single
+structure to run on.
+
+A selection is cut from the original file, not re-written from 3Dmol's atoms,
+so nothing the file says about those atoms is lost. From a PDB file the header
+records are kept (SEQRES is what lets Prepare rebuild missing loops) along with
+the selected atom lines verbatim. From an mmCIF file every category is kept and
+only the `_atom_site` rows of the selected atoms remain, with their
+`_atom_site_anisotrop` rows. 3Dmol numbers mmCIF atoms by position rather than
+by `_atom_site.id`, so rows are matched on the coordinates 3Dmol read from them.
+The cut is posted as its own structure (`<id>.sel-<hash>`), so pocket results
+and server-side caching stay separate per selection.
+
+SEQRES still lists the residues a cut lacks, and PDBFixer builds any gap of up
+to ten residues from it — so residues you removed, or did not select, would come
+back as built loops. Prepare therefore passes them to quickprep as
+`--no-rebuild` (the polymer residues the structure had when it was loaded,
+minus the ones being prepared, for each chain still present), and quickprep caps
+those gaps instead; its report marks them `[left out]`. Loops that were never
+in the deposited coordinates are still built as before.
+
+Generated binders come from the pockets of the last pocket run, so they follow
+the same scope.
 
 ## Finding pockets
 
 **Find pockets** runs [fpocket](https://github.com/Discngine/fpocket) on the
-receptor currently on screen and lights up the residues of whichever pocket you
-pick. It needs the fpocket binary on `PATH` (or `FPOCKET_BIN` set); `serve.py`
+current selection (see *What the operations run on*) and lights up the residues
+of whichever pocket you pick. It needs the fpocket binary on `PATH` (or `FPOCKET_BIN` set); `serve.py`
 prints whether it found one at startup, and the panel says so if it did not.
+
+The detector dropdown also offers [lacuna](https://github.com/mooreneural/lacuna),
+which detects over a conformational ensemble it generates rather than over the
+structure as deposited — which is what it takes to see a pocket that is closed
+in the unbound form. Setup, backends and measured apo/holo results are in
+[docs/lacuna-integration.md](docs/lacuna-integration.md).
 
 fpocket is a command line program, so the browser cannot run it. The structure
 being displayed is posted to the server once and buffered in a temp directory;
@@ -69,8 +157,10 @@ Residue numbering follows the author numbering (`auth_seq_id`), which is what
 
 ### What you see
 
-The **Pockets** panel sits directly under **Receptor** and runs on whichever
-receptor is selected there. After a run it shows:
+The **Pockets** panel sits directly under **Receptor** and runs on what is
+selected there. One pocket run is live at a time; its results stay listed while
+you go on selecting, and are drawn whenever their structure is shown. After a
+run it shows:
 
 - one row per pocket — residues, chains, alpha-sphere count, fpocket score, and
   volume as the tag — in fpocket's own ranking;
@@ -84,14 +174,7 @@ Rows are multi-select: tick as many pockets as you want. Each gets its own
 colour, reused for the molecules generated for it. Ticking a row highlights its
 residues and zooms to the selection.
 
-### Receptors in another frame
-
-The generated molecules and the A1IJS fragment are in the 9GC8 frame. A fetched
-entry is drawn in its own deposited frame, so against that receptor they are not
-a pose of anything — they would hang in unrelated space. They are therefore
-hidden whenever the receptor is not in the 9GC8 frame, the ensemble controls
-(Arm, Pose source, Filter, Molecule, Placement) are dimmed, and a banner says
-so. Switching the receptor back restores them.
+### Bound ligands
 
 Known behaviour: a **bound ligand is not removed**, so on a holo entry it fills
 its own site and fpocket ranks that site lower or misses it. `POST /api/pockets`
@@ -187,11 +270,12 @@ pyenv virtualenv 3.11.14 quickprep
 `serve.py` looks for it at `~/.pyenv/versions/quickprep/bin/python` (or
 `QUICKPREP_PYTHON`) and prints the version it found at startup.
 
-In the GUI, **Prepare** under **Receptor** runs it on the receptor on screen
-(a fetched entry, or the built-in 9GC8 holo/apo chains). The result is added
-as its own receptor, "<id> · prepared", beside the original, so the two can be
-compared and pockets found on either. It stays in the original's frame. The
-summary line under the button lists what changed; **Full report** has the rest.
+In the GUI, **Prepare** under **Receptor** runs it on the current selection —
+a whole structure or any part of one. The result is added as a new structure,
+`<id>-prep`, in the original's frame; the original is hidden rather than
+removed, so its eye brings it back for comparison. Selecting the prepared
+structure shows the summary line of what changed under the button; **Full
+report** has the rest.
 Missing chain ends are left off (quickprep's default).
 Hydrogens are hidden in the 3D view.
 
@@ -200,101 +284,11 @@ Hydrogens are hidden in the 3D view.
 ```
 app/
   index.html               the whole GUI — markup, CSS and logic, no build step
-  structures.js            receptor + reference structures, and the arm registry
-  mols_<arm>_<source>.js   one file per (arm, pose source), loaded on demand
 pockets.py                 fpocket wrapper, structure buffer, pocket→residue cut
+lacuna.py                  lacuna wrapper: ensemble pocket detection (see docs/)
 generate.py                NEAT-POCKET job runner (subprocess, polled)
 serve.py                   static server for app/, plus the pocket endpoints
 ```
 
 `index.html` has no dependencies beyond 3Dmol.js from cdnjs. Edit it directly
 and reload. `pockets.py` and `serve.py` are standard library only.
-
-## Data contract
-
-The GUI reads three globals. Point it at a different dataset by regenerating
-these files; no code changes are needed as long as the shapes hold.
-
-**`structures.js`** defines two globals.
-
-`window.STRUCT` — structure text, parsed by 3Dmol:
-
-| key | format | what it is | read by the GUI |
-| --- | --- | --- | --- |
-| `pocketTrue` | PDB | the residue cut the generator was conditioned on | yes |
-| `proteinHolo` | PDB | the full receptor chain | yes |
-| `proteinApo` | PDB | the apo chain, pre-superposed | yes |
-| `pocketDecoy` | PDB | a decoy-site cut, for the negative-control arm | yes |
-| `refLigand` | SDF | the withheld crystal ligand | yes |
-| `pocketApo` | PDB | the apo residue cut | no |
-| `decoyProbe` | PDB | probe atoms at the decoy site | no |
-
-`window.INDEX`:
-
-```js
-{
-  arms: {
-    armA: {
-      label: "A - holo pocket, cfg 0.5 (the method)",  // "<short> - <subtitle>"
-      frame: "crystal",            // "crystal" | "decoy" | "origin"
-      sources: {                   // omit a key when no file exists for it
-        inplace: { file: "mols_armA_inplace.js", n: 991, kb: 621 },
-        docked:  { file: "mols_armA_docked.js",  n: 991, kb: 621 }
-      },
-      hasMetrics: true             // false => geometry only, filters disabled
-    }
-  },
-  com:        { pocketTrue: [x, y, z],     // pocket centroid, Angstroms
-                pocketApo: [...],          // unused by the GUI
-                pocketDecoy: [...] },      // unused by the GUI
-  pocketResi: [13, 14, ...],               // residue numbers to highlight
-  labels:     { "Ser89": [x, y, z] },      // contact-residue label anchors
-  contactRes: [...]                        // unused by the GUI
-}
-```
-
-Only `com.pocketTrue`, `pocketResi` and `labels` are read. `index.html` also
-hardcodes a `CORE_RESI` list, the subset it zooms to on "Fit pocket".
-
-`frame` drives the stage banner: `origin` warns that the arm is not in the
-crystal frame and offers a rigid translation onto the pocket centroid, labelled
-as a viewing aid rather than a pose; `decoy` notes the offset site.
-
-**`mols_<arm>_<source>.js`** assigns `window.MOLDATA['<arm>:<source>']`:
-
-```js
-{
-  arm: "armA", source: "inplace", n: 991,
-  mols: [{
-    i: 0,                       // index, aligned across sources and metrics
-    s: ["N", "C", ...],         // element symbols, heavy atoms only
-    c: [-2594, 2466, 1499,...], // xyz flattened, Angstroms x 100 as integers
-    b: [0, 1, 1, ...],          // bonds flattened: atom_i, atom_j, order
-    m: { ... }                  // metrics, or absent when hasMetrics is false
-  }]
-}
-```
-
-Coordinates are integers scaled by 100 to keep the files small; the GUI divides
-by 100 on read. The metrics object `m` carries `smi`, `nha`, `mw`, `qed`, `sa`,
-`logp`, `pb`, `clash`, `mind`, `rec`, `tan`, `ser89`, `bits`, `ip`, `dock` and
-`dcom`; `ip`, `dock`, `dcom` and `mind` are nullable and render as an em dash.
-The endpoint shown throughout is `pb && clash === 0 && rec >= 0.5`.
-
-## Caveats carried over from the source dataset
-
-Documented in the page itself, and true of the shipped data rather than of the
-GUI:
-
-- No docked poses exist for arms D1 or E — `armD1_docked.sdf` and
-  `armE_docked.sdf` were never written, so the docked source is disabled there.
-- Arm E is the unconditional control and has no pocket frame to return to; its
-  ensemble sits ~37 Å from the pocket, on the model origin.
-- Arms D1, E and the ChEMBL control carry geometry but no per-molecule scores.
-
-## Where this is going
-
-The GUI and its dataset are still entangled: the masthead, the arm ledger
-table, and the two caveat sections in `index.html` are written about the PaIspD
-run specifically. Generalising means lifting that copy into `INDEX` (or a small
-`meta` global) so a new dataset can supply its own.

@@ -1,1 +1,7 @@
-{"0": "pockets.py", "1": "serve.py", "2": "Handler", "3": "Job", "4": "Structure", "5": "FpocketResult", "6": "QuickPrep", "7": "StructureBuffer", "8": "start.sh"}
+{
+  "0": "pockets.py",
+  "2": "Handler",
+  "3": "Job",
+  "7": "StructureBuffer",
+  "8": "start.sh"
+}

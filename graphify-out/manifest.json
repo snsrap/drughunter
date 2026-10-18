@@ -6,21 +6,69 @@
     "semantic_hash": "61664e6fe15e134e0ae3c41669dd5b29"
   },
   "pockets.py": {
-    "mtime": 1791784083.6451283,
-    "seen": 1792275560.4291193,
-    "ast_hash": "30f65211e400b632b37bb42db5b3b251",
-    "semantic_hash": "30f65211e400b632b37bb42db5b3b251"
+    "mtime": 1792277723.9885056,
+    "seen": 1792292744.7401161,
+    "ast_hash": "a893a8a37fe5a1ebf365f427a6858d33",
+    "semantic_hash": ""
   },
   "serve.py": {
-    "mtime": 1791823407.9917133,
-    "seen": 1792275560.4291208,
-    "ast_hash": "f2853b08da95c682f5efa770a90fcce9",
-    "semantic_hash": "f2853b08da95c682f5efa770a90fcce9"
+    "mtime": 1792297760.234211,
+    "seen": 1792297913.917107,
+    "ast_hash": "025d32d18693f45220effae044aa5479",
+    "semantic_hash": ""
   },
   "start.sh": {
     "mtime": 1790275478.473181,
     "seen": 1792275560.4291286,
     "ast_hash": "98c5f97e75bdfb91a04bd3bded919d33",
     "semantic_hash": "98c5f97e75bdfb91a04bd3bded919d33"
+  },
+  "docs/validation/prep_and_truth.py": {
+    "mtime": 1792278701.0594413,
+    "seen": 1792292744.7401044,
+    "ast_hash": "b42d8fc61e8c31b5d2429b3a35f763df",
+    "semantic_hash": ""
+  },
+  "docs/validation/score.py": {
+    "mtime": 1792278701.0597277,
+    "seen": 1792292744.7401078,
+    "ast_hash": "e38997ea2aa6e45e59f0af5bf229285c",
+    "semantic_hash": ""
+  },
+  "docs/validation/smoke_api.py": {
+    "mtime": 1792278701.0598288,
+    "seen": 1792292744.740109,
+    "ast_hash": "b8444dedf28462f5336bd5bae167b9dc",
+    "semantic_hash": ""
+  },
+  "lacuna.py": {
+    "mtime": 1792278319.0058603,
+    "seen": 1792292744.7401147,
+    "ast_hash": "38c694759a015bbfdf0c37e821157a79",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1792297913.393235,
+    "seen": 1792297913.9171093,
+    "ast_hash": "47a03b59b707dfb20bdcb3f2e53aad32",
+    "semantic_hash": ""
+  },
+  "docs/lacuna-integration.md": {
+    "mtime": 1792292852.8794408,
+    "seen": 1792292874.4263911,
+    "ast_hash": "da974007c909dcd7abcfc134176f7aab",
+    "semantic_hash": ""
+  },
+  "docs/validation/README.md": {
+    "mtime": 1792278723.9529133,
+    "seen": 1792292744.740122,
+    "ast_hash": "724bf9c168070ad0f224c589131ab3c3",
+    "semantic_hash": ""
+  },
+  "app/index.html": {
+    "mtime": 1792297853.6376672,
+    "seen": 1792297913.91711,
+    "ast_hash": "c51350c23bbbf070db573edda96d9451",
+    "semantic_hash": ""
   }
 }

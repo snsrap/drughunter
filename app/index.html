@@ -1,12 +1,12 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>PaIspD Pocket Bench</title>
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Protein Viewer</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;450;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.5.5/3Dmol-min.js"></script>
-<script>window.MOLDATA = {};
-try{ var t = localStorage.getItem("pv-theme");
+<script>try{ var t = localStorage.getItem("pv-theme");
      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); }catch(e){}</script>
-<script src="structures.js"></script>
 <style>
 :root{
   --bg:#e7ebec; --panel:#fbfcfc; --panel-2:#eff3f3; --sunk:#dde4e5;
@@ -17,8 +17,8 @@ try{ var t = localStorage.getItem("pv-theme");
   --pass-soft:#d9ece2; --fail-soft:#f6dedb; --info-soft:#dbe9f1;
   --viewer:#dae1e2;
   --shadow:0 1px 1px rgba(17,26,28,.06),0 6px 20px rgba(17,26,28,.07);
-  --gl-carbon-pocket:#7f9498; --gl-carbon-ref:#2f9e57; --gl-carbon-sel:#d68e26;
-  --gl-carbon-ens:#4a9bb4; --gl-cartoon:#61797f; --gl-carbon-het:#8a5fb0;
+  --gl-carbon-sel:#d68e26; --gl-cartoon:#61797f; --gl-carbon-het:#8a5fb0;
+  color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -30,8 +30,8 @@ try{ var t = localStorage.getItem("pv-theme");
     --pass-soft:#132a20; --fail-soft:#2c1815; --info-soft:#12242e;
     --viewer:#0c1316;
     --shadow:0 1px 1px rgba(0,0,0,.5),0 8px 26px rgba(0,0,0,.4);
-    --gl-carbon-pocket:#8ba0a4; --gl-carbon-ref:#40b96b; --gl-carbon-sel:#eaa53f;
-    --gl-carbon-ens:#5fb4cd; --gl-cartoon:#6d878d; --gl-carbon-het:#b48ad6;
+    --gl-carbon-sel:#eaa53f; --gl-cartoon:#6d878d; --gl-carbon-het:#b48ad6;
+    color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
@@ -43,85 +43,58 @@ try{ var t = localStorage.getItem("pv-theme");
   --pass-soft:#132a20; --fail-soft:#2c1815; --info-soft:#12242e;
   --viewer:#0c1316;
   --shadow:0 1px 1px rgba(0,0,0,.5),0 8px 26px rgba(0,0,0,.4);
-  --gl-carbon-pocket:#8ba0a4; --gl-carbon-ref:#40b96b; --gl-carbon-sel:#eaa53f;
-  --gl-carbon-ens:#5fb4cd; --gl-cartoon:#6d878d; --gl-carbon-het:#b48ad6;
+  --gl-carbon-sel:#eaa53f; --gl-cartoon:#6d878d; --gl-carbon-het:#b48ad6;
+  color-scheme:dark;
 }
 
 *{box-sizing:border-box}
+[hidden]:not([hidden=until-found i]){display:none!important}
+html,body{height:100%}
 body{
-  background:var(--bg); color:var(--ink);
+  background:var(--bg); color:var(--ink); margin:0; overflow:hidden;
   font-family:"IBM Plex Sans","Segoe UI",Helvetica,Arial,sans-serif;
-  font-size:14px; line-height:1.5; margin:0;
-  padding-block:0 40px; padding-left:16px; padding-right:16px;
-  -webkit-font-smoothing:antialiased;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
 }
-.wrap{max-width:1520px; margin:0 auto}
 h1,h2,h3{margin:0; text-wrap:balance}
 .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
-/* generated-molecule table, under the stage */
-.gtab{margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:3px}
-.gtab .hd{display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--line)}
-.gtab .hd .sp{margin-left:auto; display:flex; gap:6px; align-items:center}
-.gscroll{max-height:420px; overflow:auto}
-table.gt{border-collapse:collapse; width:100%; font-size:12.5px}
-table.gt th{position:sticky; top:0; z-index:1; background:var(--panel); text-align:left;
-  font:600 10.5px/1 -apple-system,sans-serif; letter-spacing:.08em; text-transform:uppercase;
-  color:var(--muted); padding:8px 9px; border-bottom:1px solid var(--line); white-space:nowrap; cursor:pointer}
-table.gt th.nos{cursor:default}
-table.gt th[aria-sort]:after{content:"\2009\25B2"; opacity:.75}
-table.gt th[aria-sort=descending]:after{content:"\2009\25BC"}
-table.gt td{padding:5px 9px; border-bottom:1px solid var(--line-); vertical-align:middle; white-space:nowrap}
-table.gt tbody tr{cursor:pointer}
-table.gt tbody tr:hover{background:var(--sunk)}
-table.gt tbody tr[aria-selected=true]{background:var(--accent-soft)}
-.gt .depict{width:152px; height:110px; display:block; color:var(--ink)}
-.gt .depict svg{width:100%; height:100%}
-.gt .pk{display:inline-flex; align-items:center; gap:6px; font-weight:600}
-.gt .pk i{width:9px; height:9px; border-radius:50%; display:inline-block; flex:none}
-.gt .smi{max-width:280px; overflow:hidden; text-overflow:ellipsis; color:var(--muted)}
-.gt .num{text-align:right}
 .eyebrow{
   font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:10px; font-weight:600;
   letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
 }
 
-/* ---------- masthead ---------- */
-.mast{
-  display:flex; flex-wrap:wrap; gap:16px 28px; align-items:flex-end;
-  padding-block:22px 16px; border-bottom:2px solid var(--ink);
+/* ---------- app shell: one screen, the side panels scroll on their own ---------- */
+.app{display:grid; grid-template-rows:auto minmax(0,1fr); height:100vh; height:100dvh}
+.top{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:6px 12px;
+  background:var(--panel); border-bottom:1px solid var(--line);
 }
-.mast h1{
+.top h1{
   font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif;
-  font-size:clamp(26px,3.4vw,38px); font-weight:700; letter-spacing:-.015em; line-height:1;
+  font-size:19px; font-weight:700; letter-spacing:-.01em; line-height:1; white-space:nowrap;
 }
-.mast .sub{color:var(--muted); font-size:13px; max-width:52ch; margin-top:6px}
-.readout{display:flex; flex-wrap:wrap; gap:6px 22px; margin-left:auto}
-.seg.theme{flex:none; align-self:center}
-.seg.theme button{flex:none; padding:5px 11px}
-:root[data-theme="light"]{color-scheme:light}
-:root[data-theme="dark"]{color-scheme:dark}
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){color-scheme:dark} }
-.ro{display:flex; flex-direction:column; gap:2px}
-.ro b{font-family:"IBM Plex Mono",monospace; font-size:15px; font-weight:600; letter-spacing:-.01em}
+.tgrp{display:flex; align-items:center; gap:7px}
+.top .seg button{flex:none; padding:4px 10px}
+.top .end{margin-left:auto; display:flex; align-items:center; gap:8px}
 
-/* ---------- console grid ---------- */
-.console{display:grid; grid-template-columns:246px minmax(0,1fr) 296px; gap:14px; margin-top:14px; align-items:start}
-@media (max-width:1180px){ .console{grid-template-columns:230px minmax(0,1fr)} .insp{grid-column:1/-1} }
-@media (max-width:820px){ .console{grid-template-columns:1fr} }
+.main{display:grid; grid-template-columns:290px minmax(0,1fr); gap:10px; padding:10px; min-height:0}
+.rail{
+  display:flex; flex-direction:column; gap:8px; min-height:0; overflow-y:auto;
+  overscroll-behavior:contain; scrollbar-width:thin;
+}
+.center{display:flex; flex-direction:column; gap:10px; min-height:0; min-width:0}
 
-.rail,.insp{display:flex; flex-direction:column; gap:10px}
-.mod{background:var(--panel); border:1px solid var(--line); border-radius:3px; overflow:hidden}
+.mod{background:var(--panel); border:1px solid var(--line); border-radius:3px; overflow:hidden; flex:none}
 .mod > .hd{
   display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding:7px 10px; background:var(--panel-2); border-bottom:1px solid var(--line);
+  padding:6px 10px; background:var(--panel-2); border-bottom:1px solid var(--line);
 }
-.mod > .bd{padding:10px; display:flex; flex-direction:column; gap:8px}
+.mod > .bd{padding:9px 10px; display:flex; flex-direction:column; gap:7px}
 
 /* segmented + option controls */
 .opts{display:flex; flex-direction:column; gap:3px}
 .opt{
   display:grid; grid-template-columns:9px 1fr auto; align-items:center; gap:8px;
-  padding:6px 8px; border:1px solid transparent; border-radius:2px;
+  padding:5px 8px; border:1px solid transparent; border-radius:2px;
   background:none; color:var(--ink); text-align:left; cursor:pointer;
   font:inherit; font-size:13px; width:100%;
 }
@@ -134,8 +107,6 @@ table.gt tbody tr[aria-selected=true]{background:var(--accent-soft)}
   font-family:"IBM Plex Mono",monospace; font-size:9.5px; font-weight:600; letter-spacing:.08em;
   text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:2px; padding:1px 4px;
 }
-.opt .tag.decoy{color:var(--warn); border-color:var(--warn)}
-.opt .tag.origin{color:var(--fail); border-color:var(--fail)}
 .opt small{display:block; color:var(--muted); font-size:11px; line-height:1.35}
 
 .seg{display:flex; border:1px solid var(--line); border-radius:2px; overflow:hidden}
@@ -144,17 +115,14 @@ table.gt tbody tr[aria-selected=true]{background:var(--accent-soft)}
   color:var(--ink-2); font:inherit; font-size:12px; cursor:pointer;
 }
 .seg button:last-child{border-right:0}
-.seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); font-weight:600}
+.seg button:hover:not([disabled]):not([aria-pressed="true"]):not([aria-checked="true"]){background:var(--panel-2)}
+.seg button[aria-pressed="true"],.seg button[aria-checked="true"]{background:var(--accent); color:var(--accent-ink); font-weight:600}
+.seg button[disabled]{opacity:.45; cursor:not-allowed}
 
-.chips{display:flex; flex-wrap:wrap; gap:5px}
-.chip{
-  border:1px solid var(--line); background:var(--panel); color:var(--ink-2);
-  border-radius:2px; padding:4px 7px; cursor:pointer;
-  font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.02em;
-}
-.chip[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600}
 .chk{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-2); cursor:pointer}
 .chk input{accent-color:var(--accent); margin:0}
+.chks{display:flex; flex-direction:column; gap:4px}
+.chk .aside{color:var(--muted); font-size:11px}
 label.fld{display:flex; flex-direction:column; gap:4px}
 select,input[type=number]{
   font:inherit; font-size:12.5px; padding:5px 6px; border:1px solid var(--line);
@@ -162,6 +130,7 @@ select,input[type=number]{
 }
 input[type=range]{width:100%; accent-color:var(--accent); margin:0}
 :focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.sub{color:var(--muted); font-size:11px; line-height:1.35; margin-top:-3px}
 .pdbq{display:flex; gap:6px}
 .pdbq input{
   flex:1; min-width:0; padding:5px 7px; border:1px solid var(--line); border-radius:2px;
@@ -169,126 +138,179 @@ input[type=range]{width:100%; accent-color:var(--accent); margin:0}
   font-family:"IBM Plex Mono",monospace; font-size:12.5px; letter-spacing:.04em;
 }
 .pdbq input::placeholder{text-transform:none; letter-spacing:0; color:var(--muted)}
-.pdbq .btn[disabled]{opacity:.55; cursor:progress}
 .pdbq-msg{font-size:11.5px; line-height:1.4; color:var(--muted);
   display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden}
 .pdbq-msg:empty{display:none}
 .pdbq-msg.err{color:var(--fail)}
-.prep-log summary{cursor:pointer; color:var(--muted); font-size:11px; margin-top:4px}
+.pdbq-msg b{color:var(--ink); font-weight:600; font-family:"IBM Plex Mono",monospace}
+.prep-log summary,.runlog summary{cursor:pointer; color:var(--muted); font-size:11px}
 .prep-log pre{font:10.5px/1.45 "IBM Plex Mono",monospace; color:var(--ink); white-space:pre;
   max-height:260px; overflow:auto; margin:4px 0 0; padding:6px 8px;
-  background:var(--panel-2); border-radius:4px}
-.pdbq-msg b{color:var(--ink); font-weight:600; font-family:"IBM Plex Mono",monospace}
+  background:var(--panel-2); border-radius:2px}
+.runlog .pdbq-msg{display:block; margin-top:4px}
 
-/* ---------- stage ---------- */
-.stage{position:relative; background:var(--viewer); border:1px solid var(--line); border-radius:3px; overflow:hidden}
-#gl{position:relative; width:100%; height:clamp(430px,64vh,760px)}
-#gl canvas{display:block}
-.overlay{position:absolute; pointer-events:none; font-family:"IBM Plex Mono",monospace; font-size:11px}
-.ov-tl{top:0; left:0; padding:9px 11px; display:flex; flex-direction:column; gap:3px}
-.ov-tl .arm{font-size:13px; font-weight:600; color:var(--ink)}
-.ov-tl .fr{color:var(--muted)}
-.ov-br{right:0; bottom:0; padding:9px 11px; display:flex; gap:12px; color:var(--muted)}
-.key{display:flex; align-items:center; gap:5px}
-.key i{width:16px; height:3px; border-radius:2px; display:block}
-.stage .bar{
-  display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px;
-  padding:7px 10px; border-top:1px solid var(--line); background:var(--panel);
-}
 .btn{
   border:1px solid var(--line); background:var(--panel); color:var(--ink-2);
   border-radius:2px; padding:4px 9px; font:inherit; font-size:12px; cursor:pointer;
 }
-.btn:hover{background:var(--panel-2)}
+.btn:hover:not([disabled]){background:var(--panel-2)}
 .btn.solid{background:var(--ink); color:var(--bg); border-color:var(--ink)}
-.scrub{display:flex; align-items:center; gap:8px; flex:1; min-width:210px}
-#busy{
-  position:absolute; inset:0; display:none; place-items:center; background:var(--viewer); opacity:.92;
-  font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted);
-}
-#busy.on{display:grid}
-.banner{
-  display:none; gap:8px; padding:8px 11px; font-size:12.5px; line-height:1.45;
-  border-top:1px solid var(--line); background:var(--fail-soft); color:var(--ink);
-}
-.banner.on{display:flex}
-.banner.warn{background:var(--accent-soft)}
-.banner b{font-family:"IBM Plex Sans Condensed",sans-serif; letter-spacing:.01em}
-
-/* ---------- inspector ---------- */
-.stepper{display:flex; align-items:center; gap:8px; justify-content:space-between}
-.stepper .n{font-family:"IBM Plex Mono",monospace; font-size:20px; font-weight:600; letter-spacing:-.02em}
-.stepper .n span{color:var(--muted); font-size:13px; font-weight:400}
-.smiles{
-  font-family:"IBM Plex Mono",monospace; font-size:11.5px; line-height:1.5; word-break:break-all;
-  background:var(--sunk); border:1px solid var(--line); border-radius:2px; padding:7px 8px; color:var(--ink-2);
-}
-.kv{display:grid; grid-template-columns:1fr auto; gap:3px 10px; font-size:12.5px}
-.kv dt{color:var(--muted)}
-.kv dd{margin:0; font-family:"IBM Plex Mono",monospace; font-weight:500; text-align:right; font-variant-numeric:tabular-nums}
-.kv .hi{color:var(--accent); font-weight:600}
-.flags{display:flex; flex-wrap:wrap; gap:5px}
-.flag{
-  font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:600; letter-spacing:.05em;
-  text-transform:uppercase; padding:3px 6px; border-radius:2px; border:1px solid;
-}
-.flag.y{background:var(--pass-soft); color:var(--pass); border-color:var(--pass)}
-.flag.n{background:var(--fail-soft); color:var(--fail); border-color:var(--fail)}
-.flag.u{background:var(--sunk); color:var(--muted); border-color:var(--line)}
+.btn.solid:hover:not([disabled]){background:var(--ink-2); border-color:var(--ink-2)}
+.btn.wide{width:100%}
+.btn[disabled]{opacity:.45; cursor:not-allowed}
+.btn[aria-pressed="true"]{background:var(--accent-soft); border-color:var(--accent); color:var(--ink)}
 .hr{height:1px; background:var(--line); margin:1px 0}
 
-/* ---------- documentation band ---------- */
-.docs{margin-top:34px; padding-top:22px; border-top:2px solid var(--ink)}
-.docs h2{
-  font-family:"IBM Plex Sans Condensed",sans-serif; font-size:20px; font-weight:600; letter-spacing:-.01em;
+/* ---------- stage ---------- */
+.stage{
+  position:relative; flex:1; min-height:0; display:flex; flex-direction:column;
+  background:var(--viewer); border:1px solid var(--line); border-radius:3px; overflow:hidden;
 }
-.docs p{max-width:66ch; color:var(--ink-2)}
-.cols{display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:26px; margin-top:18px}
-.tw{overflow-x:auto; border:1px solid var(--line); border-radius:3px; background:var(--panel)}
-table{border-collapse:collapse; width:100%; font-size:12.5px}
-th,td{padding:6px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap}
-thead th{
-  font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
-  color:var(--muted); font-weight:600; background:var(--panel-2);
+.glbox{position:relative; flex:1; min-height:160px}
+/* Pinned to the box so the canvas is sized by the layout and never pushes it. */
+#gl{position:absolute; inset:0; overflow:hidden}
+#gl canvas{display:block}
+.overlay{position:absolute; pointer-events:none; font-family:"IBM Plex Mono",monospace; font-size:11px}
+.ov-tl,.ov-br{background:color-mix(in srgb, var(--viewer) 78%, transparent)}
+.ov-tl{top:0; left:0; padding:7px 11px; display:flex; flex-direction:column; gap:2px; max-width:75%; border-bottom-right-radius:3px}
+.ov-tl .id{font-size:13px; font-weight:600; color:var(--ink)}
+.ov-tl .fr{color:var(--muted)}
+.ov-tl .fr b{color:var(--ink-2); font-weight:600}
+.ov-br{right:0; bottom:0; padding:5px 11px; border-top-left-radius:3px; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px 12px; color:var(--muted); max-width:70%}
+.key{display:flex; align-items:center; gap:5px}
+.key i{width:16px; height:3px; border-radius:2px; display:block}
+/* Busy is a pill, not a cover: the scene stays visible while data loads. */
+#busy{
+  position:absolute; top:8px; right:10px; display:none; align-items:center; gap:7px;
+  padding:3px 10px 3px 8px; border:1px solid var(--line); border-radius:999px;
+  background:var(--panel); color:var(--muted); box-shadow:var(--shadow);
+  font-family:"IBM Plex Mono",monospace; font-size:11px; pointer-events:none;
 }
-tbody tr:last-child td{border-bottom:0}
-td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
-td.name{white-space:normal; min-width:190px}
-.note{
-  border-left:3px solid var(--warn); background:var(--panel); padding:11px 14px; border-radius:0 3px 3px 0;
-  font-size:13px; line-height:1.55; color:var(--ink-2);
+#busy.on{display:flex}
+#busy:before{
+  content:""; width:9px; height:9px; border-radius:50%;
+  border:2px solid var(--line-2); border-top-color:var(--accent); animation:spin .8s linear infinite;
 }
-.note.stop{border-left-color:var(--fail)}
-.note h3{
-  font-family:"IBM Plex Sans Condensed",sans-serif; font-size:14px; font-weight:600;
-  color:var(--ink); margin-bottom:3px; letter-spacing:.01em;
+@keyframes spin{to{transform:rotate(360deg)}}
+.stage .bar{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:6px 12px;
+  padding:6px 10px; border-top:1px solid var(--line); background:var(--panel);
 }
-.note + .note{margin-top:10px}
-.docs code{font-family:"IBM Plex Mono",monospace; font-size:11.5px; background:var(--sunk); padding:1px 4px; border-radius:2px}
-footer{margin-top:30px; padding-top:14px; border-top:1px solid var(--line); color:var(--muted); font-size:12px}
+.banner{
+  display:none; padding:7px 11px; font-size:12.5px; line-height:1.45;
+  border-top:1px solid var(--line); background:var(--fail-soft); color:var(--ink);
+}
+.banner.on{display:block}
+.banner .btn{float:right; margin:-2px 0 2px 12px}
+.banner.warn{background:var(--accent-soft)}
+.banner.info{background:var(--info-soft)}
+.banner b{font-family:"IBM Plex Sans Condensed",sans-serif; letter-spacing:.01em}
+
+/* ---------- generated-molecule table: a resizable panel under the stage ---------- */
+.gtab{flex:none; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); border-radius:3px; overflow:hidden}
+.grip{height:7px; cursor:row-resize; background:var(--panel-2); border-bottom:1px solid var(--line); position:relative; touch-action:none}
+.grip:after{content:""; position:absolute; left:50%; top:2px; width:36px; height:2px; margin-left:-18px; border-radius:2px; background:var(--line-2)}
+.gtab.closed .grip{display:none}
+.gtab .hd{display:flex; align-items:center; gap:10px; padding:5px 10px}
+.gtab:not(.closed) .hd{border-bottom:1px solid var(--line)}
+.gtab .hd .sp{margin-left:auto; display:flex; gap:10px; align-items:center}
+.gtab .tog{padding:1px 7px; line-height:1.3}
+.gscroll{height:240px; overflow:auto}
+.gtab.closed .gscroll{display:none}
+table.gt{border-collapse:collapse; width:100%; font-size:12.5px}
+table.gt th{position:sticky; top:0; z-index:1; background:var(--panel); text-align:left;
+  font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); padding:7px 9px; border-bottom:1px solid var(--line); white-space:nowrap; cursor:pointer}
+table.gt th.nos{cursor:default}
+table.gt th.num{text-align:right}
+table.gt th[aria-sort]:after{content:"\2009\25B2"; opacity:.75}
+table.gt th[aria-sort=descending]:after{content:"\2009\25BC"}
+table.gt td{padding:3px 9px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap}
+table.gt tbody tr{cursor:pointer}
+table.gt tbody tr:hover{background:var(--sunk)}
+table.gt tbody tr[aria-selected=true]{background:var(--accent-soft)}
+.gt .depict{width:120px; height:86px; display:block; color:var(--ink)}
+.gt .depict svg{width:100%; height:100%}
+.gt .pk{display:inline-flex; align-items:center; gap:6px; font-weight:600}
+.gt .pk i{width:9px; height:9px; border-radius:50%; display:inline-block; flex:none}
+.gt .smi{max-width:280px; overflow:hidden; text-overflow:ellipsis; color:var(--muted)}
+.gt .num{text-align:right}
+table.gt tbody tr:last-child td{border-bottom:0}
+
+/* ---------- structure tree: chains and their residues, ligands, waters ---------- */
+.tree{max-height:52vh; overflow:auto; scrollbar-width:thin; margin:0 -5px; font-size:12.5px; line-height:1.35; user-select:none}
+.tn{display:flex; align-items:center; padding-left:calc(var(--d) * 13px)}
+.tn .tw{
+  flex:none; width:18px; height:22px; padding:0; border:0; background:none; cursor:pointer;
+  color:var(--muted); font-size:9px; line-height:22px; text-align:center;
+}
+.tn .tw:hover{color:var(--ink)}
+.tn .tw.leaf{visibility:hidden; cursor:default}
+.tn .tl{
+  flex:1; min-width:0; display:flex; align-items:baseline; gap:6px; padding:2px 6px;
+  border:1px solid transparent; border-radius:2px; background:none; color:var(--ink);
+  font:inherit; text-align:left; cursor:pointer; white-space:nowrap;
+}
+.tn .tl:hover{background:var(--panel-2)}
+.tn[aria-selected="true"] .tl{background:var(--accent-soft); border-color:var(--accent)}
+.tn .nm{font-family:"IBM Plex Mono",monospace; font-size:12px}
+.tn .fd{font-weight:600}
+.tn .as{color:var(--muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.tn .ct{margin-left:auto; padding-left:6px; color:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+/* one root per loaded structure: swatch, show/hide, remove */
+.tn.root:not(:first-child){border-top:1px solid var(--line); margin-top:3px; padding-top:3px}
+.tn .sw{flex:none; width:9px; height:9px; border-radius:2px; align-self:center}
+.tn .ib{
+  flex:none; width:22px; height:22px; padding:0; border:0; border-radius:2px; background:none;
+  color:var(--muted); cursor:pointer; display:grid; place-items:center; font-size:15px; line-height:1;
+}
+.tn .ib:hover{background:var(--panel-2); color:var(--ink)}
+.tn .ib svg{width:14px; height:14px}
+.tn.off .tl{opacity:.5}
+/* Below the structure row the eye and the cross wait for hover or focus,
+   except an eye that is itself switched off. */
+.tn:not(.root) .ib{visibility:hidden}
+.tn:hover .ib, .tn:focus-within .ib, .tn .ib.on{visibility:visible}
+.tn .ib.inh{opacity:.45; cursor:default}
+.hd-end{display:flex; align-items:center; gap:10px}
+.lnk{border:0; background:none; padding:0; color:var(--accent); font:inherit; font-size:11px; cursor:pointer}
+.lnk:hover{text-decoration:underline}
+.scope{font-size:11.5px; line-height:1.4; color:var(--ink-2); padding:5px 7px; background:var(--panel-2); border-radius:2px}
+.scope b{font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--ink)}
+.scope.err{color:var(--fail); background:var(--fail-soft)}
+
+/* ---------- narrower screens ---------- */
+@media (max-width:1180px){
+  .main{grid-template-columns:250px minmax(0,1fr)}
+}
+/* Below this there is no room for three columns: stack, stage first, and let the page scroll. */
+@media (max-width:900px){
+  body{overflow:auto}
+  .app{display:block; height:auto}
+  .main{grid-template-columns:minmax(0,1fr)}
+  .center{order:-1}
+  .stage{flex:none}
+  .glbox{flex:none; height:62vh}
+  .rail{overflow:visible}
+  .top .end{margin-left:0}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
 </style>
+</head>
+<body>
+<div class="app">
 
-<div class="wrap">
-
-<header class="mast">
-  <div>
-    <h1>PaIspD Pocket Bench</h1>
-    <div class="sub">Generated ligands and the 9GC8 receptor in one crystal frame &mdash; loaded as deposited, with no superposition step.</div>
-  </div>
-  <div class="readout">
-    <div class="ro"><span class="eyebrow">Frame</span><b>9GC8 chain A</b></div>
-    <div class="ro"><span class="eyebrow">Cell P1</span><b>92.15 75.63 37.63</b></div>
-    <div class="ro"><span class="eyebrow">Pocket COM &Aring;</span><b>&minus;25.12 24.98 11.91</b></div>
-    <div class="ro"><span class="eyebrow">Ensemble &Delta;COM</span><b id="ro-delta">&mdash;</b></div>
-  </div>
-  <div class="seg theme" id="theme" role="group" aria-label="Colour theme">
-    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
-    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+<header class="top">
+  <h1>Protein Viewer</h1>
+  <div class="end">
+    <div class="seg theme" id="theme" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </div>
   </div>
 </header>
 
-<div class="console">
+<main class="main" id="main">
 
   <!-- ============ control rail ============ -->
   <div class="rail">
@@ -304,47 +326,44 @@ footer{margin-top:30px; padding-top:14px; border-top:1px solid var(--line); colo
       </div>
     </section>
 
-    <section class="mod" data-ens="1">
-      <div class="hd"><span class="eyebrow">Arm</span><span class="eyebrow" id="arm-n"></span></div>
-      <div class="bd"><div class="opts" id="arms" role="radiogroup" aria-label="Generation arm"></div></div>
-    </section>
-
-    <section class="mod" data-ens="1">
-      <div class="hd"><span class="eyebrow">Pose source</span></div>
-      <div class="bd">
-        <div class="opts" id="srcs" role="radiogroup" aria-label="Pose source"></div>
-      </div>
-    </section>
-
     <section class="mod">
-      <div class="hd"><span class="eyebrow">Receptor</span></div>
+      <div class="hd"><span class="eyebrow">Receptor</span>
+        <span class="hd-end"><button class="lnk" type="button" id="undo" hidden>Undo</button>
+          <button class="lnk" type="button" id="sel-clear" hidden>Clear selection</button>
+          <span class="eyebrow" id="ent-n"></span></span></div>
       <div class="bd">
-        <div class="opts" id="ctxs" role="radiogroup" aria-label="Receptor context"></div>
-        <button class="btn solid" type="button" id="prep-btn" style="width:100%; margin-top:8px">Prepare structure</button>
+        <div class="sub" id="ent-empty">Nothing loaded — fetch a PDB entry above.</div>
+        <div class="tree" id="tree" role="tree" aria-label="Loaded structures" aria-multiselectable="true" hidden></div>
+        <div class="sub" id="tree-hint" hidden>Click selects · Ctrl/⌘-click adds · Shift-click selects a range · Esc clears ·
+          the eye (H) hides, × (Del) removes, Ctrl/⌘-Z undoes</div>
+        <div class="scope" id="scope" aria-live="polite" hidden></div>
+        <button class="btn solid wide" type="button" id="prep-btn">Prepare structure</button>
         <div class="pdbq-msg" id="prep-msg" aria-live="polite"></div>
         <details class="prep-log" id="prep-log" hidden><summary>Full report</summary><pre id="prep-pre"></pre></details>
-        <div class="hr"></div>
-        <label class="chk"><input type="checkbox" id="c-surface"> Pocket surface</label>
-        <label class="chk"><input type="checkbox" id="c-ref" checked> A1IJS crystal fragment</label>
-        <label class="chk"><input type="checkbox" id="c-labels" checked> Contact-residue labels</label>
       </div>
     </section>
 
-    <!-- Follows Receptor: it runs on whichever receptor is selected above. -->
+    <!-- Runs on whichever receptor is selected above. -->
     <section class="mod">
       <div class="hd"><span class="eyebrow">Pockets</span><span class="eyebrow" id="pk-n"></span></div>
       <div class="bd">
-        <button class="btn solid" type="button" id="find-pockets" style="width:100%">Find pockets</button>
+        <select id="pk-method" style="width:100%;margin-bottom:6px"
+                aria-label="Pocket detector">
+          <option value="fpocket">fpocket — the structure as it stands</option>
+          <option value="lacuna:nma">lacuna — normal-mode ensemble</option>
+          <option value="lacuna:openmm">lacuna — MD ensemble (OpenMM)</option>
+        </select>
+        <button class="btn solid wide" type="button" id="find-pockets">Find pockets</button>
         <div class="pdbq-msg" id="pk-msg" aria-live="polite"></div>
         <label class="chk" id="pk-sph-wrap" hidden><input type="checkbox" id="c-spheres">
-          Alpha spheres <span class="eyebrow">what the cut follows</span></label>
+          Alpha spheres <span class="aside">&middot; what the cut follows</span></label>
         <div class="opts" id="pk-list" role="group" aria-label="Detected pockets"></div>
-        <div class="pdbq-msg" id="pk-run"></div>
+        <details class="runlog" id="pk-runlog" hidden><summary>What was run</summary><div class="pdbq-msg" id="pk-run"></div></details>
         <div id="gen-wrap" hidden>
           <div class="hr"></div>
           <label class="fld"><span class="eyebrow">Molecules per pocket</span>
             <input type="number" id="gen-n" min="1" max="500" step="1" value="25"></label>
-          <button class="btn solid" type="button" id="gen-run" style="width:100%">Generate binders</button>
+          <button class="btn solid wide" type="button" id="gen-run" style="margin-top:7px">Generate binders</button>
           <div class="pdbq-msg" id="gen-msg" aria-live="polite"></div>
         </div>
       </div>
@@ -357,85 +376,45 @@ footer{margin-top:30px; padding-top:14px; border-top:1px solid var(--line); colo
         <div class="opts" id="gen-list" role="group" aria-label="Generated groups"></div>
         <label class="fld"><span class="eyebrow">Show per group <span class="mono" id="lab-genshow">25</span></span>
           <input type="range" id="gen-show" min="1" max="100" step="1" value="25"></label>
-        <div class="pdbq-msg" id="gen-run"></div>
-      </div>
-    </section>
-
-    <section class="mod">
-      <div class="hd"><span class="eyebrow">Display</span></div>
-      <div class="bd">
-        <div class="seg" id="modes" role="group" aria-label="Display mode">
-          <button type="button" data-mode="single" aria-pressed="true">Single</button>
-          <button type="button" data-mode="ensemble" aria-pressed="false">Ensemble</button>
-          <button type="button" data-mode="cloud" aria-pressed="false">Centroids</button>
-        </div>
-        <label class="fld" id="wrap-count">
-          <span class="eyebrow">Ensemble size <span class="mono" id="lab-count">60</span></span>
-          <input type="range" id="c-count" min="5" max="300" step="5" value="60">
-        </label>
-      </div>
-    </section>
-
-    <section class="mod" id="mod-filter" data-ens="1">
-      <div class="hd"><span class="eyebrow">Filter</span><span class="eyebrow" id="filt-n"></span></div>
-      <div class="bd">
-        <div class="chips" id="filters">
-          <button type="button" class="chip" data-f="endpoint" aria-pressed="false">endpoint</button>
-          <button type="button" class="chip" data-f="pb" aria-pressed="false">PB&#8209;valid</button>
-          <button type="button" class="chip" data-f="clash" aria-pressed="false">0 clashes</button>
-          <button type="button" class="chip" data-f="ser89" aria-pressed="false">Ser89 HB</button>
-          <button type="button" class="chip" data-f="rec" aria-pressed="false">recov &ge; 0.5</button>
-        </div>
-        <label class="fld">
-          <span class="eyebrow">Order by</span>
-          <select id="c-sort">
-            <option value="idx">index (as generated)</option>
-            <option value="dock">docked affinity</option>
-            <option value="ip">in-place Vina score</option>
-            <option value="rec">interaction recovery</option>
-            <option value="qed">QED</option>
-            <option value="nha">heavy atoms</option>
-            <option value="dcom">COM drift on docking</option>
-          </select>
-        </label>
+        <details class="runlog" id="gen-runlog" hidden><summary>What was run</summary><div class="pdbq-msg" id="gen-meta"></div></details>
       </div>
     </section>
   </div>
 
   <!-- ============ stage ============ -->
-  <div>
+  <div class="center">
     <div class="stage">
-      <div id="gl"></div>
-      <div class="overlay ov-tl">
-        <span class="arm" id="ov-arm"></span>
-        <span class="fr" id="ov-frame"></span>
+      <div class="glbox">
+        <div id="gl"></div>
+        <div class="overlay ov-tl">
+          <span class="id" id="ov-id"></span>
+          <span class="fr" id="ov-sub"></span>
+          <span class="fr" id="ov-pick"></span>
+        </div>
+        <div class="overlay ov-br" id="ov-key"></div>
+        <div id="busy" role="status"><span id="busy-t">loading&hellip;</span></div>
       </div>
-      <div class="overlay ov-br" id="ov-key"></div>
-      <div id="busy">loading&hellip;</div>
       <div class="banner" id="banner"></div>
       <div class="bar">
-        <div class="scrub">
-          <button class="btn" type="button" id="prev" aria-label="Previous molecule">&lsaquo;</button>
-          <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Scrub through molecules">
-          <button class="btn" type="button" id="next" aria-label="Next molecule">&rsaquo;</button>
-        </div>
-        <button class="btn" type="button" id="rand">Random</button>
-        <button class="btn" type="button" id="fit">Fit pocket</button>
         <button class="btn solid" type="button" id="fitall">Fit all</button>
       </div>
     </div>
 
     <!-- Generated molecules, one row each, grouped by the pocket they came from. -->
-    <div class="gtab" id="gtab" hidden>
+    <section class="gtab" id="gtab" hidden>
+      <div class="grip" id="gt-grip" role="separator" aria-orientation="horizontal" tabindex="0"
+           aria-label="Resize the molecule table"></div>
       <div class="hd">
+        <button class="btn tog" type="button" id="gt-tog" aria-expanded="true" aria-controls="gscroll"
+                aria-label="Collapse the molecule table">&#9662;</button>
         <span class="eyebrow">Generated molecules</span>
         <span class="eyebrow" id="gt-n"></span>
         <span class="sp">
-          <label class="chk" style="margin:0"><input type="checkbox" id="gt-only"> Visible groups only</label>
+          <label class="chk"><input type="checkbox" id="gt-only"> Visible groups only</label>
           <button class="btn" type="button" id="gt-csv">CSV</button>
         </span>
       </div>
-      <div class="gscroll">
+      <div class="gscroll" id="gscroll">
         <table class="gt" id="gt">
           <thead><tr>
             <th class="nos">Structure</th>
@@ -454,156 +433,29 @@ footer{margin-top:30px; padding-top:14px; border-top:1px solid var(--line); colo
           <tbody id="gt-body"></tbody>
         </table>
       </div>
-    </div>
-  </div>
-
-  <!-- ============ inspector ============ -->
-  <div class="insp">
-    <section class="mod" data-ens="1">
-      <div class="hd"><span class="eyebrow">Molecule</span><span class="eyebrow" id="insp-src"></span></div>
-      <div class="bd">
-        <div class="stepper">
-          <span class="n" id="insp-idx">&mdash;</span>
-          <span class="flags" id="insp-flags"></span>
-        </div>
-        <div class="smiles" id="insp-smiles">&mdash;</div>
-      </div>
-    </section>
-
-    <section class="mod" data-ens="1">
-      <div class="hd"><span class="eyebrow">Placement</span></div>
-      <div class="bd">
-        <dl class="kv" id="insp-geom"></dl>
-      </div>
-    </section>
-
-    <section class="mod">
-      <div class="hd"><span class="eyebrow">Metrics</span></div>
-      <div class="bd">
-        <dl class="kv" id="insp-metrics"></dl>
-      </div>
     </section>
   </div>
-</div>
 
-<!-- ============ documentation ============ -->
-<div class="docs">
-  <h2>What is on the screen</h2>
-  <p>Every object below is read from the deposited 9GC8 chain A coordinate frame. The generator was
-  conditioned on a 20-residue cut of that pocket and its output was mapped straight back by adding
-  the pocket centroid, so ligands and receptor share an origin with no alignment applied here.</p>
-
-  <div class="cols">
-    <div>
-      <span class="eyebrow">Centroid check &mdash; distance to the pocket cut</span>
-      <div class="tw" style="margin-top:8px">
-        <table>
-          <thead><tr><th>Object</th><th>Atoms</th><th>Centroid x, y, z (&Aring;)</th><th>&Delta; (&Aring;)</th></tr></thead>
-          <tbody>
-            <tr><td class="name">20-residue pocket cut</td><td class="num">255</td><td class="num">&minus;25.12&ensp;24.98&ensp;11.91</td><td class="num">0.00</td></tr>
-            <tr><td class="name">Apo 9GBY pocket, superposed</td><td class="num">255</td><td class="num">&minus;25.09&ensp;25.00&ensp;11.77</td><td class="num">0.15</td></tr>
-            <tr><td class="name">A1IJS crystal fragment</td><td class="num">28</td><td class="num">&minus;25.91&ensp;24.48&ensp;16.02</td><td class="num">4.21</td></tr>
-            <tr><td class="name">9GC8 chain A, whole</td><td class="num">1748</td><td class="num">&minus;17.96&ensp;23.92&ensp;7.42</td><td class="num">8.52</td></tr>
-            <tr><td class="name">Decoy pocket cut (arm D1)</td><td class="num">259</td><td class="num">&minus;10.51&ensp;14.78&ensp;8.94</td><td class="num">18.06</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p style="font-size:12.5px; margin-top:10px">The fragment centroid sits 4.21&nbsp;&Aring; from the centroid of the
-      residues cut around it &mdash; the expected offset for a ligand lying against one face of a pocket shell, not a frame error.</p>
-    </div>
-
-    <div>
-      <span class="eyebrow">Arm ledger</span>
-      <div class="tw" style="margin-top:8px">
-        <table>
-          <thead><tr><th>Arm</th><th>Tests</th><th>Frame</th><th>n</th><th>Median &Delta;COM</th><th>Endpoint</th></tr></thead>
-          <tbody>
-            <tr><td class="mono">A</td><td class="name">holo pocket, cfg 0.5 &mdash; the method</td><td>crystal</td><td class="num">991</td><td class="num">2.76</td><td class="num">69.5%</td></tr>
-            <tr><td class="mono">B</td><td class="name">apo 9GBY pocket superposed</td><td>crystal</td><td class="num">993</td><td class="num">2.80</td><td class="num">66.4%</td></tr>
-            <tr><td class="mono">C</td><td class="name">cfg 0.0, unguided</td><td>crystal</td><td class="num">982</td><td class="num">2.82</td><td class="num">72.7%</td></tr>
-            <tr><td class="mono">D1</td><td class="name">decoy site 18&nbsp;&Aring; away</td><td>crystal, decoy site</td><td class="num">913</td><td class="num">19.73</td><td class="num">&mdash;</td></tr>
-            <tr><td class="mono">D2</td><td class="name">shuffled pocket atom labels</td><td>crystal</td><td class="num">993</td><td class="num">2.94</td><td class="num">56.2%</td></tr>
-            <tr><td class="mono">E</td><td class="name">unconditional, no pocket</td><td>model origin</td><td class="num">957</td><td class="num">37.36</td><td class="num">&mdash;</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p style="font-size:12.5px; margin-top:10px">&Delta;COM is the median distance from a generated ligand centroid to the
-      pocket centroid, in-place. Four arms cluster at 2.8&nbsp;&Aring;; D1 and E do not, by construction.</p>
-    </div>
-  </div>
-
-  <h2 style="margin-top:30px">Two things the brief assumed that the files do not support</h2>
-  <div class="cols" style="margin-top:14px">
-    <div>
-      <div class="note stop">
-        <h3>There are no docked poses for D1 or E</h3>
-        <code>validation/results/poses/</code> holds four files &mdash; armA, armB, armC and armD2.
-        <code>armD1_docked.sdf</code> and <code>armE_docked.sdf</code> were never written, and
-        <code>logs/dock_armE.log</code> stops after its header line. The docked pose source is therefore
-        disabled for those two arms here.
-      </div>
-      <div class="note">
-        <h3>D1 does not need them</h3>
-        <code>generate_arms.py</code> maps every conditioned arm back into the crystal frame by adding its own
-        conditioning-pocket centroid, decoy included. D1's molecules are already in the 9GC8 frame &mdash; they
-        sit on the decoy site, 18&nbsp;&Aring; from the true pocket, which is what that control is for. Load it
-        against the full chain to see both sites at once.
-      </div>
-    </div>
-    <div>
-      <div class="note stop">
-        <h3>Arm E has no pocket frame to return to</h3>
-        Arm E is the unconditional negative control, so the mapping step is skipped by design and its 957
-        molecules stay centred on the model origin, 37&nbsp;&Aring; away. Docking was the intended fix and it
-        did not produce a file, so no honest pocket-frame pose exists for arm E today. The viewer offers a
-        rigid shift of the whole ensemble onto the pocket centroid for size and shape comparison only &mdash; it is
-        a viewing aid, never a pose, and it is labelled as such on the stage.
-      </div>
-      <div class="note">
-        <h3>What is shown per molecule</h3>
-        Heavy atoms only. Per-molecule metrics exist for arms A, B, C and D2 &mdash; the four scored conditions in
-        <code>results/joined.csv</code> &mdash; and are index-aligned with both the generated and the docked SDF.
-        D1, E and the ChEMBL control carry geometry but no scores.
-      </div>
-    </div>
-  </div>
-
-  <footer>
-    Receptor 9GC8 chain A &middot; withheld fragment A1IJS &middot; endpoint = PoseBusters-valid <em>and</em> zero clashes
-    <em>and</em> recovery &ge; 0.5, reproduced here from <code>results/joined.csv</code> at 69.5 / 66.4 / 72.7 / 56.2%.
-    One target; the unit of replication is the molecule.
-  </footer>
-</div>
+</main>
 </div>
 
 <script>
 (function(){
 "use strict";
-var STRUCT = window.STRUCT, INDEX = window.INDEX;
-var POCKET_COM = INDEX.com.pocketTrue;
-var POCKET_RESI = INDEX.pocketResi;
-var CORE_RESI = [14,15,16,17,83,84,85,86,89];
-
 /* ---------------- state ---------------- */
-var S = {
-  arm:"armA", src:"inplace", ctx:"pocket", mode:"single",
-  surface:false, ref:true, labels:true,
-  count:60, sort:"idx", pos:0, eShift:false,
-  f:{endpoint:false, pb:false, clash:false, ser89:false, rec:false}
-};
-var CTXS = [
-  {id:"pocket",  name:"20-residue cut",   sub:"the conditioning input"},
-  {id:"protein", name:"9GC8 chain A",     sub:"full holo monomer"},
-  {id:"apo",     name:"Apo 9GBY overlay", sub:"superposed, 0.25 Å CA RMSD"},
-  {id:"none",    name:"Ligands only",     sub:"no receptor"}
-];
-var SRCS = [
-  {id:"inplace", name:"As generated",  sub:"model output, mapped to the crystal frame"},
-  {id:"docked",  name:"Docked",        sub:"Vina redock into the holo pocket"}
-];
+/* Everything loaded, in load order. Each entry is drawn in its own deposited
+   frame; nothing is superposed. */
+var ents = [], entSerial = 0;
+/* Tree selection: node keys ("<entity uid>/<node>"), in the order picked. */
+var picks = [], pickAnchor = null;
+/* Removals, newest last, so a stray click on a cross can be taken back. */
+var undoStack = [];
+var WATERS = ["HOH","WAT","DOD"];
+/* Cartoon colour per structure; the first slot follows the theme. */
+var ENT_COLORS = [null, "#5f7fa8", "#a0815c", "#6b9a78", "#9b6f95", "#5c9a9e"];
 
 /* ---------------- 3Dmol setup ---------------- */
-var viewer = null, cache = {}, pocketHeavy = null, refCOM = null;
+var viewer = null;
 function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 function scheme(hex){
   var base = $3Dmol.elementColors.defaultColors, m = {}, k;
@@ -616,91 +468,12 @@ function initViewer(){
   if ($3Dmol.setSyncSurface) { try{ $3Dmol.setSyncSurface(true); }catch(e){} }
 }
 
-/* ---------------- data helpers ---------------- */
-function key(){ return S.arm + ":" + S.src; }
-function loadSet(k){
-  if (window.MOLDATA[k]) return Promise.resolve(window.MOLDATA[k]);
-  var parts = k.split(":"), file = INDEX.arms[parts[0]].sources[parts[1]].file;
-  return new Promise(function(res, rej){
-    var s = document.createElement("script");
-    s.src = file;
-    s.onload = function(){ res(window.MOLDATA[k]); };
-    s.onerror = function(){ rej(new Error("could not load " + file)); };
-    document.head.appendChild(s);
-  });
-}
-function prep(set){
-  if (set._prep) return set;
-  var sum = [0,0,0];
-  set.mols.forEach(function(r){
-    var n = r.s.length, x=0, y=0, z=0;
-    for (var i=0;i<n;i++){ x+=r.c[i*3]; y+=r.c[i*3+1]; z+=r.c[i*3+2]; }
-    r.com = [x/n/100, y/n/100, z/n/100];
-    r.d = Math.hypot(r.com[0]-POCKET_COM[0], r.com[1]-POCKET_COM[1], r.com[2]-POCKET_COM[2]);
-    sum[0]+=r.com[0]; sum[1]+=r.com[1]; sum[2]+=r.com[2];
-  });
-  var n = set.mols.length;
-  set.mean = [sum[0]/n, sum[1]/n, sum[2]/n];
-  set.medD = median(set.mols.map(function(r){ return r.d; }));
-  set._prep = true;
-  return set;
-}
-function median(a){ var b=a.slice().sort(function(x,y){return x-y;}); var h=b.length>>1;
-  return b.length%2 ? b[h] : (b[h-1]+b[h])/2; }
-
-function shift(){
-  if (S.arm !== "armE" || !S.eShift) return [0,0,0];
-  var set = window.MOLDATA[key()];
-  return [POCKET_COM[0]-set.mean[0], POCKET_COM[1]-set.mean[1], POCKET_COM[2]-set.mean[2]];
-}
-function buildSDF(r, off){
-  var n = r.s.length, nb = r.b.length/3, i,
-      out = "gen\n  neat-pocket\n\n" + pad(n,3) + pad(nb,3) + "  0  0  0  0  0  0  0  0999 V2000\n";
-  for (i=0;i<n;i++){
-    out += fx(r.c[i*3]/100 + off[0]) + fx(r.c[i*3+1]/100 + off[1]) + fx(r.c[i*3+2]/100 + off[2])
-         + " " + (r.s[i] + "  ").slice(0,3) + " 0  0  0  0  0  0  0  0  0  0  0  0\n";
-  }
-  for (i=0;i<nb;i++) out += pad(r.b[i*3]+1,3) + pad(r.b[i*3+1]+1,3) + pad(r.b[i*3+2],3) + "  0\n";
-  return out + "M  END\n";
-}
-function pad(v,w){ var s = String(v); while (s.length<w) s = " " + s; return s; }
-function fx(v){ return pad(v.toFixed(4), 10); }
-function f8(v){ return pad(v.toFixed(3), 8); }
-
-function parseHeavy(pdb){
-  var out = [], lines = pdb.split("\n"), i, l, el;
-  for (i=0;i<lines.length;i++){
-    l = lines[i];
-    if (l.indexOf("ATOM")!==0 && l.indexOf("HETATM")!==0) continue;
-    el = l.substr(76,2).trim() || l.substr(12,2).trim();
-    if (el === "H") continue;
-    out.push([parseFloat(l.substr(30,8)), parseFloat(l.substr(38,8)), parseFloat(l.substr(46,8))]);
-  }
-  return out;
-}
-function minDistToPocket(r, off){
-  var best = 1e9, n = r.s.length, i, j, p, dx, dy, dz, d, x, y, z;
-  for (i=0;i<n;i++){
-    x = r.c[i*3]/100 + off[0]; y = r.c[i*3+1]/100 + off[1]; z = r.c[i*3+2]/100 + off[2];
-    for (j=0;j<pocketHeavy.length;j++){
-      p = pocketHeavy[j];
-      dx = x-p[0]; dy = y-p[1]; dz = z-p[2];
-      d = dx*dx + dy*dy + dz*dz;
-      if (d < best) best = d;
-    }
-  }
-  return Math.sqrt(best);
-}
-
 /* ---------------- PDB fetch ---------------- */
-/* One fetched entry at a time is offered as the "fetched" receptor context. It is
-   drawn in its own deposited frame: nothing is superposed onto 9GC8. */
-var fetched = null, fetchCache = {};
-/* A QuickPrep-style prepared copy of whatever receptor was on screen. It sits
-   beside the original as its own receptor, in the original's frame. */
-var prepared = null, prepOK = null, prepBusy = false;
-/* The receptor drawn from text rather than from STRUCT, if any. */
-function ext(){ return S.ctx === "prepared" ? prepared : S.ctx === "fetched" ? fetched : null; }
+var fetchCache = {};
+var prepOK = null, prepBusy = false;
+/* A serve.py from before Prepare existed has no "prep" in its status: that is
+   a server to restart, not a missing package. */
+var prepStale = false;
 function getText(url){
   return fetch(url).then(function(r){
     if (!r.ok){ var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
@@ -720,7 +493,7 @@ function fetchEntry(id){
     var m = r[1] || {}, info = m.rcsb_entry_info || {},
         res = (info.resolution_combined || [])[0],
         method = ((m.exptl || [])[0] || {}).method;
-    var entry = {id:id, data:r[0].data, fmt:r[0].fmt, base:id, native:id === "9GC8",
+    var entry = {id:id, data:r[0].data, fmt:r[0].fmt,
       title: (m.struct && m.struct.title) || "",
       sub: [method ? method.toLowerCase() : null, res ? res.toFixed(2) + " Å" : null]
              .filter(Boolean).join(" · ") || "deposited coordinates"};
@@ -728,7 +501,176 @@ function fetchEntry(id){
     return entry;
   });
 }
-function nativeFrame(){ var e = ext(); return !e || e.native; }
+
+/* ---------------- loaded structures ---------------- */
+function entity(uid){
+  for (var i = 0; i < ents.length; i++) if (ents[i].uid === uid) return ents[i];
+  return null;
+}
+function addEntity(o){
+  var used = ents.map(function(e){ return e.ci; }), ci = 0;
+  while (used.indexOf(ci) !== -1 && ci < ENT_COLORS.length) ci++;
+  o.uid = "e" + (++entSerial); o.ci = ci % ENT_COLORS.length; o.visible = true;
+  ents.push(o);
+  return o;
+}
+function entColor(e){ return ENT_COLORS[e.ci] || css("--gl-cartoon"); }
+/* An id not already on screen: 1HSG-prep, 1HSG-prep-2, ... */
+function freeId(id){
+  var n = 1, out = id;
+  while (ents.some(function(e){ return e.id === out; })) out = id + "-" + (++n);
+  return out;
+}
+/* Tree node by key, with the structure it belongs to. */
+function nodeOf(key){
+  var e = entity(String(key).split("/")[0]), n = e && e.nodes && e.nodes[key];
+  return n ? {e:e, n:n} : null;
+}
+function picksOf(e){
+  return picks.filter(function(k){ return k.indexOf(e.uid + "/") === 0; });
+}
+
+/* What the operations run on: one structure, whole or in part. Several
+   structures in the selection is a question only the user can settle. */
+function scope(){
+  if (!ents.length) return {err:"Fetch a PDB entry above."};
+  var uids = [];
+  picks.forEach(function(k){
+    var u = k.split("/")[0];
+    if (uids.indexOf(u) === -1) uids.push(u);
+  });
+  if (uids.length > 1)
+    return {err:"The selection spans " + uids.map(function(u){ return entity(u).id; }).join(" and ") +
+                ". Operations run on one structure at a time — select parts of one."};
+  var e = uids.length ? entity(uids[0]) : null;
+  if (!e){
+    var vis = ents.filter(function(x){ return x.visible; });
+    e = ents.length === 1 ? ents[0] : vis.length === 1 ? vis[0] : null;
+    if (!e) return {err:"Several structures are loaded — select one, or parts of one, in the tree.", soft:true};
+  }
+  var nodes = picksOf(e).map(function(k){ return e.nodes[k]; }).filter(Boolean),
+      whole = !nodes.length || nodes.some(function(n){ return n.kind === "root"; });
+  return {e:e, whole:whole, nodes:whole ? [] : nodes,
+          label: whole ? e.id : e.id + " · " + summarize(nodes)};
+}
+/* "chain A, ILE 3, MK1 902" -- short enough for a button line. */
+function summarize(nodes){
+  var by = {}, parts = [];
+  nodes.forEach(function(n){ (by[n.kind] = by[n.kind] || []).push(n); });
+  function names(list, one, many){
+    return list.length <= 2 ? list.map(function(n){ return n.name; }).join(", ") : list.length + " " + many;
+  }
+  if (by.root) parts.push("whole structure");
+  if (by.chain) parts.push((by.chain.length === 1 ? "chain " : "chains ") +
+                           by.chain.map(function(n){ return n.chain; }).join(", "));
+  if (by.res) parts.push(names(by.res, "residue", "residues"));
+  if (by.ligs) parts.push("all ligands");
+  if (by.lig) parts.push(names(by.lig, "ligand", "ligands"));
+  if (by.waters) parts.push("all waters");
+  if (by.water) parts.push(names(by.water, "water", "waters"));
+  return parts.join(", ");
+}
+function leafSels(sel){
+  return sel.or ? sel.or.reduce(function(a, s){ return a.concat(leafSels(s)); }, []) : [sel];
+}
+/* A tree selection restricted to one model: two copies of a structure share
+   chain and residue numbers, and generated molecules never count. */
+function inModel(sel, m){
+  var out = {model:m}, k;
+  for (k in sel) out[k] = sel[k];
+  return out;
+}
+
+/* The scoped structure as text the server can buffer. A part is cut from the
+   original file rather than re-written from 3Dmol's atoms, so nothing the file
+   says about those atoms is lost: PDB keeps its header records (SEQRES drives
+   loop building in Prepare) and the atom lines verbatim; mmCIF keeps every
+   category and only the atom_site rows of the selected atoms. */
+function scopeStructure(sc){
+  var e = sc.e;
+  if (sc.whole){
+    return {token:e.id, data:e.data, fmt:e.fmt, noRebuild:leftOut(e, e.model.selectedAtoms({}))};
+  }
+  var sel = {or:[]};
+  sc.nodes.forEach(function(n){ sel.or = sel.or.concat(leafSels(n.sel)); });
+  var atoms = e.model.selectedAtoms(sel);
+  if (!atoms.length) throw new Error("the selection has no atoms");
+  var data = e.fmt === "cif" ? cifSubset(e.data, atoms) : pdbSubset(e.data, atoms);
+  var keys = sc.nodes.map(function(n){ return n.key; }).sort().join(","), h = 5381, i;
+  for (i = 0; i < keys.length; i++) h = ((h * 33) ^ keys.charCodeAt(i)) >>> 0;
+  return {token:e.id + ".sel-" + h.toString(36), data:data, fmt:e.fmt, noRebuild:leftOut(e, atoms)};
+}
+/* Residues the structure had when it was loaded that a cut lacks, for each
+   chain the cut still has. SEQRES still lists them, so without this Prepare
+   would build removed or unselected residues back as loops. */
+function leftOut(e, atoms){
+  var kept = {}, out = {}, any = false;
+  atoms.forEach(function(a){ (kept[a.chain] = kept[a.chain] || {})[a.resi] = true; });
+  Object.keys(e.orig || {}).forEach(function(c){
+    if (!kept[c]) return;
+    var miss = e.orig[c].filter(function(r){ return !kept[c][r]; });
+    if (miss.length){ out[c] = miss; any = true; }
+  });
+  return any ? out : null;
+}
+function pdbSubset(text, atoms){
+  var kept = {}, aniso = {}, head = [], bonds = [], out = [];
+  atoms.forEach(function(a){ if (a.pdbline) kept[a.pdbline.substr(6, 5).trim()] = true; });
+  text.split("\n").forEach(function(l){
+    if (/^ANISOU/.test(l)) aniso[l.substr(6, 5).trim()] = l;
+    else if (/^CONECT/.test(l)){
+      /* a bond record survives only if every atom it names does */
+      var ids = (l.substr(6).match(/.{1,5}/g) || []).map(function(x){ return x.trim(); }).filter(Boolean);
+      if (ids.length && ids.every(function(x){ return kept[x]; })) bonds.push(l);
+    }
+    else if (l.trim() && !/^(ATOM  |HETATM|SIGATM|SIGUIJ|TER|MASTER|END|MODEL )/.test(l)) head.push(l);
+  });
+  atoms.forEach(function(a){
+    if (!a.pdbline) return;
+    out.push(a.pdbline);
+    var an = aniso[a.pdbline.substr(6, 5).trim()];
+    if (an) out.push(an);
+  });
+  return head.concat(out, bonds, ["END"]).join("\n") + "\n";
+}
+var CIF_TOKEN = /'(?:[^']|'(?=\S))*'|"(?:[^"]|"(?=\S))*"|\S+/g;
+/* 3Dmol numbers mmCIF atoms by position, not by _atom_site.id, so rows are
+   matched on the coordinates it parsed from them. Anisotropic rows follow
+   their atom by id. */
+function cifSubset(text, atoms){
+  var lines = text.split("\n"), n = lines.length, want = {}, keep = {}, drop = {}, loops = [], i;
+  atoms.forEach(function(a){ want[a.x + "|" + a.y + "|" + a.z] = true; });
+  for (i = 0; i < n; i++){
+    var cat = lines[i].trim() === "loop_" && /^_atom_site(_anisotrop)?\./.exec((lines[i + 1] || "").trim());
+    if (!cat) continue;
+    var L = {cat:cat[0], cols:[], rows:[]}, j = i + 1, t;
+    while (j < n && lines[j].trim().indexOf(L.cat) === 0) L.cols.push(lines[j++].trim());
+    while (j < n){
+      t = lines[j].trim();
+      if (!t || t[0] === "#" || t[0] === "_" || t === "loop_" || t.indexOf("data_") === 0) break;
+      L.rows.push(j++);
+    }
+    loops.push(L);
+  }
+  var site = loops.filter(function(L){ return L.cat === "_atom_site."; })[0];
+  if (!site) throw new Error("this mmCIF file has no _atom_site loop");
+  function col(L, name){ return L.cols.indexOf(L.cat + name); }
+  var cx = col(site, "Cartn_x"), cy = col(site, "Cartn_y"), cz = col(site, "Cartn_z"), cid = col(site, "id");
+  site.rows.forEach(function(j){
+    var tok = lines[j].trim().match(CIF_TOKEN);
+    if (want[parseFloat(tok[cx]) + "|" + parseFloat(tok[cy]) + "|" + parseFloat(tok[cz])]) keep[tok[cid]] = true;
+    else drop[j] = true;
+  });
+  loops.forEach(function(L){
+    if (L === site) return;
+    var ci = col(L, "id");
+    L.rows.forEach(function(j){
+      var tok = lines[j].trim().match(CIF_TOKEN);
+      if (ci < 0 || !keep[tok[ci]]) drop[j] = true;
+    });
+  });
+  return lines.filter(function(l, j){ return !drop[j]; }).join("\n");
+}
 
 /* ---------------- fpocket ---------------- */
 /* fpocket is a command line program, so serve.py runs it. Whatever receptor is
@@ -738,22 +680,16 @@ function nativeFrame(){ var e = ext(); return !e || e.native; }
    Pockets are resolved to whole residues around fpocket's alpha-sphere centres
    -- the same cut NEAT-POCKET conditions on, driven by alpha spheres instead of
    a bound ligand. */
-var pockets = null, pocketFor = null, fpocketOK = null;
+/* One pocket run at a time is live. pocketEnt is the structure it ran on,
+   pocketFor names the run (generated molecules belong to a run), pocketToken
+   is the server copy it read, and pocketScope says which part of the
+   structure that was. */
+var pockets = null, pocketEnt = null, pocketFor = null, pocketToken = null, pocketScope = "";
+var pocketRuns = 0, fpocketOK = null, lacunaBackends = null;
 var pocketMeta = null, showSpheres = false, serverStale = false;
 var pocketPicks = [];            /* indices into `pockets`, multi-select */
 var gen = null, genPoll = null, genShow = 25, neatOK = null;
-/* Results are kept per structure, so switching receptor and back does not
-   force another run. */
-var pocketCache = {};
 
-function currentStructure(){
-  var e = ext();
-  if (e) return {id:e.id, data:e.data, fmt:e.fmt};
-  if (S.ctx === "protein") return {id:"9GC8_holo", data:STRUCT.proteinHolo, fmt:"pdb"};
-  if (S.ctx === "apo")     return {id:"9GBY_apo",  data:STRUCT.proteinApo,  fmt:"pdb"};
-  /* "pocket" is already a 20-residue cut and "none" draws no receptor. */
-  return null;
-}
 /* A serve.py older than these endpoints answers POST with an HTML 501 page, so
    check the content type before parsing -- otherwise the failure surfaces as an
    unhelpful JSON syntax error about "<!DOCTYPE". */
@@ -783,12 +719,12 @@ function api(ep, obj){
    residue numbers would light that number up on every one of them. */
 /* One colour per pocket, reused for that pocket's generated molecules so the
    groups are readable against each other. */
-var POCKET_COLORS = ["#d68e26","#3f8fd0","#57a773","#b4656f","#8b7ec8","#3fa9a0"];
+/* No orange (the selected-molecule carbon), so a pocket is never mistaken for it. */
+var POCKET_COLORS = ["#3f8fd0","#c0569e","#2fa39a","#8b7ec8","#b4656f","#a08a3a"];
 function pocketColor(i){ return POCKET_COLORS[i % POCKET_COLORS.length]; }
 
 function pocketsLive(){
-  var cur = currentStructure();
-  return (pockets && cur && cur.id === pocketFor) ? pockets : null;
+  return pockets && entity(pocketEnt) ? pockets : null;
 }
 /* 3Dmol selection for one pocket. Residues are grouped per chain: a pocket can
    span chains, and a flat list of numbers would light that number up on every
@@ -798,22 +734,22 @@ function selOf(p){
   return {or: p.sel.map(function(g){ return {chain:g.chain, resi:g.resi}; })};
 }
 function pocketSelection(){          /* union of everything selected */
-  var live = pocketsLive();
-  if (!live || !pocketPicks.length) return null;
+  var live = pocketsLive(), pe = entity(pocketEnt);
+  if (!live || !pocketPicks.length || !pe.model) return null;
   var groups = [];
   pocketPicks.forEach(function(i){
     var p = live[i];
-    if (p) p.sel.forEach(function(g){ groups.push({chain:g.chain, resi:g.resi}); });
+    if (p) p.sel.forEach(function(g){ groups.push({model:pe.model, chain:g.chain, resi:g.resi}); });
   });
   return groups.length ? {or: groups} : null;
 }
-function stylePocket(model){
+function stylePocket(model, cartoon){
   var live = pocketsLive();
   if (!live) return;
   pocketPicks.forEach(function(i){
     var ps = selOf(live[i]);
     if (!ps) return;
-    model.setStyle(ps, {cartoon:{color:css("--gl-cartoon"), thickness:0.3},
+    model.setStyle(ps, {cartoon:{color:cartoon, thickness:0.3},
       stick:{radius:0.11, colorscheme:scheme(pocketColor(i))}});
     model.setStyle({and:[ps, {elem:"H"}]}, {});
   });
@@ -821,26 +757,26 @@ function stylePocket(model){
 /* The alpha-sphere centres are the stand-in ligand: the highlighted residues
    are exactly those within 6 Å of these points. Drawing them makes the
    selection legible instead of arbitrary. */
-function drawSpheres(){
-  var live = pocketsLive();
-  if (!showSpheres || !live || !viewer) return;
+function drawSpheres(L){
+  var live = pocketsLive(), pe = entity(pocketEnt);
+  if (!showSpheres || !live || !viewer || !pe.visible) return;
   pocketPicks.forEach(function(i){
     var p = live[i];
     if (!p) return;
     (p.spheres || []).forEach(function(s){
-      viewer.addSphere({center:{x:s[0], y:s[1], z:s[2]}, radius:0.45,
-                        color:pocketColor(i), opacity:0.7});
+      L.shapes.push(viewer.addSphere({center:{x:s[0], y:s[1], z:s[2]}, radius:0.45,
+                                      color:pocketColor(i), opacity:0.7}));
     });
     var c = p.centroid;
-    viewer.addSphere({center:{x:c[0], y:c[1], z:c[2]}, radius:0.9,
-                      color:pocketColor(i), opacity:0.95});
+    L.shapes.push(viewer.addSphere({center:{x:c[0], y:c[1], z:c[2]}, radius:0.9,
+                                    color:pocketColor(i), opacity:0.95}));
   });
 }
 /* Generated molecules, drawn per pocket in that pocket's colour. */
-function drawGenerated(){
+function drawGenerated(L){
   if (!gen || !gen.groups || !viewer) return;
   var live = pocketsLive();
-  if (!live || gen.forStructure !== pocketFor) return;
+  if (!live || gen.forStructure !== pocketFor || !entity(pocketEnt).visible) return;
   Object.keys(gen.groups).forEach(function(rank){
     var grp = gen.groups[rank];
     if (!grp.visible || !grp.mols.length) return;
@@ -851,6 +787,7 @@ function drawGenerated(){
     shown.forEach(function(block, k){
       if (grp.focus >= genShow && k === shown.length - 1) k = grp.focus;
       var m = viewer.addModel(block, "sdf");
+      L.models.push(m);
       m.setStyle({}, {stick:{radius: k === grp.focus ? 0.17 : 0.075,
         colorscheme:scheme(col), opacity: k === grp.focus ? 1 : 0.85}});
       m.setStyle({elem:"H"}, {});
@@ -859,26 +796,32 @@ function drawGenerated(){
 }
 function clearPockets(){
   pockets = null; pocketPicks = []; pocketFor = null; pocketMeta = null;
+  pocketEnt = null; pocketToken = null; pocketScope = "";
   paintPockets();
 }
-/* Point the panel at whatever the current receptor already has, if anything,
-   and say which structure the button would run on. */
 /* ---------------- structure preparation ---------------- */
 /* The quickprep package (open-source stand-in for MOE QuickPrep) runs
    server-side on the buffered copy of the receptor on screen. */
 function paintPrep(){
-  var cur = currentStructure(), btn = document.getElementById("prep-btn"),
+  var sc = scope(), e = sc.e, btn = document.getElementById("prep-btn"),
       msg = document.getElementById("prep-msg");
-  btn.textContent = prepBusy ? "Preparing…" : S.ctx === "prepared" ? "Prepared"
-                  : cur ? "Prepare " + cur.id : "Prepare structure";
-  btn.disabled = prepBusy || !cur || S.ctx === "prepared" || prepOK === false;
+  btn.textContent = prepBusy ? "Preparing…" : !e ? "Prepare structure"
+                  : e.prepared ? "Prepared" : "Prepare " + (sc.whole ? e.id : "selection");
+  btn.disabled = prepBusy || !e || !!e.prepared || prepOK === false;
   if (prepBusy) return;
   msg.className = "pdbq-msg";
-  document.getElementById("prep-log").hidden = !(S.ctx === "prepared" && prepared);
-  if (S.ctx === "prepared" && prepared) msg.innerHTML = prepared.line;
+  /* The report of the structure the panel points at, if it is a prepared one. */
+  document.getElementById("prep-log").hidden = !(e && e.prepared);
+  if (e && e.prepared){
+    msg.innerHTML = e.prepLine;
+    document.getElementById("prep-pre").textContent = e.prepSummary;
+  }
+  else if (prepOK === false && prepStale && !serverStale){
+    msg.className = "pdbq-msg err";
+    msg.innerHTML = "Restart <span class='mono'>./serve.py</span> — the running server predates Prepare.";
+  }
   else if (prepOK === false)
     msg.textContent = serverStale ? "" : "Preparation unavailable: the server found no quickprep package.";
-  else if (!cur) msg.textContent = "Pick a full receptor to prepare.";
   else msg.textContent = "";
 }
 function prepLine(r){
@@ -900,27 +843,29 @@ function prepLine(r){
   return "Prepared in " + r.seconds + " s · " + bits.map(function(b){ return b.indexOf("<b>") < 0 ? esc(b) : b; }).join(" · ");
 }
 function runPrep(){
-  var cur = currentStructure(), msg = document.getElementById("prep-msg");
-  if (!cur || prepBusy) return;
-  var src = ext(), native = nativeFrame(),
-      base = src ? src.base : (S.ctx === "protein" ? "9GC8" : null);
-  prepBusy = true; busy(true); paintPrep();
+  var sc = scope(), msg = document.getElementById("prep-msg"), st;
+  if (!sc.e || prepBusy) return;
+  try{ st = scopeStructure(sc); }
+  catch(err){ msg.className = "pdbq-msg err"; msg.textContent = err.message; return; }
+  var src = sc.e;
+  prepBusy = true; busy(true, "preparing " + sc.label + "…"); paintPrep();
   msg.className = "pdbq-msg";
-  msg.innerHTML = "Preparing <b>" + esc(cur.id) + "</b> — fixing, protonating at pH 7, then a tethered " +
+  msg.innerHTML = "Preparing <b>" + esc(sc.label) + "</b> — fixing, protonating at pH 7, then a tethered " +
     "minimisation. This takes a few seconds to a minute.";
-  api("/api/structure", {id:cur.id, fmt:cur.fmt, data:cur.data})
-    .then(function(buf){ return api("/api/prep", {token:buf.token, ph:7.0}); })
+  api("/api/structure", {id:st.token, fmt:st.fmt, data:st.data})
+    .then(function(buf){ return api("/api/prep", {token:buf.token, ph:7.0, noRebuild:st.noRebuild}); })
     .then(function(r){
       var rep = r.report || {}, out = rep.output || {};
-      prepared = {id:cur.id + "-prep", name:cur.id + " · prepared", data:r.data, fmt:"pdb",
-        base:base, native:native, line:prepLine(rep),
-        sub:"QuickPrep-style · pH 7 · " + (out.hydrogens || 0) + " H"};
-      document.getElementById("prep-pre").textContent =
-        (r.summary || "").replace(/^input\s+\S+/m, "input      " + cur.id);
-      delete pocketCache[prepared.id];   /* a new preparation, not the last one */
-      S.ctx = "prepared";
+      addEntity({id:freeId(src.id + "-prep"), data:r.data, fmt:"pdb", prepared:true,
+        title:"prepared from " + sc.label,
+        sub:"QuickPrep-style · pH 7 · " + (out.hydrogens || 0) + " H",
+        prepLine:prepLine(rep),
+        prepSummary:(r.summary || "").replace(/^input\s+\S+/m, "input      " + sc.label)});
+      /* Same frame and largely the same atoms: show the prepared copy in its place. */
+      src.visible = false;
+      picks = []; pickAnchor = null;
       prepBusy = false;
-      syncPockets(); paintCtxs(); paintChrome(); draw(false);
+      refresh(false);
     })
     .catch(function(err){
       prepBusy = false; paintPrep();
@@ -930,38 +875,70 @@ function runPrep(){
     .then(function(){ busy(false); });
 }
 
+/* Which detector the panel is set to. fpocket reads the structure as it
+   stands; lacuna builds a conformational ensemble first, and its two backends
+   differ in what they can open, so the backend travels with the method. */
+function pocketMethod(){
+  var el = document.getElementById("pk-method"),
+      parts = ((el && el.value) || "fpocket").split(":");
+  return {method: parts[0], backend: parts[1] || "nma"};
+}
+/* true / false / null while the status probe is still out. */
+function pocketToolReady(){
+  var sel = pocketMethod();
+  if (sel.method === "lacuna")
+    return lacunaBackends === null
+      ? null : lacunaBackends.indexOf(sel.backend) !== -1;
+  return fpocketOK;
+}
+function rankedBy(meta){
+  return meta && meta.tool === "lacuna"
+    ? " · ranked by lacuna over " + meta.conformers + " conformers"
+    : " · ranked by fpocket score";
+}
+function pocketUnavailable(){
+  var sel = pocketMethod();
+  if (sel.method !== "lacuna")
+    return "fpocket not found on the server — pocket detection unavailable.";
+  if (!lacunaBackends || !lacunaBackends.length)
+    return "lacuna not found on the server. Install it in its own environment " +
+           "(pip install lacuna-pockets) or set LACUNA_BIN, then restart serve.py.";
+  return "lacuna's MD backend needs OpenMM and PDBFixer in its environment. " +
+         "Available here: " + lacunaBackends.join(", ") + ".";
+}
+/* Repaint everything that depends on what the operations would run on. */
 function syncPockets(){
-  var cur = currentStructure(), hit = cur && pocketCache[cur.id];
-  if (hit){
-    pockets = hit.list; pocketPicks = hit.picks || []; pocketFor = cur.id;
-    pocketMeta = hit.meta || null;
-  } else {
-    pockets = null; pocketPicks = []; pocketFor = null; pocketMeta = null;
-  }
+  var sc = scope();
   paintGen(); paintTable();
-  paintPockets();
+  paintPockets(); paintPrep(); paintScope(sc);
 
   var btn = document.getElementById("find-pockets"),
-      msg = document.getElementById("pk-msg");
-  paintPrep();
-  btn.textContent = cur ? "Find pockets in " + cur.id : "Find pockets";
-  btn.disabled = !cur || fpocketOK === false;
+      msg = document.getElementById("pk-msg"), live = pocketsLive();
+  btn.textContent = sc.e ? "Find pockets in " + (sc.whole ? sc.e.id : "selection") : "Find pockets";
+  btn.disabled = !sc.e || pocketToolReady() === false;
   msg.className = "pdbq-msg";
-  if (hit){
-    msg.innerHTML = "<b>" + hit.list.length + "</b> pockets in " + esc(cur.id) +
-      " · ranked by fpocket score";
-  } else if (!cur){
-    msg.textContent = "Pick a full receptor above — the 20-residue cut is already one pocket.";
+  if (live){
+    msg.innerHTML = "<b>" + live.length + "</b> pockets in " + esc(pocketScope) + rankedBy(pocketMeta);
+  } else if (!sc.e){
+    msg.textContent = ents.length ? "" : sc.err;
   } else if (serverStale){
     msg.classList.add("err");
     msg.innerHTML = "Restart <span class='mono'>./serve.py</span> — the running server " +
       "predates the pocket endpoints.";
-  } else if (fpocketOK === false){
+  } else if (pocketToolReady() === false){
     msg.classList.add("err");
-    msg.textContent = "fpocket not found on the server — pocket detection unavailable.";
+    msg.textContent = pocketUnavailable();
   } else {
     msg.textContent = "";
   }
+}
+function paintScope(sc){
+  var el = document.getElementById("scope");
+  el.hidden = !ents.length;
+  el.className = sc.e || sc.soft ? "scope" : "scope err";
+  el.innerHTML = sc.e
+    ? "Prepare and Find pockets run on <b>" + esc(sc.label) + "</b>"
+    : esc(sc.err || "");
 }
 function paintPockets(){
   var host = document.getElementById("pk-list"),
@@ -969,6 +946,7 @@ function paintPockets(){
       run = document.getElementById("pk-run"),
       sph = document.getElementById("pk-sph-wrap");
   sph.hidden = !(pockets && pockets.length);
+  document.getElementById("pk-runlog").hidden = !(pockets && pockets.length && pocketMeta);
   document.getElementById('gen-wrap').hidden = !(pockets && pockets.length);
   if (!pockets || !pockets.length){
     host.innerHTML = ""; n.textContent = ""; run.textContent = ""; return;
@@ -981,9 +959,21 @@ function paintPockets(){
       "' aria-checked='" + on + "'><span class='dot' style='" +
       (on ? "background:" + pocketColor(i) + ";border-color:" + pocketColor(i) : "") +
       "'></span><span>Pocket " + p.rank + "<small>" + p.nResidues +
-      " residues · chain " + esc(chains || "?") + " · " + p.nSpheres +
-      " spheres · score " + p.score.toFixed(2) + "</small></span><span class='tag'>" +
-      Math.round(p.volume) + " Å³</span></button>";
+      " residues · chain " + esc(chains || "?") +
+      /* fpocket reports a score; lacuna ranks with a fitted model and reports
+         persistence instead -- the fraction of conformers the pocket is open
+         in, which is the number that says whether a high rank is worth
+         trusting. Either field can be null, so neither is formatted blind. */
+      (p.score != null
+        ? " · " + p.nSpheres + " spheres · score " + p.score.toFixed(2)
+        : (p.persistence != null
+            ? " · open in " + Math.round(p.persistence * 100) + "% of conformers"
+            : "") +
+          (p.crypticity != null
+            ? " · crypticity " + p.crypticity.toFixed(2) : "")) +
+      "</small></span><span class='tag'>" +
+      (p.volume != null ? Math.round(p.volume) + " Å³" : "—") +
+      "</span></button>";
   }).join("");
   /* Selection is multi: generation runs on every pocket ticked here. */
   host.querySelectorAll("[data-pk]").forEach(function(b){
@@ -991,7 +981,6 @@ function paintPockets(){
       var i = +b.dataset.pk, at = pocketPicks.indexOf(i);
       if (at === -1) pocketPicks.push(i); else pocketPicks.splice(at, 1);
       pocketPicks.sort(function(a, c){ return a - c; });
-      if (pocketFor && pocketCache[pocketFor]) pocketCache[pocketFor].picks = pocketPicks.slice();
       paintPockets(); paintGen(); paintTable(); draw(true); zoomPocket();
     };
   });
@@ -999,12 +988,22 @@ function paintPockets(){
   /* Say plainly what was executed, so the numbers above are traceable. */
   if (pocketMeta){
     var m = pocketMeta;
-    run.innerHTML = "Ran <b>fpocket</b> on " + m.receptorAtoms + " receptor atoms" +
+    run.innerHTML = "Ran <b>" + (m.tool === "lacuna"
+        ? "lacuna</b> (" + esc(m.backend) + " backend, " + m.conformers +
+          " conformers, " + m.nCryptic + " cryptic)"
+        : "fpocket</b>") + " on " + m.receptorAtoms + " receptor atoms" +
       " (of " + m.totalAtoms + "; waters and additives dropped, hetero written as ATOM)" +
       (m.ligandRemoved && m.ligandRemoved.length
         ? ", ligand " + esc(m.ligandRemoved.join(", ")) + " deleted" : "") +
       " &rarr; " + m.nPockets + " pockets in " + m.elapsed + " s." +
-      " Residues = whole standard residues within " + m.cutoff + " Å of an alpha-sphere centre." +
+      " Residues = whole standard residues within " + m.cutoff + " Å of " +
+      (m.tool === "lacuna" ? "a pocket pseudoatom." : "an alpha-sphere centre.") +
+      /* Measured on this machine: three MD runs over one input ranked the
+         same site 9th, 7th and 10th. Saying so beside the ranks stops a
+         single run being read as a measurement. */
+      (m.tool === "lacuna" && m.backend === "openmm"
+        ? " <b>MD is not bit-reproducible — ranks shift between runs; repeat" +
+          " before trusting one.</b>" : "") +
       "<br><span class='mono' style='word-break:break-all'>$ " + esc(m.command) + "</span>";
   } else {
     run.textContent = "";
@@ -1023,10 +1022,11 @@ function paintGen(){
   var mod = document.getElementById("mod-gen"),
       host = document.getElementById("gen-list"),
       cnt = document.getElementById("gen-count"),
-      run = document.getElementById("gen-run"),
+      run = document.getElementById("gen-meta"),   /* was id="gen-run", the same id as the Generate button */
       live = pocketsLive(),
       ok = gen && gen.groups && live && gen.forStructure === pocketFor;
   mod.hidden = !ok;
+  document.getElementById("gen-runlog").hidden = !(ok && gen.meta);
   if (!ok){ host.innerHTML = ""; cnt.textContent = ""; run.textContent = ""; return; }
 
   var ranks = Object.keys(gen.groups);
@@ -1056,7 +1056,6 @@ function paintGen(){
 function runGeneration(){
   var msg = document.getElementById("gen-msg"),
       btn = document.getElementById("gen-run"),
-      cur = currentStructure(),
       live = pocketsLive();
   msg.className = "pdbq-msg";
   if (!live || !pocketPicks.length){
@@ -1075,7 +1074,7 @@ function runGeneration(){
   msg.innerHTML = "Generating " + n + " molecules for pocket" +
     (ranks.length > 1 ? "s " : " ") + ranks.join(", ") + "…";
 
-  api("/api/generate", {token:cur.id, ranks:ranks, n:n, batch_size:Math.min(n, 50)})
+  api("/api/generate", {token:pocketToken, ranks:ranks, n:n, batch_size:Math.min(n, 50)})
     .then(function(r){ pollJob(r.job, ranks, n, btn, msg); })
     .catch(function(err){
       btn.disabled = false;
@@ -1175,31 +1174,27 @@ function paintTable(){
       "</tr>";
   }).join("");
 
-  body.querySelectorAll("tr").forEach(function(tr){
-    tr.onclick = function(){
-      var rank = tr.dataset.rank, i = +tr.dataset.i;
-      gtSel = {rank: isNaN(+rank) ? rank : +rank, i: i};
-      /* focus it in 3D, and make sure its group is showing */
-      Object.keys(gen.groups).forEach(function(k){
-        gen.groups[k].focus = (String(k) === String(rank)) ? i : -1;
-      });
-      var g = gen.groups[String(rank)];
-      if (g && !g.visible){ g.visible = true; paintGen(); }
-      paintTable(); draw(true); zoomMolecule(String(rank), i);
-    };
-  });
-
   document.querySelectorAll("#gt th[data-sort]").forEach(function(th){
     var k = th.dataset.sort;
-    th.setAttribute("aria-sort", gtSort.key === k
-      ? (gtSort.dir === 1 ? "ascending" : "descending") : "none");
-    if (gtSort.key !== k) th.removeAttribute("aria-sort");
-    th.onclick = function(){
-      if (gtSort.key === k) gtSort.dir = -gtSort.dir;
-      else { gtSort.key = k; gtSort.dir = 1; }
-      paintTable();
-    };
+    if (gtSort.key === k) th.setAttribute("aria-sort", gtSort.dir === 1 ? "ascending" : "descending");
+    else th.removeAttribute("aria-sort");
   });
+}
+/* Selecting a row only moves the highlight. Rebuilding every row, depiction
+   and all, on each click is what made large tables slow. */
+function selectRow(tr){
+  var rank = tr.dataset.rank, i = +tr.dataset.i;
+  gtSel = {rank: isNaN(+rank) ? rank : +rank, i: i};
+  /* focus it in 3D, and make sure its group is showing */
+  Object.keys(gen.groups).forEach(function(k){
+    gen.groups[k].focus = (String(k) === String(rank)) ? i : -1;
+  });
+  var g = gen.groups[String(rank)];
+  if (g && !g.visible){ g.visible = true; paintGen(); }
+  var was = document.querySelector("#gt-body tr[aria-selected=true]");
+  if (was) was.removeAttribute("aria-selected");
+  tr.setAttribute("aria-selected", "true");
+  draw(true); zoomMolecule(String(rank), i);
 }
 function zoomMolecule(rank, i){
   var g = gen && gen.groups[rank];
@@ -1275,37 +1270,56 @@ function loadResults(id, status, btn, msg){
 function findPockets(){
   var msg = document.getElementById("pk-msg"),
       btn = document.getElementById("find-pockets"),
-      cur = currentStructure();
+      sc = scope(), st;
   msg.className = "pdbq-msg";
-  if (!cur){
+  if (!sc.e){
     msg.classList.add("err");
-    msg.textContent = "Pick a full receptor first — the 20-residue cut is already a pocket.";
+    msg.textContent = sc.err;
     return;
   }
-  if (fpocketOK === false){
+  var sel = pocketMethod();
+  if (pocketToolReady() === false){
     msg.classList.add("err");
-    msg.textContent = "fpocket is not installed on the server. Put it on PATH or set FPOCKET_BIN, then restart serve.py.";
+    msg.textContent = pocketUnavailable();
     return;
   }
+  try{ st = scopeStructure(sc); }
+  catch(err){ msg.classList.add("err"); msg.textContent = err.message; return; }
   btn.disabled = true;
-  msg.innerHTML = "Detecting pockets in <b>" + esc(cur.id) + "</b>…";
-  api("/api/structure", {id:cur.id, fmt:cur.fmt, data:cur.data})
+  /* The MD backend runs a short simulation before it detects anything, so it
+     takes tens of seconds where the others take one or two. Say so, rather
+     than leaving the panel looking hung. */
+  msg.innerHTML = "Detecting pockets in <b>" + esc(sc.label) + "</b>" +
+    (sel.method === "lacuna"
+      ? " over a " + esc(sel.backend) + " ensemble" +
+        (sel.backend === "openmm" ? " — this runs MD and takes a minute" : "")
+      : "") + "…";
+  var token = null;
+  api("/api/structure", {id:st.token, fmt:st.fmt, data:st.data})
     .then(function(buf){
-      return api("/api/pockets", {token:buf.token, cutoff:6.0});
+      token = buf.token;
+      var body = {token:buf.token, cutoff:6.0, method:sel.method};
+      if (sel.method === "lacuna"){
+        body.backend = sel.backend;
+        /* Twenty is lacuna's measured sweet spot: more conformers find more
+           sites and surface none of them. */
+        body.conformers = 20;
+      }
+      return api("/api/pockets", body);
     })
     .then(function(r){
       pockets = r.pockets || [];
-      pocketFor = cur.id;
+      pocketEnt = sc.e.uid; pocketFor = sc.e.uid + "#" + (++pocketRuns);
+      pocketToken = token; pocketScope = sc.label;
       pocketPicks = pockets.length ? [0] : [];
       pocketMeta = r.meta || null;
-      pocketCache[cur.id] = {list:pockets, picks:pocketPicks.slice(), meta:pocketMeta};
       if (!pockets.length){
-        msg.textContent = "No pockets found in " + cur.id + ".";
+        msg.textContent = "No pockets found in " + sc.label + ".";
       } else {
-        msg.innerHTML = "<b>" + pockets.length + "</b> pockets in " + esc(cur.id) +
-          " · ranked by fpocket score" + (r.cached ? " · cached" : "");
+        msg.innerHTML = "<b>" + pockets.length + "</b> pockets in " + esc(sc.label) +
+          rankedBy(pocketMeta) + (r.cached ? " · cached" : "");
       }
-      paintPockets(); draw(true); zoomPocket();
+      paintPockets(); paintGen(); paintTable(); draw(true); zoomPocket();
     })
     .catch(function(err){
       clearPockets();
@@ -1315,413 +1329,417 @@ function findPockets(){
     .then(function(){ btn.disabled = false; });
 }
 
-/* ---------------- selection ---------------- */
-function filtered(){
-  var set = window.MOLDATA[key()];
-  if (!set) return [];
-  var f = S.f, list = set.mols.filter(function(r){
-    var m = r.m;
-    if (!m) return !(f.endpoint||f.pb||f.clash||f.ser89||f.rec);
-    if (f.pb && !m.pb) return false;
-    if (f.clash && m.clash !== 0) return false;
-    if (f.ser89 && !m.ser89) return false;
-    if (f.rec && !(m.rec >= 0.5)) return false;
-    if (f.endpoint && !(m.pb && m.clash === 0 && m.rec >= 0.5)) return false;
-    return true;
-  });
-  var s = S.sort;
-  if (s !== "idx"){
-    var asc = (s === "dock" || s === "ip" || s === "dcom");
-    list.sort(function(a,b){
-      var x = a.m ? a.m[s] : null, y = b.m ? b.m[s] : null;
-      if (x === null || x === undefined) return 1;
-      if (y === null || y === undefined) return -1;
-      return asc ? x - y : y - x;
-    });
-  }
-  return list;
-}
-function subset(list, n){
-  if (list.length <= n) return list;
-  var out = [], step = list.length / n, i;
-  for (i=0;i<n;i++) out.push(list[Math.floor(i*step)]);
-  return out;
-}
-
 /* ---------------- render ---------------- */
-var pending = 0;
+/* The scene is drawn in layers, each rebuilt only when something it depends
+   on changes. A structure is parsed once, when it is loaded; showing, hiding,
+   restyling and picking work on that model in place. */
+var entLayers = {};
+var layers = {spheres:{key:null}, gen:{key:null}, labels:{key:null}};
+function clearLayer(L){
+  (L.models || []).forEach(function(m){ viewer.removeModel(m); });
+  (L.shapes || []).forEach(function(s){ viewer.removeShape(s); });
+  (L.labels || []).forEach(function(l){ viewer.removeLabel(l); });
+  (L.surfs || []).forEach(function(id){ try{ viewer.removeSurface(id); }catch(e){} });
+  L.models = []; L.shapes = []; L.labels = []; L.surfs = [];
+}
+/* Rebuild a layer when its key changes; a null key always rebuilds. */
+function layer(L, k, build){
+  if (k !== null && L.key === k) return;
+  clearLayer(L); L.key = k; build(L);
+}
+/* --viewer differs per theme, so it stands in for every theme colour. */
+function styleKey(e){
+  return [css("--viewer"), entColor(e),
+          e.uid === pocketEnt ? pocketFor + ":" + pocketPicks.join(",") : "",
+          picksOf(e).join(","),
+          Object.keys(e.hidden || {}).filter(function(k){ return e.hidden[k]; }).join(",")].join("|");
+}
+function sphereKey(){
+  var pe = entity(pocketEnt);
+  return [pocketFor, pocketPicks.join(","), showSpheres, !!(pe && pe.visible)].join("|");
+}
+function genKey(){
+  if (!gen || !gen.groups) return "";
+  var live = pocketsLive(), pe = entity(pocketEnt);
+  return [css("--viewer"), gen.job, gen.forStructure, pocketFor, genShow, !!(pe && pe.visible),
+          live ? live.map(function(p){ return p.rank; }).join(",") : "",
+          Object.keys(gen.groups).map(function(r){
+            var g = gen.groups[r]; return r + ":" + g.visible + ":" + g.focus;
+          }).join(";")].join("|");
+}
+function labelled(){
+  return picks.map(nodeOf).filter(function(x){
+    return x && x.n.label && x.e.model && !hider(x.e, x.n);
+  }).slice(0, 12);                  /* past a dozen, labels hide the structure */
+}
+function labelKey(){
+  return [css("--viewer")].concat(labelled().map(function(x){ return x.n.key; })).join("|");
+}
+
 function draw(keepView){
-  var set = window.MOLDATA[key()];
-  if (!set || !viewer) return;
-  var view = keepView ? viewer.getView() : null;
-  viewer.removeAllModels(); viewer.removeAllShapes(); viewer.removeAllLabels();
-  try{ viewer.removeAllSurfaces(); }catch(e){}
-
-  var off = shift(), list = filtered();
-  if (S.pos >= list.length) S.pos = Math.max(0, list.length-1);
-  var sel = list[S.pos] || null;
-
-  /* receptor */
-  if (ext()){
-    var xe = ext(), fm = viewer.addModel(xe.data, xe.fmt);
-    fm.setStyle({}, {cartoon:{color:css("--gl-cartoon"), thickness:0.3, opacity:0.92}});
-    fm.setStyle({hetflag:true}, {stick:{radius:0.15, colorscheme:scheme(css("--gl-carbon-het"))}});
-    fm.setStyle({resn:["HOH","WAT","DOD"]}, {});
-    if (xe.base === "9GC8"){
-      fm.setStyle({chain:"A", resi:POCKET_RESI},
-        {cartoon:{color:css("--gl-cartoon"), thickness:0.3},
-         stick:{radius:0.11, colorscheme:scheme(css("--gl-carbon-pocket"))}});
-    }
-    stylePocket(fm);
-    fm.setStyle({elem:"H"}, {});   /* a prepared receptor carries every hydrogen */
-  } else if (S.ctx !== "none"){
-    var pdb = S.ctx === "protein" ? STRUCT.proteinHolo
-            : S.ctx === "apo"     ? STRUCT.proteinApo
-            : STRUCT.pocketTrue;
-    var m = viewer.addModel(pdb, "pdb");
-    if (S.ctx === "pocket"){
-      m.setStyle({}, {stick:{radius:0.13, colorscheme:scheme(css("--gl-carbon-pocket")), hidden:false}});
-      m.setStyle({elem:"H"}, {});
-    } else {
-      m.setStyle({}, {cartoon:{color:css("--gl-cartoon"), thickness:0.3, opacity:0.92}});
-      m.setStyle({resi:POCKET_RESI},
-        {cartoon:{color:css("--gl-cartoon"), thickness:0.3},
-         stick:{radius:0.11, colorscheme:scheme(css("--gl-carbon-pocket"))}});
-      if (S.arm === "armD1"){
-        var dm = viewer.addModel(STRUCT.pocketDecoy, "pdb");
-        dm.setStyle({}, {stick:{radius:0.11, colorscheme:scheme(css("--warn") || "#b7791f")}});
-        dm.setStyle({elem:"H"}, {});
-      }
-      stylePocket(m);
-    }
-    if (S.surface){
-      try{
-        viewer.addSurface($3Dmol.SurfaceType.VDW,
-          {opacity:0.66, color:css("--gl-carbon-pocket")},
-          {model:m, resi:POCKET_RESI, elem:["C","N","O","S"]});
-      }catch(e){}
-    }
-  }
-  if (S.ctx !== "none" && nativeFrame()){
-    if (S.labels && INDEX.labels){
-      Object.keys(INDEX.labels).forEach(function(nm){
-        var p = INDEX.labels[nm];
-        viewer.addLabel(nm, {position:{x:p[0], y:p[1], z:p[2]},
-          fontSize:10, fontColor:css("--ink"), backgroundColor:css("--panel"),
-          backgroundOpacity:0.75, borderThickness:0.4, borderColor:css("--line"),
-          inFront:true, alignment:"center"});
-      });
-    }
-  }
-
-  /* Generated molecules and the reference fragment live in the 9GC8 frame. A
-     fetched entry is drawn in its own deposited frame, so against that receptor
-     they are not a pose of anything -- they would float in unrelated space.
-     Draw them only when the receptor shares their frame. */
-  var ens = nativeFrame();
-
-  /* reference fragment */
-  if (S.ref && ens){
-    var rm = viewer.addModel(STRUCT.refLigand, "sdf");
-    rm.setStyle({}, {stick:{radius:0.16, colorscheme:scheme(css("--gl-carbon-ref"))}});
-    rm.setStyle({elem:"H"}, {});
-  }
-
-  /* ligands */
-  if (!ens){
-    /* nothing: the ensemble belongs to another structure */
-  } else if (S.mode === "cloud"){
-    var passPDB = "", failPDB = "", np = 0, nf = 0;
-    list.forEach(function(r, ix){
-      var c = r.com, ok = r.m ? (r.m.pb && r.m.clash === 0 && r.m.rec >= 0.5) : true;
-      var line = "HETATM" + pad(ix+1,5) + "  C   CLD X" + pad(ix+1,4) + "    "
-        + f8(c[0]+off[0]) + f8(c[1]+off[1]) + f8(c[2]+off[2])
-        + "  1.00  0.00           C\n";
-      if (ok){ passPDB += line; np++; } else { failPDB += line; nf++; }
-    });
-    if (np){ viewer.addModel(passPDB, "pdb").setStyle({}, {sphere:{radius:0.34,
-        color: window.MOLDATA[key()].mols[0].m ? css("--pass") : css("--gl-carbon-ens")}}); }
-    if (nf){ viewer.addModel(failPDB, "pdb").setStyle({}, {sphere:{radius:0.34, color:css("--fail")}}); }
-    viewer.addSphere({center:{x:POCKET_COM[0], y:POCKET_COM[1], z:POCKET_COM[2]},
-      radius:0.85, color:css("--accent"), opacity:0.95});
-  } else if (S.mode === "ensemble"){
-    subset(list, S.count).forEach(function(r){
-      viewer.addModel(buildSDF(r, off), "sdf")
-            .setStyle({}, {stick:{radius:0.075, colorscheme:scheme(css("--gl-carbon-ens")), opacity:0.9}});
-    });
-    if (sel){
-      viewer.addModel(buildSDF(sel, off), "sdf")
-            .setStyle({}, {stick:{radius:0.17, colorscheme:scheme(css("--gl-carbon-sel"))}});
-    }
-  } else if (sel){
-    viewer.addModel(buildSDF(sel, off), "sdf")
-          .setStyle({}, {stick:{radius:0.17, colorscheme:scheme(css("--gl-carbon-sel"))},
-                         sphere:{radius:0.24, colorscheme:scheme(css("--gl-carbon-sel"))}});
-  }
-
-  drawSpheres();
-  drawGenerated();
-  if (view) viewer.setView(view); else fitPocket(true);
-  viewer.render();
-  paintInspector(ens ? sel : null, list, off, set);
-}
-
-function fitPocket(instant){
   if (!viewer) return;
-  var dur = instant ? 0 : 320;
-  var wide = S.ctx === "none" || !nativeFrame() || S.arm === "armD1" || (S.arm === "armE" && !S.eShift);
-  try{
-    if (wide){ viewer.zoomTo({}, dur); }
-    else { viewer.zoomTo({resi:CORE_RESI}, dur); viewer.zoom(0.75, dur); }
-  }catch(e){ try{ viewer.zoomTo(); }catch(e2){} }
+  var view = keepView ? viewer.getView() : null, grown = false;
+  Object.keys(entLayers).forEach(function(uid){
+    if (!entity(uid)){ clearLayer(entLayers[uid]); delete entLayers[uid]; }
+  });
+  ents.forEach(function(e){
+    var L = entLayers[e.uid] || (entLayers[e.uid] = {key:null});
+    /* rev moves on whenever the entry's text changes, so it is parsed again */
+    layer(L, e.uid + "#" + (e.rev || 0), function(L){
+      e.model = viewer.addModel(e.data, e.fmt); L.models.push(e.model);
+      e.styled = null;
+      if (!e.tree){ buildTree(e, e.model); grown = true; }
+    });
+    var k = styleKey(e);
+    if (e.styled !== k){ styleEntity(e); e.styled = k; }
+    if (e.visible) e.model.show(); else e.model.hide();
+  });
+  layer(layers.spheres, sphereKey(), drawSpheres);
+  layer(layers.gen, genKey(), drawGenerated);
+  layer(layers.labels, labelKey(), drawLabels);
+  if (view) viewer.setView(view); else fitAll(true);
+  viewer.render();
+  paintKey();
+  if (grown) paintTree();
+}
+/* Redraw, then everything around the stage that follows from it. */
+function refresh(keepView){
+  draw(keepView);
+  paintChrome();
+  syncPockets();
+}
+
+function styleEntity(e){
+  var m = e.model, cartoon = entColor(e);
+  m.setStyle({}, {cartoon:{color:cartoon, thickness:0.3, opacity:0.92}});
+  m.setStyle({hetflag:true}, {stick:{radius:0.15, colorscheme:scheme(css("--gl-carbon-het"))}});
+  m.setStyle({resn:WATERS}, {sphere:{radius:0.28}});
+  if (e.uid === pocketEnt) stylePocket(m, cartoon);
+  picksOf(e).forEach(function(k){ var n = e.nodes[k]; if (n) stylePick(m, n); });
+  /* Hidden parts last, so neither a pocket nor a pick brings them back. */
+  Object.keys(e.hidden).forEach(function(k){ if (e.hidden[k] && e.nodes[k]) m.setStyle(e.nodes[k].sel, {}); });
+  m.setStyle({elem:"H"}, {});   /* a prepared structure carries every hydrogen */
+}
+/* What the tree has selected, drawn on top of the structure's own style. */
+function stylePick(m, n){
+  var col = css("--gl-carbon-sel");
+  if (n.kind === "root" || n.kind === "chain")
+    m.setStyle(n.sel, {cartoon:{color:col, thickness:0.34, opacity:1}}, true);
+  else if (n.kind === "water" || n.kind === "waters")
+    m.setStyle(n.sel, {sphere:{radius:0.38, color:col}}, true);
+  else
+    m.setStyle(n.sel, {stick:{radius:0.2, colorscheme:scheme(col)}}, true);
+}
+function drawLabels(L){
+  labelled().forEach(function(x){
+    var atoms = x.e.model.selectedAtoms(x.n.sel);
+    if (!atoms.length) return;
+    var c = [0,0,0];
+    atoms.forEach(function(a){ c[0] += a.x; c[1] += a.y; c[2] += a.z; });
+    L.labels.push(viewer.addLabel(x.n.label, {
+      position:{x:c[0]/atoms.length, y:c[1]/atoms.length, z:c[2]/atoms.length},
+      fontSize:11, fontColor:css("--ink"), backgroundColor:css("--panel"),
+      backgroundOpacity:0.85, borderThickness:0.4, borderColor:css("--line"),
+      inFront:true, alignment:"bottomCenter", screenOffset:{x:0, y:-14}}));
+  });
+}
+
+/* Legend for what is drawn. Each pocket has its own colour, shared by the
+   molecules generated for it. */
+function paintKey(){
+  var vis = ents.filter(function(e){ return e.visible; }),
+      live = pocketsLive(), k = [], idx = pocketPicks.slice();
+  if (live && gen && gen.groups && gen.forStructure === pocketFor){
+    Object.keys(gen.groups).forEach(function(r){
+      var j = live.findIndex(function(p){ return String(p.rank) === String(r); });
+      if (gen.groups[r].visible && j >= 0 && idx.indexOf(j) === -1) idx.push(j);
+    });
+  }
+  vis.forEach(function(e){ k.push([entColor(e), e.id]); });
+  if (vis.length) k.push([css("--gl-carbon-het"), "hetero"]);
+  if (live && entity(pocketEnt).visible) idx.sort(function(a, b){ return a - b; }).forEach(function(i){
+    if (live[i]) k.push([pocketColor(i), "pocket " + live[i].rank]);
+  });
+  if (picks.length) k.push([css("--gl-carbon-sel"), "selected"]);
+  document.getElementById("ov-key").innerHTML = k.map(function(p){
+    return "<span class='key'><i style='background:" + p[0] + "'></i>" + esc(p[1]) + "</span>";
+  }).join("");
+}
+
+/* Frame the structures on screen, not the hidden ones. */
+function fitAll(instant){
+  if (!viewer) return;
+  var ms = ents.filter(function(e){ return e.visible && e.model; }).map(function(e){ return e.model; });
+  try{ viewer.zoomTo(ms.length ? {or:ms.map(function(m){ return {model:m}; })} : {}, instant ? 0 : 320); }catch(e){}
   viewer.render();
 }
 
-/* ---------------- inspector ---------------- */
-function paintInspector(sel, list, off, set){
-  document.getElementById("ro-delta").textContent = set.medD.toFixed(2) + " Å median";
-  document.getElementById("filt-n").textContent = list.length + " / " + set.n;
-  document.getElementById("insp-src").textContent = S.arm.replace("arm","arm ") + " · " + S.src;
-  var sc = document.getElementById("scrub");
-  sc.max = Math.max(0, list.length - 1);
-  sc.value = S.pos;
-
-  var gi = document.getElementById("insp-geom"), mi = document.getElementById("insp-metrics"),
-      fl = document.getElementById("insp-flags");
-  if (!sel){
-    document.getElementById("insp-idx").textContent = "—";
-    document.getElementById("insp-smiles").textContent = "no molecule passes the current filter";
-    gi.innerHTML = ""; mi.innerHTML = ""; fl.innerHTML = "";
-    return;
+/* ---------------- structure tree ---------------- */
+/* One root per loaded structure, then its chains with their residues, its
+   ligands and its waters. Read from the parsed model, so each node's
+   selection picks exactly what 3Dmol drew for it. */
+/* Chain-end caps (ACE, NME, NH2: what Prepare puts at a gap it does not
+   build) carry no CA, but they belong to the chain, not among the ligands. */
+var CAPS = ["ACE","NME","NH2"];
+function polymerLike(names, resn){
+  return (names.N && names.CA && names.C) || (names.P && names["C1'"]) || CAPS.indexOf(resn) !== -1;
+}
+function buildTree(e, m){
+  var seen = {}, list = [], u = e.uid + "/", prevOpen = e.open, prevHidden = e.hidden;
+  m.selectedAtoms({}).forEach(function(a){
+    var ic = (a.icode || "").trim(),
+        k = a.chain + "|" + a.resi + "|" + ic + "|" + a.resn, r = seen[k];
+    if (!r){
+      r = seen[k] = {chain:a.chain, resi:a.resi, ic:ic, resn:a.resn, het:!!a.hetflag, names:{}};
+      list.push(r);
+    }
+    r.names[a.atom] = true;
+  });
+  var root = {key:u + "root", kind:"root", sel:{}, kids:[]}, chains = {}, ligs = [], waters = [];
+  list.forEach(function(r){
+    var id = r.resn + " " + r.resi + r.ic,
+        n = {key:u + r.chain + ":" + r.resi + r.ic + ":" + r.resn, name:id, chain:r.chain, resi:r.resi,
+             sel:{chain:r.chain, resi:r.resi, resn:r.resn}, label:id + " · " + r.chain};
+    if (WATERS.indexOf(r.resn) !== -1){ n.kind = "water"; waters.push(n); return; }
+    /* A HETATM residue with a backbone is a modified residue in the chain
+       (MSE, SEP, ...), not a ligand. */
+    if (r.het && !polymerLike(r.names, r.resn)){ n.kind = "lig"; ligs.push(n); return; }
+    n.kind = "res";
+    var c = chains[r.chain];
+    if (!c){
+      c = chains[r.chain] = {key:u + "chain:" + r.chain, kind:"chain", chain:r.chain,
+                             name:"Chain " + (r.chain || "?"),
+                             sel:{chain:r.chain, hetflag:false}, kids:[]};
+      root.kids.push(c);
+    }
+    c.kids.push(n);
+  });
+  var nc = root.kids.length;
+  root.kids.forEach(function(c){ c.count = c.kids.length + " res"; });
+  root.count = nc + (nc === 1 ? " chain" : " chains");
+  if (ligs.length) root.kids.push({key:u + "ligs", kind:"ligs", name:"Ligands", count:ligs.length,
+    sel:{or:ligs.map(function(n){ return n.sel; })}, kids:ligs});
+  if (waters.length) root.kids.push({key:u + "waters", kind:"waters", name:"Water", count:waters.length,
+    sel:{resn:WATERS}, kids:waters});
+  e.tree = root;
+  e.nodes = {};
+  (function index(n, p){
+    n.parent = p; e.nodes[n.key] = n;
+    (n.kids || []).forEach(function(k){ index(k, n); });
+  })(root, null);
+  /* Everything folded but the structure itself: its chains, ligands and
+     waters are listed, their contents wait for a click. Parsed again after
+     a removal, the tree keeps whatever folding and hiding still applies. */
+  e.open = {}; e.hidden = {};
+  e.open[root.key] = true;
+  Object.keys(prevOpen || {}).forEach(function(k){ if (e.nodes[k]) e.open[k] = prevOpen[k]; });
+  if (prevHidden) Object.keys(prevHidden).forEach(function(k){ if (e.nodes[k]) e.hidden[k] = prevHidden[k]; });
+  /* Deposited files are full of waters: they start hidden, and the eye on
+     Water shows them. */
+  else if (waters.length) e.hidden[u + "waters"] = true;
+  /* The polymer residues as first loaded: what Prepare must not rebuild
+     once they are removed. */
+  if (!e.orig){
+    e.orig = {};
+    root.kids.forEach(function(c){
+      if (c.kind === "chain") e.orig[c.chain] = c.kids.map(function(n){ return n.resi; });
+    });
   }
-  document.getElementById("insp-idx").innerHTML = "#" + sel.i + " <span>of " + set.n + "</span>";
-  document.getElementById("insp-smiles").textContent = sel.m ? sel.m.smi : "(no SMILES recorded for this arm)";
-
-  var com = [sel.com[0]+off[0], sel.com[1]+off[1], sel.com[2]+off[2]];
-  var d = Math.hypot(com[0]-POCKET_COM[0], com[1]-POCKET_COM[1], com[2]-POCKET_COM[2]);
-  var md = minDistToPocket(sel, off);
-  gi.innerHTML = row("Centroid x", com[0].toFixed(2))
-    + row("Centroid y", com[1].toFixed(2))
-    + row("Centroid z", com[2].toFixed(2))
-    + row("Δ to pocket centroid", d.toFixed(2) + " Å", d < 8)
-    + row("Nearest receptor atom", md.toFixed(2) + " Å", md > 2)
-    + row("Heavy atoms", sel.s.length);
-
-  var m = sel.m;
-  if (m){
-    mi.innerHTML = row("MW", m.mw.toFixed(1)) + row("QED", m.qed.toFixed(3))
-      + row("SA score", m.sa.toFixed(2)) + row("cLogP", m.logp.toFixed(2))
-      + row("In-place Vina", m.ip === null ? "—" : m.ip.toFixed(2))
-      + row("Docked affinity", m.dock === null ? "—" : m.dock.toFixed(2) + " kcal/mol")
-      + row("COM drift on docking", m.dcom === null ? "—" : m.dcom.toFixed(2) + " Å")
-      + row("Min dist to protein (PB)", m.mind === null ? "—" : m.mind.toFixed(2))
-      + row("Interaction recovery", m.rec.toFixed(3))
-      + row("Bits formed", m.bits) + row("Tanimoto", m.tan.toFixed(3));
-    var ep = m.pb && m.clash === 0 && m.rec >= 0.5;
-    fl.innerHTML = flag("endpoint", ep) + flag("PB", m.pb)
-      + flag(m.clash === 0 ? "0 clash" : m.clash + " clash", m.clash === 0)
-      + flag("Ser89", m.ser89);
+}
+/* What hides a node: the node itself, a folder above it, or its structure. */
+function hider(e, n){
+  for (var x = n; x; x = x.parent)
+    if (x.kind === "root" ? !e.visible : e.hidden[x.key]) return x;
+  return null;
+}
+var EYE = "<svg viewBox='0 0 16 16' aria-hidden='true'><path d='M1.2 8S3.7 3.4 8 3.4 14.8 8 14.8 8 12.3 12.6 8 12.6 1.2 8 1.2 8z' " +
+          "fill='none' stroke='currentColor' stroke-width='1.3'/><circle cx='8' cy='8' r='2.1' fill='currentColor'/></svg>",
+    EYE_OFF = "<svg viewBox='0 0 16 16' aria-hidden='true'><path d='M1.2 8S3.7 3.4 8 3.4 14.8 8 14.8 8 12.3 12.6 8 12.6 1.2 8 1.2 8z' " +
+          "fill='none' stroke='currentColor' stroke-width='1.3' opacity='.55'/><path d='M2.5 13.5l11-11' stroke='currentColor' stroke-width='1.4'/></svg>";
+function paintTree(){
+  var host = document.getElementById("tree"), out = [];
+  host.hidden = !ents.length;
+  ents.forEach(function(e){
+    if (!e.tree) return;
+    (function walk(n, depth){
+      var folder = !!n.kids, open = folder && !!e.open[n.key],
+          on = picks.indexOf(n.key) !== -1, root = n.kind === "root",
+          label = root ? e.id : n.name, by = hider(e, n), own = by === n,
+          eyeTip = by && !own ? "Hidden with " + (by.kind === "root" ? e.id : by.name)
+                              : (own ? "Show " : "Hide ") + label;
+      var name = root
+        ? "<i class='sw' style='background:" + entColor(e) + "'></i><span class='nm fd'>" + esc(e.id) +
+          "</span><span class='as'>" + (e.edited ? "edited · " : "") + esc(e.title || e.sub || "") + "</span>"
+        : "<span class='nm" + (folder ? " fd" : "") + "'>" + esc(n.name) + "</span>" +
+          (n.kind === "lig" || n.kind === "water" ? "<span class='as'>chain " + esc(n.chain || "?") + "</span>" : "");
+      out.push("<div class='tn" + (root ? " root" : "") + (by ? " off" : "") +
+        "' role='treeitem' aria-level='" + (depth + 1) + "' data-key='" + attr(n.key) + "'" +
+        (folder ? " aria-expanded='" + open + "'" : "") + " aria-selected='" + on + "' style='--d:" + depth + "'>" +
+        "<button type='button' class='tw" + (folder ? "" : " leaf") + "' tabindex='-1'" +
+        (folder ? " aria-label='" + (open ? "Collapse " : "Expand ") + attr(root ? e.id : n.name) + "'" : " aria-hidden='true'") + ">" +
+        (folder ? (open ? "&#9662;" : "&#9656;") : "") + "</button>" +
+        "<button type='button' class='tl'>" + name +
+        (n.count != null ? "<span class='ct'>" + esc(String(n.count)) + "</span>" : "") + "</button>" +
+        /* Below the structure row the buttons stay out of the tab order: the
+           H and Delete keys do the same from the row itself. */
+        "<button type='button' class='ib eye" + (own ? " on" : "") + (by && !own ? " inh" : "") + "'" +
+          (root ? "" : " tabindex='-1'") + " aria-pressed='" + !by + "' title='" + attr(eyeTip) +
+          "' aria-label='" + attr(eyeTip) + "'>" + (by ? EYE_OFF : EYE) + "</button>" +
+        "<button type='button' class='ib rm'" + (root ? "" : " tabindex='-1'") + " title='Remove " +
+          attr(label) + "' aria-label='Remove " + attr(label) + "'>&times;</button>" +
+        "</div>");
+      if (open) n.kids.forEach(function(k){ walk(k, depth + 1); });
+    })(e.tree, 0);
+  });
+  host.innerHTML = out.join("");
+}
+function focusRow(key, part){
+  var el = document.querySelector("#tree [data-key='" + CSS.escape(key) + "'] " + (part || ".tl"));
+  if (el) el.focus();
+}
+/* Click picks one row (again: none), Ctrl/Cmd-click adds or drops a row,
+   Shift-click takes every row between the last pick and this one. */
+function pick(x, mode){
+  var k = x.n.key;
+  if (mode === "toggle"){
+    var at = picks.indexOf(k);
+    if (at === -1) picks.push(k); else picks.splice(at, 1);
+    pickAnchor = k;
+  } else if (mode === "range" && pickAnchor){
+    var rows = Array.prototype.map.call(document.querySelectorAll("#tree .tn"),
+                                        function(r){ return r.dataset.key; }),
+        a = rows.indexOf(pickAnchor), b = rows.indexOf(k);
+    if (a === -1){ picks = [k]; pickAnchor = k; }
+    else picks = rows.slice(Math.min(a, b), Math.max(a, b) + 1);
   } else {
-    mi.innerHTML = "<dt style='grid-column:1/-1;color:var(--muted)'>Arm " +
-      S.arm.replace("arm","") + " was not scored — geometry only.</dt>";
-    fl.innerHTML = "<span class='flag u'>unscored</span>";
+    picks = (picks.length === 1 && picks[0] === k) ? [] : [k];
+    pickAnchor = k;
+  }
+  paintChrome(); syncPockets(); draw(true);
+  if (picks.length) zoomPicks();
+  focusRow(k);
+}
+function clearPicks(){
+  if (!picks.length) return;
+  picks = []; pickAnchor = null;
+  paintChrome(); syncPockets(); draw(true);
+}
+/* Frame the selection; one residue or ligand is framed with its surroundings. */
+function zoomPicks(){
+  var leaves = [], last = null;
+  picks.forEach(function(k){
+    var x = nodeOf(k);
+    if (!x || !x.e.visible || !x.e.model) return;
+    leafSels(x.n.sel).forEach(function(s){ leaves.push(inModel(s, x.e.model)); });
+    last = x;
+  });
+  if (!leaves.length) return;
+  try{
+    viewer.zoomTo(picks.length === 1 && last.n.label
+      ? {model:last.e.model, within:{distance:8, sel:leaves[0]}}
+      : {or:leaves}, 320);
+  }catch(err){}
+  viewer.render();
+}
+function removeEntity(e){
+  var at = ents.indexOf(e);
+  ents.splice(at, 1);
+  remember({kind:"structure", e:e, at:at, what:e.id});
+  picks = picks.filter(function(k){ return k.indexOf(e.uid + "/") !== 0; });
+  if (pickAnchor && pickAnchor.indexOf(e.uid + "/") === 0) pickAnchor = null;
+  if (pocketEnt === e.uid){ clearPockets(); gen = null; gtSel = null; }
+  refresh(true);
+}
+/* Show or hide one node. A node hidden with a folder above it waits for that
+   folder: showing it alone would break what the folder's eye says. */
+function toggleHidden(x){
+  var e = x.e, n = x.n, by = hider(e, n);
+  if (by && by !== n) return;
+  if (n.kind === "root") e.visible = !e.visible;
+  else e.hidden[n.key] = !e.hidden[n.key];
+  refresh(true);
+  focusRow(n.key, ".eye");
+}
+/* Remove part of a structure. The atoms go from the entry's own text, not just
+   from the view, so Prepare, Find pockets and the rest work on what is left. */
+function removeNode(e, n){
+  if (n.kind === "root"){ removeEntity(e); return; }
+  var gone = {};
+  e.model.selectedAtoms({or:leafSels(n.sel)}).forEach(function(a){ gone[a.index] = true; });
+  var keep = e.model.selectedAtoms({}).filter(function(a){ return !gone[a.index]; });
+  if (!keep.length){ removeEntity(e); return; }
+  remember({kind:"part", e:e, what:n.name + " from " + e.id,
+            data:e.data, edited:!!e.edited, open:e.open, hidden:e.hidden});
+  e.data = e.fmt === "cif" ? cifSubset(e.data, keep) : pdbSubset(e.data, keep);
+  e.edited = true;
+  reload(e);
+  focusRow(n.parent.key);
+}
+function remember(h){
+  undoStack.push(h);
+  if (undoStack.length > 20) undoStack.shift();
+}
+/* Parse an entry again after its text changed. Folding, hiding and picks
+   carry over wherever their node still exists; pocket results described the
+   atoms as they were, so they go. */
+function reload(e){
+  e.tree = null; e.rev = (e.rev || 0) + 1;
+  if (pocketEnt === e.uid){ clearPockets(); gen = null; gtSel = null; }
+  draw(true);
+  picks = picks.filter(function(k){ return nodeOf(k); });
+  if (pickAnchor && !nodeOf(pickAnchor)) pickAnchor = null;
+  refresh(true);
+}
+function undo(){
+  var h = undoStack.pop();
+  if (!h) return;
+  if (h.kind === "structure"){
+    ents.splice(Math.min(h.at, ents.length), 0, h.e);
+    refresh(true);
+  } else if (ents.indexOf(h.e) !== -1){
+    h.e.data = h.data; h.e.edited = h.edited; h.e.open = h.open; h.e.hidden = h.hidden;
+    reload(h.e);
   }
 }
-function row(k, v, good){
-  return "<dt>" + k + "</dt><dd" + (good === true ? " class='hi'" : "") + ">" + v + "</dd>";
-}
-function flag(t, ok){ return "<span class='flag " + (ok ? "y" : "n") + "'>" + t + "</span>"; }
 
 /* ---------------- chrome ---------------- */
 function paintChrome(){
-  var a = INDEX.arms[S.arm];
-  document.getElementById("ov-arm").textContent = a.label;
-  var frameTxt = a.frame === "crystal" ? "9GC8 crystal frame · no alignment applied"
-    : a.frame === "decoy" ? "9GC8 crystal frame · decoy site, 18 Å from the pocket"
-    : "model origin frame · not the crystal frame";
-  if (!nativeFrame()) frameTxt += " · receptor " + ext().id + " in its own frame, not superposed";
-  document.getElementById("ov-frame").textContent = frameTxt;
-  document.getElementById("arm-n").textContent = a.sources[S.src] ? a.sources[S.src].n + " mols" : "";
-
-  var ens = nativeFrame();
-  /* The ensemble sections describe the baked 9GC8 dataset; against a fetched
-     receptor in its own frame they apply to nothing on screen. */
-  document.querySelectorAll('[data-ens="1"]').forEach(function(s){
-    s.style.opacity = ens ? "" : ".4";
-    s.style.pointerEvents = ens ? "" : "none";
+  var vis = ents.filter(function(e){ return e.visible; });
+  document.querySelector(".ov-tl").hidden = !vis.length;
+  document.getElementById("ov-id").textContent = vis.map(function(e){ return e.id; }).join(" · ");
+  document.getElementById("ov-sub").textContent = vis.length === 1
+    ? [vis[0].title, vis[0].sub].filter(Boolean).join(" · ")
+    : vis.length + " structures, each in its own deposited frame — nothing is superposed";
+  var by = {};
+  picks.forEach(function(k){
+    var x = nodeOf(k);
+    if (x) (by[x.e.id] = by[x.e.id] || []).push(x.n);
   });
-
-  var k = [];
-  if (ext()) k.push(["--gl-carbon-het", ext().id + " hetero"]);
-  else if (S.ctx !== "none") k.push(["--gl-carbon-pocket","receptor"]);
-  if (pocketSelection()) k.push(["--gl-carbon-pocket","fpocket pocket"]);
-  if (S.ref && ens) k.push(["--gl-carbon-ref","A1IJS"]);
-  if (ens && S.mode === "ensemble") k.push(["--gl-carbon-ens","ensemble"]);
-  if (ens && S.mode === "cloud") k.push(["--accent","pocket COM"]);
-  if (ens && S.mode !== "cloud") k.push(["--gl-carbon-sel","selected"]);
-  document.getElementById("ov-key").innerHTML = k.map(function(p){
-    return "<span class='key'><i style='background:" + css(p[0]) + "'></i>" + p[1] + "</span>";
-  }).join("");
-
+  document.getElementById("ov-pick").textContent = picks.length ? "selected · " +
+    Object.keys(by).map(function(id){ return id + ": " + summarize(by[id]); }).join("; ") : "";
   var b = document.getElementById("banner");
-  b.className = "banner";
-  if (!ens){
-    b.className = "banner on";
-    b.innerHTML = "<b>Showing " + esc(ext().id) + " on its own.</b> The generated molecules and the " +
-      "A1IJS fragment belong to the 9GC8 frame and are not a pose of anything against this receptor, " +
-      "so they are hidden and the ensemble controls are disabled. Use <b>Find pockets</b> to search " +
-      "this structure, or switch the receptor back to <span class='mono'>9GC8 chain A</span>.";
-  } else if (S.arm === "armE" && S.eShift){
-    b.className = "banner warn on";
-    b.innerHTML = "<b>Viewing aid, not a pose.</b> Arm E's ensemble has been rigidly translated " +
-      "onto the pocket centroid so its size can be compared. No docking, no per-molecule fit.";
-  } else if (S.arm === "armE"){
-    b.className = "banner on";
-    b.innerHTML = "<b>Arm E is not in the crystal frame.</b> Unconditional generation is centred on the model " +
-      "origin, 37 Å away, and <span class='mono'>armE_docked.sdf</span> was never written. " +
-      "<button type='button' class='btn' id='eshift' style='margin-left:auto'>Translate onto pocket</button>";
-    var btn = document.getElementById("eshift");
-    if (btn) btn.onclick = function(){ S.eShift = true; paintChrome(); draw(false); };
-  } else if (S.arm === "armD1"){
-    b.className = "banner warn on";
-    b.innerHTML = "<b>Decoy-site control.</b> These 913 molecules are in the crystal frame, on a site 18 Å " +
-      "from the true pocket. Switch the receptor to <span class='mono'>9GC8 chain A</span> to see both sites; " +
-      "no docked file exists for D1.";
-  }
-  document.getElementById("wrap-count").style.display = S.mode === "ensemble" ? "" : "none";
-  document.getElementById("mod-filter").style.opacity = INDEX.arms[S.arm].hasMetrics ? "1" : ".55";
-}
-
-function buildRadios(){
-  var ah = document.getElementById("arms");
-  ah.innerHTML = Object.keys(INDEX.arms).map(function(id){
-    var a = INDEX.arms[id], tag = a.frame === "crystal" ? "" : a.frame;
-    return "<button type='button' class='opt' role='radio' data-arm='" + id + "' aria-checked='" +
-      (id === S.arm) + "'><span class='dot'></span><span>" + a.label.split(" - ")[0] +
-      "<small>" + a.label.split(" - ")[1] + "</small></span>" +
-      (tag ? "<span class='tag " + tag + "'>" + tag + "</span>" : "<span class='tag'>crystal</span>") +
-      "</button>";
-  }).join("");
-  ah.querySelectorAll("[data-arm]").forEach(function(b){
-    b.onclick = function(){ setArm(b.dataset.arm); };
-  });
-  paintSrcs();
-  paintCtxs();
+  b.className = vis.length ? "banner" : "banner info on";
+  b.innerHTML = vis.length ? ""
+    : ents.length ? "<b>Everything is hidden.</b> Use the eye beside a structure in the Receptor panel to show it."
+    : "<b>Nothing loaded.</b> Fetch a PDB entry to start.";
+  document.getElementById("ent-n").textContent = ents.length ? ents.length + " loaded" : "";
+  document.getElementById("ent-empty").hidden = ents.length > 0;
+  document.getElementById("tree-hint").hidden = !ents.length;
+  document.getElementById("sel-clear").hidden = !picks.length;
+  var u = document.getElementById("undo"), last = undoStack[undoStack.length - 1];
+  u.hidden = !last;
+  u.title = last ? "Put back " + last.what + " (Ctrl/⌘-Z)" : "";
+  paintTree();
 }
 function esc(t){ var d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
-function paintCtxs(){
-  var ch = document.getElementById("ctxs"), list = CTXS.slice();
-  if (fetched) list.push({id:"fetched", name:"PDB " + fetched.id, sub:fetched.sub, tag:"fetched"});
-  if (prepared) list.push({id:"prepared", name:prepared.name, sub:prepared.sub, tag:"prepared"});
-  ch.innerHTML = list.map(function(c){
-    return "<button type='button' class='opt' role='radio' data-ctx='" + c.id + "' aria-checked='" +
-      (c.id === S.ctx) + "'><span class='dot'></span><span>" + esc(c.name) +
-      "<small>" + esc(c.sub) + "</small></span>" +
-      (c.tag ? "<span class='tag'>" + c.tag + "</span>" : "") + "</button>";
-  }).join("");
-  ch.querySelectorAll("[data-ctx]").forEach(function(b){
-    b.onclick = function(){
-      S.ctx = b.dataset.ctx;
-      ch.querySelectorAll("[data-ctx]").forEach(function(x){
-        x.setAttribute("aria-checked", x.dataset.ctx === S.ctx);
-      });
-      syncPockets();
-      paintChrome(); draw(true);
-    };
-  });
-}
-function paintSrcs(){
-  var a = INDEX.arms[S.arm], sh = document.getElementById("srcs");
-  sh.innerHTML = SRCS.map(function(c){
-    var has = !!a.sources[c.id];
-    return "<button type='button' class='opt' role='radio' data-src='" + c.id + "'" +
-      (has ? "" : " disabled") + " aria-checked='" + (c.id === S.src && has) + "'>" +
-      "<span class='dot'></span><span>" + c.name + "<small>" +
-      (has ? c.sub : "no file in results/poses/") + "</small></span>" +
-      (has ? "<span class='tag'>" + a.sources[c.id].n + "</span>" : "") + "</button>";
-  }).join("");
-  sh.querySelectorAll("[data-src]:not([disabled])").forEach(function(b){
-    b.onclick = function(){ setSrc(b.dataset.src); };
-  });
-}
-
-/* ---------------- transitions ---------------- */
-function busy(on){ document.getElementById("busy").classList.toggle("on", on); }
-function setArm(arm){
-  S.arm = arm;
-  if (arm !== "armE") S.eShift = false;
-  if (!INDEX.arms[arm].sources[S.src]) S.src = "inplace";
-  S.pos = 0;
-  document.querySelectorAll("[data-arm]").forEach(function(x){
-    x.setAttribute("aria-checked", x.dataset.arm === arm);
-  });
-  paintSrcs();
-  go(false);
-}
-function setSrc(src){
-  S.src = src; S.pos = 0;
-  document.querySelectorAll("[data-src]").forEach(function(x){
-    x.setAttribute("aria-checked", x.dataset.src === src);
-  });
-  go(true);
-}
-function go(keepView){
-  var k = key(), token = ++pending;
-  busy(true);
-  loadSet(k).then(function(set){
-    if (token !== pending) return;
-    prep(set);
-    busy(false); paintChrome(); draw(keepView);
-  }).catch(function(err){
-    busy(false);
-    var b = document.getElementById("banner");
-    b.className = "banner on";
-    b.innerHTML = "<b>Could not load that dataset.</b> " + err.message;
-  });
+function attr(t){ return esc(t).replace(/'/g, "&#39;").replace(/"/g, "&quot;"); }
+function busy(on, text){
+  document.getElementById("busy").classList.toggle("on", on);
+  if (on) document.getElementById("busy-t").textContent = text || "loading…";
 }
 
 /* ---------------- wiring ---------------- */
 function wire(){
-  document.getElementById("modes").querySelectorAll("button").forEach(function(b){
-    b.onclick = function(){
-      S.mode = b.dataset.mode;
-      document.getElementById("modes").querySelectorAll("button").forEach(function(x){
-        x.setAttribute("aria-pressed", x.dataset.mode === S.mode);
-      });
-      paintChrome(); draw(true);
-    };
-  });
-  document.getElementById("filters").querySelectorAll(".chip").forEach(function(b){
-    b.onclick = function(){
-      S.f[b.dataset.f] = !S.f[b.dataset.f];
-      b.setAttribute("aria-pressed", S.f[b.dataset.f]);
-      S.pos = 0; draw(true);
-    };
-  });
-  var cnt = document.getElementById("c-count"), raf = 0;
-  cnt.oninput = function(){
-    S.count = +cnt.value;
-    document.getElementById("lab-count").textContent = S.count;
-    if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(function(){ draw(true); });
-  };
-  document.getElementById("c-sort").onchange = function(e){ S.sort = e.target.value; S.pos = 0; draw(true); };
-  document.getElementById("c-surface").onchange = function(e){ S.surface = e.target.checked; draw(true); };
-  document.getElementById("c-ref").onchange = function(e){ S.ref = e.target.checked; paintChrome(); draw(true); };
-  document.getElementById("c-labels").onchange = function(e){ S.labels = e.target.checked; draw(true); };
-
-  var sc = document.getElementById("scrub"), sraf = 0;
-  sc.oninput = function(){
-    S.pos = +sc.value;
-    if (sraf) cancelAnimationFrame(sraf);
-    sraf = requestAnimationFrame(function(){ draw(true); });
-  };
-  document.getElementById("prev").onclick = function(){ S.pos = Math.max(0, S.pos-1); draw(true); };
-  document.getElementById("next").onclick = function(){ S.pos = S.pos+1; draw(true); };
-  document.getElementById("rand").onclick = function(){
-    S.pos = Math.floor(Math.random() * Math.max(1, filtered().length)); draw(true);
-  };
-  document.getElementById("fit").onclick = function(){ fitPocket(false); };
   document.getElementById("find-pockets").onclick = findPockets;
   document.getElementById("c-spheres").onchange = function(){
     showSpheres = this.checked; draw(true);
@@ -1750,12 +1768,21 @@ function wire(){
     return r.json();
   }).then(function(j){
     fpocketOK = !!j.fpocket; serverStale = false;
+    /* Only the backends lacuna can actually run: its MD backend needs OpenMM
+       in lacuna's own environment, and offering it otherwise would fail a
+       minute into a run instead of now. */
+    lacunaBackends = (j.lacuna && j.lacuna.available)
+      ? (j.lacuna.backends || []) : [];
     neatOK = !!(j.neat && j.neat.available);
     prepOK = !!(j.prep && j.prep.available);
+    prepStale = !j.prep;
   }).catch(function(err){
     fpocketOK = false; neatOK = null;
     serverStale = /restart it/.test(err.message);
   }).then(function(){ syncPockets(); });
+  /* Switching detector changes what is available and how results are
+     described, so the panel re-syncs rather than waiting for the next run. */
+  document.getElementById("pk-method").onchange = syncPockets;
   syncPockets();
   var form = document.getElementById("pdbq"), inp = document.getElementById("pdb-id"),
       msg = document.getElementById("pdb-msg"), fbtn = form.querySelector("button");
@@ -1770,25 +1797,64 @@ function wire(){
                            : "Enter a four-character PDB ID.";
       return;
     }
-    fbtn.disabled = true; busy(true);
+    fbtn.disabled = true; busy(true, "fetching " + id + "…");
     msg.innerHTML = "Fetching <b>" + id + "</b> from RCSB…";
     fetchEntry(id).then(function(entry){
-      fetched = entry; S.ctx = "fetched";
+      /* Fetching an entry that is already loaded shows it rather than adding a
+         copy -- unless parts of it were removed, when a fresh copy is wanted. */
+      var e = ents.filter(function(x){ return x.id === id && !x.prepared && !x.edited; })[0];
+      if (e) e.visible = true;
+      else addEntity({id:freeId(id), data:entry.data, fmt:entry.fmt, title:entry.title, sub:entry.sub});
       msg.innerHTML = "<b>" + id + "</b> " + esc(entry.title || "loaded");
-      syncPockets();
-      paintCtxs(); paintChrome(); draw(false);
+      refresh(false);
     }).catch(function(err){
       msg.className = "pdbq-msg err";
       msg.textContent = err.status === 404 ? "No PDB entry " + id + "."
         : "Could not reach RCSB for " + id + " (" + err.message + ").";
     }).then(function(){ fbtn.disabled = false; busy(false); });
   };
-  document.getElementById("fitall").onclick = function(){ viewer.zoomTo(); viewer.render(); };
-  document.addEventListener("keydown", function(e){
-    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-    if (e.key === "ArrowLeft"){ S.pos = Math.max(0, S.pos-1); draw(true); }
-    if (e.key === "ArrowRight"){ S.pos = S.pos+1; draw(true); }
-  });
+  document.getElementById("fitall").onclick = function(){ fitAll(false); };
+  document.getElementById("sel-clear").onclick = clearPicks;
+  document.getElementById("undo").onclick = undo;
+  /* structure tree: the caret folds, the row picks, the eye shows or hides a
+     structure and the cross removes it */
+  var tree = document.getElementById("tree");
+  tree.onclick = function(ev){
+    var row = ev.target.closest("[data-key]"), x = row && nodeOf(row.dataset.key);
+    if (!x) return;
+    if (ev.target.closest(".rm")){ removeNode(x.e, x.n); return; }
+    if (ev.target.closest(".eye")){ toggleHidden(x); return; }
+    if (ev.target.closest(".tw")){
+      if (!x.n.kids) return;
+      x.e.open[x.n.key] = !x.e.open[x.n.key];
+      paintTree(); focusRow(x.n.key, ".tw");
+      return;
+    }
+    if (ev.target.closest(".tl"))
+      pick(x, ev.shiftKey ? "range" : (ev.ctrlKey || ev.metaKey) ? "toggle" : "one");
+  };
+  /* Keys as in a file tree: up and down move, right and left unfold and fold,
+     Escape clears the selection, H hides, Delete removes, Ctrl/Cmd-Z undoes. */
+  tree.onkeydown = function(ev){
+    if (ev.key === "Escape"){ clearPicks(); ev.preventDefault(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === "z" || ev.key === "Z")){ undo(); ev.preventDefault(); return; }
+    var row = ev.target.closest("[data-key]"), x = row && nodeOf(row.dataset.key);
+    if (!x) return;
+    if (ev.key === "Delete" || ev.key === "Backspace"){ removeNode(x.e, x.n); ev.preventDefault(); return; }
+    if ((ev.key === "h" || ev.key === "H") && !ev.ctrlKey && !ev.metaKey){ toggleHidden(x); ev.preventDefault(); return; }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp"){
+      var to = ev.key === "ArrowDown" ? row.nextElementSibling : row.previousElementSibling;
+      if (to) to.querySelector(".tl").focus();
+      ev.preventDefault();
+      return;
+    }
+    if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+    var want = ev.key === "ArrowRight";
+    if (!x.n.kids || !!x.e.open[x.n.key] === want) return;
+    x.e.open[x.n.key] = want;
+    paintTree(); focusRow(x.n.key);
+    ev.preventDefault();
+  };
   var mq = window.matchMedia("(prefers-color-scheme: dark)");
   var root = document.documentElement, th = document.getElementById("theme");
   /* No saved choice means "follow the system", which is what the CSS does already. */
@@ -1812,20 +1878,75 @@ function wire(){
   };
   if (mq.addEventListener) mq.addEventListener("change", repaint);
   new MutationObserver(repaint).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
-  window.addEventListener("resize", function(){ if (viewer) viewer.resize(); });
+  /* The stage is sized by the layout, so follow the box itself: the window
+     and the table panel both change it. */
+  var rraf = 0, onResize = function(){
+    if (rraf) cancelAnimationFrame(rraf);
+    rraf = requestAnimationFrame(function(){ if (viewer){ viewer.resize(); viewer.render(); } });
+  };
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(document.getElementById("gl"));
+  else window.addEventListener("resize", onResize);
+
+  /* molecule table: one delegated row handler, header sort bound once */
+  document.getElementById("gt-body").onclick = function(e){
+    var tr = e.target.closest("tr");
+    if (tr && gen && gen.groups) selectRow(tr);
+  };
+  document.querySelectorAll("#gt th[data-sort]").forEach(function(th){
+    th.onclick = function(){
+      var k = th.dataset.sort;
+      if (gtSort.key === k) gtSort.dir = -gtSort.dir;
+      else { gtSort.key = k; gtSort.dir = 1; }
+      paintTable();
+    };
+  });
+
+  /* molecule table panel: collapse, and drag (or arrow keys on) the grip to resize */
+  var gtab = document.getElementById("gtab"), gsc = document.getElementById("gscroll"),
+      gtog = document.getElementById("gt-tog"), grip = document.getElementById("gt-grip");
+  var setGtH = function(h){
+    var max = Math.max(120, document.querySelector(".center").clientHeight - 230);
+    h = Math.round(Math.max(90, Math.min(max, h)));
+    gsc.style.height = h + "px";
+    try{ localStorage.setItem("pv-gt-h", h); }catch(e){}
+  };
+  try{ var gh = +localStorage.getItem("pv-gt-h"); if (gh) setGtH(gh); }catch(e){}
+  gtog.onclick = function(){
+    var open = !gtab.classList.toggle("closed");
+    gtog.setAttribute("aria-expanded", open);
+    gtog.setAttribute("aria-label", open ? "Collapse the molecule table" : "Expand the molecule table");
+    gtog.innerHTML = open ? "&#9662;" : "&#9652;";
+  };
+  grip.addEventListener("pointerdown", function(e){
+    var y0 = e.clientY, h0 = gsc.offsetHeight;
+    grip.setPointerCapture(e.pointerId);
+    var move = function(ev){ setGtH(h0 - (ev.clientY - y0)); };
+    var up = function(){
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      grip.removeEventListener("pointercancel", up);
+    };
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+    e.preventDefault();
+  });
+  grip.addEventListener("keydown", function(e){
+    if (e.key === "ArrowUp"){ setGtH(gsc.offsetHeight + 30); e.preventDefault(); e.stopPropagation(); }
+    if (e.key === "ArrowDown"){ setGtH(gsc.offsetHeight - 30); e.preventDefault(); e.stopPropagation(); }
+  });
+
 }
 
 /* ---------------- boot ---------------- */
 function start(){
-  pocketHeavy = parseHeavy(STRUCT.pocketTrue);
   initViewer();
-  buildRadios();
   wire();
-  go(false);
+  paintChrome(); draw(false);
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
 else start();
 })();
 </script>
-
-</body></html>
+</body>
+</html>
