@@ -7,6 +7,12 @@ Written 2026-10-17. Every number here was measured on this machine; where a
 figure comes from lacuna's own documentation rather than a local run, it says
 so.
 
+The files named below have since moved into the `proteinviewer` package:
+`lacuna.py` is `proteinviewer/detectors/lacuna.py`, `pockets.py` is split into
+`structure.py`, `pockets.py` and `detectors/fpocket.py`, `serve.py`'s endpoints
+are `service.py` and `web.py`, and `/api/status` lists lacuna under
+`detectors`. What is described here still holds.
+
 ---
 
 ## 1. Why

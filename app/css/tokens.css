@@ -1,0 +1,40 @@
+/* Design tokens: every colour the page uses, for light and dark. Components
+   in app.css refer only to these; the --gl-* values are read by the 3D view. */
+:root{
+  --bg:#e7ebec; --panel:#fbfcfc; --panel-2:#eff3f3; --sunk:#dde4e5;
+  --ink:#111a1c; --ink-2:#2f4348; --muted:#61757a;
+  --line:#c9d3d4; --line-2:#adbcbe;
+  --accent:#a9660c; --accent-ink:#fffaf2; --accent-soft:#f0e0c6;
+  --pass:#2b7d54; --fail:#a93c34; --info:#31698d; --warn:#8e6310;
+  --pass-soft:#d9ece2; --fail-soft:#f6dedb; --info-soft:#dbe9f1;
+  --viewer:#dae1e2;
+  --shadow:0 1px 1px rgba(17,26,28,.06),0 6px 20px rgba(17,26,28,.07);
+  --gl-carbon-sel:#d68e26; --gl-cartoon:#61797f; --gl-carbon-het:#8a5fb0;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#090e10; --panel:#121a1d; --panel-2:#182226; --sunk:#0c1315;
+    --ink:#e2e9e9; --ink-2:#bdcccf; --muted:#86989c;
+    --line:#233036; --line-2:#33474e;
+    --accent:#e2a445; --accent-ink:#16110a; --accent-soft:#2b2115;
+    --pass:#5cb98a; --fail:#e28078; --info:#74aed0; --warn:#d6a750;
+    --pass-soft:#132a20; --fail-soft:#2c1815; --info-soft:#12242e;
+    --viewer:#0c1316;
+    --shadow:0 1px 1px rgba(0,0,0,.5),0 8px 26px rgba(0,0,0,.4);
+    --gl-carbon-sel:#eaa53f; --gl-cartoon:#6d878d; --gl-carbon-het:#b48ad6;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#090e10; --panel:#121a1d; --panel-2:#182226; --sunk:#0c1315;
+  --ink:#e2e9e9; --ink-2:#bdcccf; --muted:#86989c;
+  --line:#233036; --line-2:#33474e;
+  --accent:#e2a445; --accent-ink:#16110a; --accent-soft:#2b2115;
+  --pass:#5cb98a; --fail:#e28078; --info:#74aed0; --warn:#d6a750;
+  --pass-soft:#132a20; --fail-soft:#2c1815; --info-soft:#12242e;
+  --viewer:#0c1316;
+  --shadow:0 1px 1px rgba(0,0,0,.5),0 8px 26px rgba(0,0,0,.4);
+  --gl-carbon-sel:#eaa53f; --gl-cartoon:#6d878d; --gl-carbon-het:#b48ad6;
+  color-scheme:dark;
+}

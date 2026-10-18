@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proteinviewer"
+description = "A browser-based protein structure viewer, and the server that runs pocket detection, preparation and generation for it."
+readme = "README.md"
+requires-python = ">=3.10"
+# The server runs on the standard library alone; every tool it drives lives in
+# its own environment and is run as a subprocess.
+dependencies = []
+dynamic = ["version"]
+
+[project.scripts]
+proteinviewer = "proteinviewer.server:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "proteinviewer.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["proteinviewer*"]

@@ -1,0 +1,249 @@
+/* Components and layout. Colours come from tokens.css. */
+*{box-sizing:border-box}
+[hidden]:not([hidden=until-found i]){display:none!important}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--ink); margin:0; overflow:hidden;
+  font-family:"IBM Plex Sans","Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0; text-wrap:balance}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
+.eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:10px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+}
+
+/* ---------- app shell: one screen, the side panels scroll on their own ---------- */
+.app{display:grid; grid-template-rows:auto minmax(0,1fr); height:100vh; height:100dvh}
+.top{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:6px 12px;
+  background:var(--panel); border-bottom:1px solid var(--line);
+}
+.top h1{
+  font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif;
+  font-size:19px; font-weight:700; letter-spacing:-.01em; line-height:1; white-space:nowrap;
+}
+.tgrp{display:flex; align-items:center; gap:7px}
+.top .seg button{flex:none; padding:4px 10px}
+.top .end{margin-left:auto; display:flex; align-items:center; gap:8px}
+
+.main{display:grid; grid-template-columns:290px minmax(0,1fr); gap:10px; padding:10px; min-height:0}
+.rail{
+  display:flex; flex-direction:column; gap:8px; min-height:0; overflow-y:auto;
+  overscroll-behavior:contain; scrollbar-width:thin;
+}
+.center{display:flex; flex-direction:column; gap:10px; min-height:0; min-width:0}
+
+.mod{background:var(--panel); border:1px solid var(--line); border-radius:3px; overflow:hidden; flex:none}
+.mod > .hd{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:6px 10px; background:var(--panel-2); border-bottom:1px solid var(--line);
+}
+.mod > .bd{padding:9px 10px; display:flex; flex-direction:column; gap:7px}
+
+/* segmented + option controls */
+.opts{display:flex; flex-direction:column; gap:3px}
+.opt{
+  display:grid; grid-template-columns:9px 1fr auto; align-items:center; gap:8px;
+  padding:5px 8px; border:1px solid transparent; border-radius:2px;
+  background:none; color:var(--ink); text-align:left; cursor:pointer;
+  font:inherit; font-size:13px; width:100%;
+}
+.opt:hover:not([disabled]){background:var(--panel-2)}
+.opt .dot{width:9px; height:9px; border-radius:50%; border:1.5px solid var(--line-2); background:transparent}
+.opt[aria-checked="true"]{background:var(--accent-soft); border-color:var(--accent)}
+.opt[aria-checked="true"] .dot{background:var(--accent); border-color:var(--accent)}
+.opt[disabled]{opacity:.45; cursor:not-allowed}
+.opt .tag{
+  font-family:"IBM Plex Mono",monospace; font-size:9.5px; font-weight:600; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:2px; padding:1px 4px;
+}
+.opt small{display:block; color:var(--muted); font-size:11px; line-height:1.35}
+
+.seg{display:flex; border:1px solid var(--line); border-radius:2px; overflow:hidden}
+.seg button{
+  flex:1; padding:6px 4px; border:0; border-right:1px solid var(--line); background:var(--panel);
+  color:var(--ink-2); font:inherit; font-size:12px; cursor:pointer;
+}
+.seg button:last-child{border-right:0}
+.seg button:hover:not([disabled]):not([aria-pressed="true"]):not([aria-checked="true"]){background:var(--panel-2)}
+.seg button[aria-pressed="true"],.seg button[aria-checked="true"]{background:var(--accent); color:var(--accent-ink); font-weight:600}
+.seg button[disabled]{opacity:.45; cursor:not-allowed}
+
+.chk{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-2); cursor:pointer}
+.chk input{accent-color:var(--accent); margin:0}
+.chks{display:flex; flex-direction:column; gap:4px}
+.chk .aside{color:var(--muted); font-size:11px}
+label.fld{display:flex; flex-direction:column; gap:4px}
+select,input[type=number]{
+  font:inherit; font-size:12.5px; padding:5px 6px; border:1px solid var(--line);
+  border-radius:2px; background:var(--panel); color:var(--ink); width:100%;
+}
+input[type=range]{width:100%; accent-color:var(--accent); margin:0}
+:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.sub{color:var(--muted); font-size:11px; line-height:1.35; margin-top:-3px}
+.pdbq{display:flex; gap:6px}
+.pdbq input{
+  flex:1; min-width:0; padding:5px 7px; border:1px solid var(--line); border-radius:2px;
+  background:var(--panel); color:var(--ink); text-transform:uppercase;
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; letter-spacing:.04em;
+}
+.pdbq input::placeholder{text-transform:none; letter-spacing:0; color:var(--muted)}
+.pdbq-msg{font-size:11.5px; line-height:1.4; color:var(--muted);
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden}
+.pdbq-msg:empty{display:none}
+.pdbq-msg.err{color:var(--fail)}
+.pdbq-msg b{color:var(--ink); font-weight:600; font-family:"IBM Plex Mono",monospace}
+.prep-log summary,.runlog summary{cursor:pointer; color:var(--muted); font-size:11px}
+.prep-log pre{font:10.5px/1.45 "IBM Plex Mono",monospace; color:var(--ink); white-space:pre;
+  max-height:260px; overflow:auto; margin:4px 0 0; padding:6px 8px;
+  background:var(--panel-2); border-radius:2px}
+.runlog .pdbq-msg{display:block; margin-top:4px}
+
+.btn{
+  border:1px solid var(--line); background:var(--panel); color:var(--ink-2);
+  border-radius:2px; padding:4px 9px; font:inherit; font-size:12px; cursor:pointer;
+}
+.btn:hover:not([disabled]){background:var(--panel-2)}
+.btn.solid{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.btn.solid:hover:not([disabled]){background:var(--ink-2); border-color:var(--ink-2)}
+.btn.wide{width:100%}
+.btn[disabled]{opacity:.45; cursor:not-allowed}
+.btn[aria-pressed="true"]{background:var(--accent-soft); border-color:var(--accent); color:var(--ink)}
+.hr{height:1px; background:var(--line); margin:1px 0}
+
+/* ---------- stage ---------- */
+.stage{
+  position:relative; flex:1; min-height:0; display:flex; flex-direction:column;
+  background:var(--viewer); border:1px solid var(--line); border-radius:3px; overflow:hidden;
+}
+.glbox{position:relative; flex:1; min-height:160px}
+/* Pinned to the box so the canvas is sized by the layout and never pushes it. */
+#gl{position:absolute; inset:0; overflow:hidden}
+#gl canvas{display:block}
+.overlay{position:absolute; pointer-events:none; font-family:"IBM Plex Mono",monospace; font-size:11px}
+.ov-tl,.ov-br{background:color-mix(in srgb, var(--viewer) 78%, transparent)}
+.ov-tl{top:0; left:0; padding:7px 11px; display:flex; flex-direction:column; gap:2px; max-width:75%; border-bottom-right-radius:3px}
+.ov-tl .id{font-size:13px; font-weight:600; color:var(--ink)}
+.ov-tl .fr{color:var(--muted)}
+.ov-tl .fr b{color:var(--ink-2); font-weight:600}
+.ov-br{right:0; bottom:0; padding:5px 11px; border-top-left-radius:3px; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px 12px; color:var(--muted); max-width:70%}
+.key{display:flex; align-items:center; gap:5px}
+.key i{width:16px; height:3px; border-radius:2px; display:block}
+/* Busy is a pill, not a cover: the scene stays visible while data loads. */
+#busy{
+  position:absolute; top:8px; right:10px; display:none; align-items:center; gap:7px;
+  padding:3px 10px 3px 8px; border:1px solid var(--line); border-radius:999px;
+  background:var(--panel); color:var(--muted); box-shadow:var(--shadow);
+  font-family:"IBM Plex Mono",monospace; font-size:11px; pointer-events:none;
+}
+#busy.on{display:flex}
+#busy:before{
+  content:""; width:9px; height:9px; border-radius:50%;
+  border:2px solid var(--line-2); border-top-color:var(--accent); animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stage .bar{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:6px 12px;
+  padding:6px 10px; border-top:1px solid var(--line); background:var(--panel);
+}
+.banner{
+  display:none; padding:7px 11px; font-size:12.5px; line-height:1.45;
+  border-top:1px solid var(--line); background:var(--fail-soft); color:var(--ink);
+}
+.banner.on{display:block}
+.banner .btn{float:right; margin:-2px 0 2px 12px}
+.banner.warn{background:var(--accent-soft)}
+.banner.info{background:var(--info-soft)}
+.banner b{font-family:"IBM Plex Sans Condensed",sans-serif; letter-spacing:.01em}
+
+/* ---------- generated-molecule table: a resizable panel under the stage ---------- */
+.gtab{flex:none; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); border-radius:3px; overflow:hidden}
+.grip{height:7px; cursor:row-resize; background:var(--panel-2); border-bottom:1px solid var(--line); position:relative; touch-action:none}
+.grip:after{content:""; position:absolute; left:50%; top:2px; width:36px; height:2px; margin-left:-18px; border-radius:2px; background:var(--line-2)}
+.gtab.closed .grip{display:none}
+.gtab .hd{display:flex; align-items:center; gap:10px; padding:5px 10px}
+.gtab:not(.closed) .hd{border-bottom:1px solid var(--line)}
+.gtab .hd .sp{margin-left:auto; display:flex; gap:10px; align-items:center}
+.gtab .tog{padding:1px 7px; line-height:1.3}
+.gscroll{height:240px; overflow:auto}
+.gtab.closed .gscroll{display:none}
+table.gt{border-collapse:collapse; width:100%; font-size:12.5px}
+table.gt th{position:sticky; top:0; z-index:1; background:var(--panel); text-align:left;
+  font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); padding:7px 9px; border-bottom:1px solid var(--line); white-space:nowrap; cursor:pointer}
+table.gt th.nos{cursor:default}
+table.gt th.num{text-align:right}
+table.gt th[aria-sort]:after{content:"\2009\25B2"; opacity:.75}
+table.gt th[aria-sort=descending]:after{content:"\2009\25BC"}
+table.gt td{padding:3px 9px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap}
+table.gt tbody tr{cursor:pointer}
+table.gt tbody tr:hover{background:var(--sunk)}
+table.gt tbody tr[aria-selected=true]{background:var(--accent-soft)}
+.gt .depict{width:120px; height:86px; display:block; color:var(--ink)}
+.gt .depict svg{width:100%; height:100%}
+.gt .pk{display:inline-flex; align-items:center; gap:6px; font-weight:600}
+.gt .pk i{width:9px; height:9px; border-radius:50%; display:inline-block; flex:none}
+.gt .smi{max-width:280px; overflow:hidden; text-overflow:ellipsis; color:var(--muted)}
+.gt .num{text-align:right}
+table.gt tbody tr:last-child td{border-bottom:0}
+
+/* ---------- structure tree: chains and their residues, ligands, waters ---------- */
+.tree{max-height:52vh; overflow:auto; scrollbar-width:thin; margin:0 -5px; font-size:12.5px; line-height:1.35; user-select:none}
+.tn{display:flex; align-items:center; padding-left:calc(var(--d) * 13px)}
+.tn .tw{
+  flex:none; width:18px; height:22px; padding:0; border:0; background:none; cursor:pointer;
+  color:var(--muted); font-size:9px; line-height:22px; text-align:center;
+}
+.tn .tw:hover{color:var(--ink)}
+.tn .tw.leaf{visibility:hidden; cursor:default}
+.tn .tl{
+  flex:1; min-width:0; display:flex; align-items:baseline; gap:6px; padding:2px 6px;
+  border:1px solid transparent; border-radius:2px; background:none; color:var(--ink);
+  font:inherit; text-align:left; cursor:pointer; white-space:nowrap;
+}
+.tn .tl:hover{background:var(--panel-2)}
+.tn[aria-selected="true"] .tl{background:var(--accent-soft); border-color:var(--accent)}
+.tn .nm{font-family:"IBM Plex Mono",monospace; font-size:12px}
+.tn .fd{font-weight:600}
+.tn .as{color:var(--muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.tn .ct{margin-left:auto; padding-left:6px; color:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+/* one root per loaded structure: swatch, show/hide, remove */
+.tn.root:not(:first-child){border-top:1px solid var(--line); margin-top:3px; padding-top:3px}
+.tn .sw{flex:none; width:9px; height:9px; border-radius:2px; align-self:center}
+.tn .ib{
+  flex:none; width:22px; height:22px; padding:0; border:0; border-radius:2px; background:none;
+  color:var(--muted); cursor:pointer; display:grid; place-items:center; font-size:15px; line-height:1;
+}
+.tn .ib:hover{background:var(--panel-2); color:var(--ink)}
+.tn .ib svg{width:14px; height:14px}
+.tn.off .tl{opacity:.5}
+/* Below the structure row the eye and the cross wait for hover or focus,
+   except an eye that is itself switched off. */
+.tn:not(.root) .ib{visibility:hidden}
+.tn:hover .ib, .tn:focus-within .ib, .tn .ib.on{visibility:visible}
+.tn .ib.inh{opacity:.45; cursor:default}
+.hd-end{display:flex; align-items:center; gap:10px}
+.lnk{border:0; background:none; padding:0; color:var(--accent); font:inherit; font-size:11px; cursor:pointer}
+.lnk:hover{text-decoration:underline}
+.scope{font-size:11.5px; line-height:1.4; color:var(--ink-2); padding:5px 7px; background:var(--panel-2); border-radius:2px}
+.scope b{font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--ink)}
+.scope.err{color:var(--fail); background:var(--fail-soft)}
+
+/* ---------- narrower screens ---------- */
+@media (max-width:1180px){
+  .main{grid-template-columns:250px minmax(0,1fr)}
+}
+/* Below this there is no room for three columns: stack, stage first, and let the page scroll. */
+@media (max-width:900px){
+  body{overflow:auto}
+  .app{display:block; height:auto}
+  .main{grid-template-columns:minmax(0,1fr)}
+  .center{order:-1}
+  .stage{flex:none}
+  .glbox{flex:none; height:62vh}
+  .rail{overflow:visible}
+  .top .end{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}

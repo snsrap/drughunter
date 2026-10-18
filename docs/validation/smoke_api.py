@@ -24,9 +24,10 @@ def post(route, payload):
 
 with urllib.request.urlopen(BASE + "/api/status", timeout=300) as r:
     st = json.load(r)
-print("status: fpocket=%s  lacuna=%s %s backends=%s"
-      % (st["fpocket"], st["lacuna"]["available"], st["lacuna"]["version"],
-         st["lacuna"]["backends"]))
+det = st["detectors"]
+print("status: api=%s  fpocket=%s  lacuna=%s %s backends=%s"
+      % (st["api"], det["fpocket"]["available"], det["lacuna"]["available"],
+         det["lacuna"]["version"], det["lacuna"]["backends"]))
 
 code, buf = post("/api/structure", {"id": "1BTL", "data": open(STRUCT).read(),
                                     "fmt": "pdb"})

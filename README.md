@@ -16,7 +16,8 @@ molecules) has been removed; it is in git history at `e38e6d2` if it is needed.
 ```
 
 Or `./start.sh`, which takes the same arguments but first stops a viewer
-already running on that port, so it doubles as a restart.
+already running on that port, so it doubles as a restart. `python -m
+proteinviewer` is the same server.
 
 Serves `app/` on <http://127.0.0.1:8000/> and opens a browser. Open the page
 through the server, not as a file: pockets, preparation and generation all go
@@ -143,7 +144,8 @@ fpocket's alpha-sphere centres stand in for the ligand that would normally
 define the site. On 3R8G this reproduces `cut_pocket` exactly, residue for
 residue, at the same protonation state.
 
-Two details that are easy to get wrong, both handled in `pockets.py`:
+Two details that are easy to get wrong, both handled in the server
+(`proteinviewer/detectors/__init__.py` and `proteinviewer/pockets.py`):
 
 - fpocket **silently ignores `HETATM`**. A cofactor left as hetero is invisible
   to it, so its volume is detected as empty cavity and merged into the
@@ -242,17 +244,31 @@ maps back to the model drawn in the stage.
 
 | route | purpose |
 | --- | --- |
-| `GET /api/status` | whether fpocket was found, and where |
+| `GET /api/status` | `{api, detectors: {fpocket, lacuna}, prep, neat}`: what each tool's install can do |
 | `POST /api/structure` | buffer `{id, fmt, data}` → `{token, nAtoms, chains}` |
-| `POST /api/pockets` | `{token, cutoff, ligand}` → ranked pockets, cached per structure |
+| `POST /api/pockets` | `{token, method, cutoff, ligand, …}` → ranked pockets, cached per structure; lacuna also takes `backend`, `detector`, `conformers` |
 | `POST /api/generate` | `{token, ranks, n}` → starts a job, returns `{job}` |
 | `GET /api/job?id=` | job progress; `&mols=1` adds the SDF per pocket, `&table=1` the rows |
-| `POST /api/prep` | `{token, ph}` → `{data, report, summary}`: the prepared PDB, from the quickprep package |
+| `POST /api/prep` | `{token, ph, noRebuild}` → `{data, report, summary}`: the prepared PDB, from the quickprep package |
 
-`pockets.py` is also a CLI and needs nothing outside the standard library:
+Errors come back as `{"error": "…"}` with a status that says whose problem it
+is: 400 a bad request (413 too large), 404 an unknown structure, job or route,
+409 a request out of order (generation before any pocket run), 503 a tool that
+is not installed, 502 a tool that ran and failed, 500 a bug in the server.
+`api` goes up when a response changes shape; the page compares it with its own
+and asks for a restart when the running server is older.
+
+The API answers only the page itself. It writes into a temp tree on behalf of
+whoever asks, so a page on another site must not be able to ask: POSTs must be
+`application/json` (which a cross-site form or "simple" request cannot send
+without the browser asking first), must not name another `Origin`, and the
+`Host` must be a loopback name, which defeats DNS rebinding.
+
+Each detector is also a CLI:
 
 ```sh
-./pockets.py structure.cif --ligand IZP --top 5
+python -m proteinviewer.detectors.fpocket structure.cif --ligand IZP --top 5
+python -m proteinviewer.detectors.lacuna structure.cif --backend nma --conformers 20
 ```
 
 ## Preparing structures
@@ -282,13 +298,75 @@ Hydrogens are hidden in the 3D view.
 ## Layout
 
 ```
-app/
-  index.html               the whole GUI — markup, CSS and logic, no build step
-pockets.py                 fpocket wrapper, structure buffer, pocket→residue cut
-lacuna.py                  lacuna wrapper: ensemble pocket detection (see docs/)
-generate.py                NEAT-POCKET job runner (subprocess, polled)
-serve.py                   static server for app/, plus the pocket endpoints
+serve.py                     entry point (start.sh looks for it): runs proteinviewer.server
+proteinviewer/               the server: Python standard library only
+  structure.py  pockets.py     domain: PDB/mmCIF parsing, the pocket model, the residue cut
+  errors.py  validate.py       what can go wrong, and checking request values
+  config.py                    every setting and environment variable, in one place
+  process.py                   subprocess plumbing shared by the tool adapters
+  detectors/                   one PocketDetector per tool: fpocket.py, lacuna.py
+  prep.py  generation.py       quickprep and NEAT-POCKET adapters
+  buffer.py                    structures held on disk, per-structure locks, LRU eviction
+  schemas.py  service.py       parsed requests, and the use cases over them
+  web.py                       HTTP: routing, status codes, the cross-site checks
+  server.py                    composition root: picks the tools, wires, serves, cleans up
+app/                         the page: no build step, no install
+  index.html                   markup only
+  css/tokens.css  css/app.css  theme colours, then components and layout
+  js/main.js                   boot: registers the views, binds the features, probes the server
+  js/core/                     state store, API client, RCSB fetch, colours, DOM helpers
+  js/model/                    pure: tree building, cutting a selection out of its file, scope
+  js/scene.js                  the 3D stage (3Dmol), drawn in keyed layers
+  js/features/                 one module per panel: its view, its controls, its actions
+tests/                       python -m unittest; tests/js via npm test; tests/e2e walkthrough
 ```
 
-`index.html` has no dependencies beyond 3Dmol.js from cdnjs. Edit it directly
-and reload. `pockets.py` and `serve.py` are standard library only.
+### How the pieces fit
+
+**Server.** Each layer imports only from the ones below it, and
+`tests/test_architecture.py` fails the build when one does not: the domain
+(`structure`, `pockets`) knows nothing of tools or HTTP; the adapters know their
+tool and nothing of HTTP; `service.py` holds the use cases and sees tools only
+through the detector registry and two small protocols; `web.py` turns requests
+into calls on the service and errors into statuses; `server.py` is the one place
+that names concrete tools. The domain is the part that could leave this
+repository as its own package, as quickprep did.
+
+Requests on different structures run in parallel. Each buffered structure has
+one lock per kind of work, so two pocket runs on the same structure take turns
+(they share its scratch directory) while a preparation on it does not wait.
+Each generation job runs in its own directory with its own copy of the
+structure, so evicting a structure cannot pull files out from under a job, and
+only the last 32 finished jobs are kept.
+
+**Page.** All state lives in one object (`js/core/state.js`). A feature's action
+changes it and calls `commit()`, and every view re-renders from it in a fixed
+order, so no action decides what else needs repainting. Views skip DOM work
+when their markup has not changed, which keeps keyboard focus where it was; the
+molecule table rebuilds only when its rows change, and the 3D scene touches
+only the layers whose inputs changed.
+
+### Adding a pocket detector
+
+Subclass `PocketDetector` in `proteinviewer/detectors/<tool>.py`: give it a
+`name`, `available`, `describe()`, `status_line()`, `options()` for any settings
+of its own, and `run()` returning a `DetectionResult` whose pockets went through
+`select_residues`. Register an instance in `server.build_service`. Status,
+caching and the API need no changes; in the page, add an `<option>` to the
+detector menu and, if it reports new numbers, show them in
+`js/features/pockets.js`.
+
+### Tests
+
+```sh
+python3 -m unittest discover -s tests -t .   # server: about a second, no tools needed
+PV_SLOW_TESTS=1 python3 -m unittest tests.test_detectors   # also runs real lacuna
+npm test                                     # the page's pure modules, Node 18+
+npm install && npm run e2e -- http://127.0.0.1:8000 /tmp/pv-ui --slow   # the whole UI
+```
+
+The server tests use fake tools, so they pass with nothing installed; the real
+fpocket is exercised when it is on `PATH`. The end-to-end walkthrough drives a
+real browser through every panel and writes what each one said, plus a
+screenshot of the stage, at every step. Run it against the old and the new
+server and diff the two to check that a refactor kept behaviour.
