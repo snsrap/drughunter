@@ -286,6 +286,13 @@ def _split_cif(line: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # pockets
 # ---------------------------------------------------------------------------
+def _num(v: float, digits: int = 3):
+    """A JSON-safe number. ``json.dumps`` writes NaN as a bare ``NaN``, which
+    ``JSON.parse`` rejects, so a field the detector did not report is sent as
+    null and the panel can show it as absent rather than as zero."""
+    return None if v != v else round(v, digits)
+
+
 @dataclass
 class Pocket:
     rank: int
@@ -296,6 +303,11 @@ class Pocket:
     radii: list[float]
     residues: list[tuple[str, int]] = field(default_factory=list)
     n_atoms: int = 0
+    # Ensemble detectors only -- see lacuna.py. A single-structure run leaves
+    # these alone, and they go out as null.
+    persistence: float = float("nan")
+    crypticity: float = float("nan")
+    cryptic: bool = False
 
     @property
     def n_spheres(self) -> int:
@@ -324,8 +336,10 @@ class Pocket:
         """JSON form. ``spheres`` is included so the viewer can draw what
         fpocket actually found, rather than only the residues derived from it."""
         return {
-            "rank": self.rank, "score": round(self.score, 3),
-            "drug": round(self.druggability, 3), "volume": round(self.volume, 1),
+            "rank": self.rank, "score": _num(self.score),
+            "drug": _num(self.druggability), "volume": _num(self.volume, 1),
+            "persistence": _num(self.persistence),
+            "crypticity": _num(self.crypticity), "cryptic": self.cryptic,
             "nSpheres": self.n_spheres, "nResidues": len(self.residues),
             "nAtoms": self.n_atoms,
             "centroid": [round(v, 3) for v in self.centroid],
