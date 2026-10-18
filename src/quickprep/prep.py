@@ -25,6 +25,8 @@ Beyond QuickPrep (after the GPTomics bioSkills structure-preparation skill):
 * Predicted models (AlphaFold, ESMFold, ...): --plddt-trim removes residues
   below a pLDDT cutoff before anything is built, and the trimmed regions are
   capped, never rebuilt. Breaks with nothing on record (no SEQRES) are capped.
+* --no-rebuild A:5-8 marks residues the caller removed or left out on purpose:
+  a gap they fall in is capped, never rebuilt from SEQRES.
 * --state A:57=HIE sets a protonation state by hand, over PROPKA and the metal
   rules -- for residues whose pKa sits near the pH, or sites PROPKA is weak at.
   Groups within 1 unit of the pH and groups shifted 2+ units are reported.
@@ -283,7 +285,8 @@ def clean(path: str, water_cutoff: float | None, drop: frozenset[str],
 # ---------------------------------------------------------------------------
 def fix(st: gemmi.Structure, max_loop: int, max_tail: int,
         replace_nonstandard: bool, report: dict,
-        trimmed: dict[str, set[int]] | None = None):
+        trimmed: dict[str, set[int]] | None = None,
+        no_rebuild: dict[str, set[int]] | None = None):
     opts = gemmi.PdbWriteOptions()
     # Reference is single-threaded and, for the small systems PDBFixer
     # minimises, faster than CPU.
@@ -303,12 +306,17 @@ def fix(st: gemmi.Structure, max_loop: int, max_tail: int,
                                  residues[idx - 1].insertionCode.strip()))
         label = "%s %s: %d (%s)" % (chain.id, where, len(names),
                                     "".join(_one(n) for n in names))
-        # A gap we trimmed ourselves (low pLDDT) is never rebuilt.
-        cut = bool(_gap_numbers(residues, idx, len(names))
-                   & (trimmed or {}).get(chain.id, set()))
+        # A gap we trimmed ourselves (low pLDDT) is never rebuilt, and nor is
+        # one the caller left out on purpose (--no-rebuild): SEQRES still
+        # lists those residues, but nobody wants them back.
+        nums = _gap_numbers(residues, idx, len(names))
+        cut = bool(nums & (trimmed or {}).get(chain.id, set()))
+        left = not cut and bool(nums & (no_rebuild or {}).get(chain.id, set()))
         if cut:
             label += " [pLDDT-trimmed]"
-        if not cut and len(names) <= (max_tail if terminal else max_loop):
+        elif left:
+            label += " [left out]"
+        if not (cut or left) and len(names) <= (max_tail if terminal else max_loop):
             built.append(label)
         elif terminal:
             del fixer.missingResidues[(ci, idx)]
@@ -872,7 +880,8 @@ def prepare(path: str, out: str, ph: float = 7.0, water_cutoff: float | None = 4
             tolerance: float = 0.1, platform: str | None = None,
             plddt_trim: float | None = None, predicted: bool | None = None,
             overrides: dict | None = None, pqr: str | None = None,
-            pqr_water: bool = False, name: str | None = None) -> dict:
+            pqr_water: bool = False, name: str | None = None,
+            no_rebuild: dict[str, set[int]] | None = None) -> dict:
     report: dict = {"tool": "quickprep %s" % __version__,
                     "name": name or Path(path).name}
     t0 = time.monotonic()
@@ -883,8 +892,9 @@ def prepare(path: str, out: str, ph: float = 7.0, water_cutoff: float | None = 4
         st, deposited, trimmed = clean(path, water_cutoff, drop, report,
                                        plddt_trim, predicted)
         steps["clean"], t = round(time.monotonic() - t, 1), time.monotonic()
+        report["noRebuild"] = _ranges(no_rebuild) if no_rebuild else None
         top, pos, original = fix(st, max_loop, max_tail, replace_nonstandard,
-                                 report, trimmed)
+                                 report, trimmed, no_rebuild)
         steps["fix"], t = round(time.monotonic() - t, 1), time.monotonic()
         top, pos = protonate(top, pos, ph, work, report, overrides)
         steps["protonate"], t = round(time.monotonic() - t, 1), time.monotonic()
@@ -1045,6 +1055,9 @@ def summary(r: dict) -> str:
     if r.get("trimmed"):
         lines.append("trimmed    pLDDT < %g: %s" % (
             r["trimmed"]["cutoff"], ", ".join(r["trimmed"]["ranges"]) or "nothing"))
+    if r.get("noRebuild"):
+        lines.append("left out   %s (gaps there are capped, not rebuilt)"
+                     % ", ".join(r["noRebuild"]))
     if r.get("dropped"):
         lines.append("dropped    %s" % ", ".join(r["dropped"]))
     lines += [
@@ -1358,6 +1371,10 @@ def main(argv: list[str]) -> int:
                     help="force a protonation state (HID/HIE/HIP, ASH/ASP, GLH/GLU, "
                          "LYN/LYS, CYS/CYM/CYX); repeatable. Use it to test the "
                          "other state of a residue whose pKa sits near the pH")
+    ap.add_argument("--no-rebuild", action="append", default=[], metavar="A:5-8,12",
+                    help="residues removed or left out on purpose; a gap they "
+                         "fall in is capped, never rebuilt from SEQRES. Repeatable, "
+                         "one chain each")
     ap.add_argument("--plddt-trim", type=float, metavar="CUTOFF",
                     help="predicted model: delete residues whose CA pLDDT (the "
                          "B-factor column) is below this, e.g. 70, before anything "
@@ -1391,6 +1408,16 @@ def main(argv: list[str]) -> int:
         if not m:
             ap.error("--state %r: expected CHAIN:NUMBER=STATE, e.g. A:57=HIE" % s)
         overrides[(m.group(1), m.group(2), m.group(3))] = m.group(4).upper()
+    no_rebuild: dict[str, set[int]] = {}
+    for s in args.no_rebuild:
+        chain, sep, body = s.strip().partition(":")
+        parts = [re.fullmatch(r"\s*(-?\d+)(?:-(-?\d+))?\s*", x) for x in body.split(",")]
+        if not sep or not all(parts):
+            ap.error("--no-rebuild %r: expected CHAIN:RANGES, e.g. A:5-8,12" % s)
+        for m in parts:
+            lo = int(m.group(1))
+            no_rebuild.setdefault(chain, set()).update(
+                range(lo, int(m.group(2) or lo) + 1))
     drop = frozenset(x.strip().upper() for x in args.drop.split(",") if x.strip())
     if args.drop_additives:
         drop |= ADDITIVES
@@ -1406,7 +1433,7 @@ def main(argv: list[str]) -> int:
             buffer=args.buffer, tolerance=args.tolerance, platform=args.platform,
             plddt_trim=args.plddt_trim, predicted=True if args.predicted else None,
             overrides=overrides, pqr=args.pqr, pqr_water=args.pqr_water,
-            name=args.name)
+            name=args.name, no_rebuild=no_rebuild or None)
     except PrepError as exc:
         print("quickprep: %s" % exc, file=sys.stderr)
         return 1

@@ -52,6 +52,7 @@ asks of a preparation step:
 | assess first | method, resolution, experimental or predicted; shaky inputs get a warning |
 | predicted models | detected from the header (AlphaFold, ESMFold, …, or `--predicted`); `--plddt-trim 70` removes low-confidence residues first, and trimmed regions are capped, never rebuilt |
 | unrecorded breaks | a chain break with no SEQRES behind it (ESMFold output, trimmed models) is capped, not bonded across |
+| left out on purpose | `--no-rebuild A:5-8,12` (repeatable, one chain each) marks residues the caller removed or did not select; a gap they fall in is capped, never rebuilt from SEQRES |
 | protonation by hand | `--state A:57=HIE` (repeatable) wins over PROPKA and the metal rules; groups within 1 pH unit, and groups shifted ≥ 2 units from their model pKa, are listed |
 | heterogens on purpose | `--drop-additives` removes glycerol, sulfate, PEG, buffer and the like; metals and cofactors stay |
 | electrostatics | `--pqr out.pqr`: Amber14 ff14SB charges and Rmin/2 radii, the same force field as the refinement; lone ions included, unparametrised ligands left out and named |
@@ -98,8 +99,11 @@ Known limits:
 
 The test runs 1CA2 end to end: the zinc-site His tautomers, provenance in the
 output, integral PQR charges, and how far refinement moves the deposited atoms.
+A second test deletes three residues from 1HSG and checks that SEQRES rebuilds
+them unless they are passed as `no_rebuild`, when the gap is capped.
 
 ## Used by
 
 ProteinViewer's **Prepare** button runs `python -m quickprep` in this
-environment on the receptor on screen.
+environment on what is selected in its Receptor panel, passing `--no-rebuild`
+for residues removed there or left out of the selection.
