@@ -8,44 +8,57 @@ import unittest
 from pathlib import Path
 
 from proteinviewer.buffer import StructureBuffer
-from proteinviewer.detectors import DetectorRegistry, PocketDetector
 from proteinviewer.errors import BadRequest, Conflict, NotFound
-from proteinviewer.pockets import DetectionResult, Pocket
 from proteinviewer.project import ProjectStore
 from proteinviewer.schemas import (BufferRequest, GenerateRequest, JobQuery,
                                    PocketRequest, PrepRequest, ProjectRequest,
-                                   ProjectSaveRequest)
+                                   ProjectSaveRequest, SuperposeRequest)
 from proteinviewer.service import API_VERSION, ViewerService
 
 from .helpers import read
 
 
-class FakeDetector(PocketDetector):
-    name = "fake"
+class FakePockets:
+    """pocketbench, as the service sees it: one detector, "fake", taking a
+    "depth" option, and a superposition that writes a marker."""
 
     def __init__(self, delay=0.0):
         self.calls = []
+        self.superposed = []
         self.delay = delay
 
-    available = True
-
     def describe(self):
-        return {"available": True}
+        return {"available": True, "version": "0", "python": ""}
 
-    def status_line(self):
-        return "fake: ok"
+    def detectors(self):
+        return {"fake": {"available": True,
+                         "options": {"depth": {"default": 1, "integer": True, "min": 1, "max": 9}}}}
 
-    def options(self, raw):
+    def additives(self):
+        return ["HOH"]
+
+    def options(self, method, raw):
+        if method != "fake":
+            raise BadRequest("unknown method %r (want fake)" % method)
         return {"depth": int(raw.get("depth") or 1)}
 
-    def run(self, structure, workdir, *, cutoff, ligand_resnames, **options):
-        self.calls.append((cutoff, ligand_resnames, options))
+    def detect(self, method, path, workdir, *, cutoff, ligands=(), options=None):
+        self.calls.append((path, cutoff, frozenset(ligands), dict(options or {})))
         time.sleep(self.delay)
-        pockets = [Pocket(rank=r, score=1.0, druggability=0.0, volume=1.0,
-                          centers=[(0, 0, 0)], radii=[1.0],
-                          residues=[("A", r), ("B", 10 + r)]) for r in (1, 2)]
-        return DetectionResult(self.name, pockets, ["fake"], 0.01, len(structure),
-                               cutoff, extra={"depth": options["depth"]})
+        pockets = [{"rank": r, "score": 1.0, "volume": 1.0, "nResidues": 2, "nSpheres": 1,
+                    "centroid": [0, 0, 0], "spheres": [[0, 0, 0, 1.0]],
+                    "sel": [{"chain": "A", "resi": [r]}, {"chain": "B", "resi": [10 + r]}]}
+                   for r in (1, 2)]
+        return {"tool": method, "pockets": pockets,
+                "meta": {"tool": method, "command": "fake", "elapsed": 0.01, "totalAtoms": 327,
+                         "depth": options["depth"]}}
+
+    def superpose(self, mobile, reference, out, *, on=(), mobile_on=()):
+        self.superposed.append((mobile, reference, tuple(on), tuple(mobile_on)))
+        with open(out, "w") as fh:
+            fh.write("MOVED\n")
+        return {"rmsd": 0.5, "n": 10, "aligned": 12, "paired": 12, "ident": 1.0,
+                "related": True, "chains": [["A", "A"]], "transform": {"R": [], "t": []}}
 
 
 class FakePrep:
@@ -93,11 +106,11 @@ class FakeGenerator:
 class ServiceTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.detector = FakeDetector()
+        self.detector = FakePockets()
         self.prep = FakePrep()
         self.gen = FakeGenerator()
         self.svc = ViewerService(StructureBuffer(Path(self.tmp.name)),
-                                 DetectorRegistry([self.detector]), self.prep, self.gen)
+                                 self.detector, self.prep, self.gen)
         self.token = self.svc.buffer_structure(
             BufferRequest.parse({"id": "1CRN", "data": read("1CRN.pdb")}))["token"]
 
@@ -111,13 +124,34 @@ class ServiceTest(unittest.TestCase):
     def test_status_lists_every_tool(self):
         st = self.svc.status()
         self.assertEqual(st["api"], API_VERSION)
-        self.assertEqual(st["detectors"], {"fake": {"available": True}})
+        self.assertEqual(list(st["detectors"]), ["fake"])
+        self.assertEqual((st["additives"], st["superpose"]["available"]), (["HOH"], True))
 
-    def test_buffering_reports_the_structure(self):
+    def test_buffering_checks_for_atoms_and_parses_nothing(self):
         out = self.svc.buffer_structure(BufferRequest.parse({"id": "x", "data": read("1CRN.cif")}))
-        self.assertEqual((out["token"], out["nAtoms"], out["chains"]), ("x", 327, ["A"]))
+        self.assertEqual((out["token"], out["fmt"]), ("x", "cif"))
         with self.assertRaises(BadRequest):
             self.svc.buffer_structure(BufferRequest.parse({"data": "garbage"}))
+
+    def test_superposing_returns_the_moved_text_and_the_fit(self):
+        other = self.svc.buffer_structure(BufferRequest.parse(
+            {"id": "ref", "data": read("1CRN.pdb")}))["token"]
+        out = self.svc.superpose(SuperposeRequest.parse(
+            {"token": self.token, "reference": other, "on": [["A", 1], ["A", 2, "B"]]}))
+        self.assertEqual(out["data"], "MOVED\n")
+        self.assertEqual((out["fit"]["rmsd"], out["fit"]["n"]), (0.5, 10))
+        self.assertNotIn("transform", out["fit"])
+        ((mobile, ref, on, mobile_on),) = self.detector.superposed
+        self.assertTrue(mobile.endswith("source.pdb") and "/ref/" in ref)
+        self.assertEqual((on, mobile_on), ((("A", 1, ""), ("A", 2, "B")), ()))
+        with self.assertRaises(NotFound):
+            self.svc.superpose(SuperposeRequest.parse({"token": self.token, "reference": "nope"}))
+        for bad in ({"token": self.token}, {"token": self.token, "reference": other, "on": "A:1"},
+                    {"token": self.token, "reference": other, "on": [["A", "x"]]},
+                    {"token": self.token, "reference": other, "on": [["A,B", 1]]},
+                    {"token": self.token, "reference": other, "mobileOn": [["A", 1, "AB"]]}):
+            with self.assertRaises(BadRequest, msg=bad):
+                SuperposeRequest.parse(bad)
 
     def test_a_repeat_is_answered_from_the_cache(self):
         first = self.pockets(ligand=["hem"])
@@ -185,10 +219,10 @@ class ProjectArtifactsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.work = Path(self.tmp.name) / "work"
-        self.detector, self.prep, self.gen = FakeDetector(), FakePrep(), FakeGenerator()
+        self.detector, self.prep, self.gen = FakePockets(), FakePrep(), FakeGenerator()
         self.store = ProjectStore(Path(self.tmp.name) / "projects", api=API_VERSION)
         self.svc = ViewerService(StructureBuffer(self.work / "structures"),
-                                 DetectorRegistry([self.detector]), self.prep, self.gen,
+                                 self.detector, self.prep, self.gen,
                                  projects=self.store, work_root=self.work)
         self.token = self.svc.buffer_structure(
             BufferRequest.parse({"id": "1CRN", "data": read("1CRN.pdb")}))["token"]
@@ -300,7 +334,7 @@ class ProjectArtifactsTest(unittest.TestCase):
 
     def test_without_a_project_nothing_is_written_down(self):
         svc = ViewerService(StructureBuffer(self.work / "plain"),
-                            DetectorRegistry([self.detector]), self.prep, self.gen)
+                            self.detector, self.prep, self.gen)
         token = svc.buffer_structure(
             BufferRequest.parse({"id": "1CRN", "data": read("1CRN.pdb")}))["token"]
         svc.find_pockets(PocketRequest.parse({"token": token, "method": "fake"}))

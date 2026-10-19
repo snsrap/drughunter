@@ -17,8 +17,11 @@ export const state = {
 
   /* What the server can run; filled in by the status probe. */
   server: {known: false, stale: false, error: null,
-           fpocket: false, lacuna: [], prep: false, neat: false,
-           projects: false, projectRoot: ""},
+           fpocket: false, lacuna: [], prep: false, neat: false, superpose: false,
+           projects: false, projectRoot: "",
+           /* What every detector drops on its own (pocketbench's list): not
+              offered for deletion before a run. */
+           additives: []},
   fetch: {busy: false, msg: null},          /* the PDB fetch form, and files */
   session: {msg: null},                     /* saving and opening a session */
   /* This session's output directory on the server, where each run's

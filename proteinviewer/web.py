@@ -28,7 +28,7 @@ from urllib.parse import parse_qs, urlsplit
 from .errors import (BadRequest, Conflict, NotFound, PayloadTooLarge,
                      ToolFailed, ToolUnavailable, ViewerError)
 from .schemas import (BufferRequest, GenerateRequest, JobQuery, PocketRequest,
-                      PrepRequest, ProjectRequest, ProjectSaveRequest)
+                      PrepRequest, ProjectRequest, ProjectSaveRequest, SuperposeRequest)
 from .service import ViewerService
 
 __all__ = ["Api", "ApiRequest", "Handler", "status_for"]
@@ -74,6 +74,7 @@ class Api:
             ("GET", "/api/job"): lambda r: s.job_status(JobQuery.parse(r.query)),
             ("POST", "/api/structure"): lambda r: s.buffer_structure(BufferRequest.parse(r.body)),
             ("POST", "/api/pockets"): lambda r: s.find_pockets(PocketRequest.parse(r.body)),
+            ("POST", "/api/superpose"): lambda r: s.superpose(SuperposeRequest.parse(r.body)),
             ("POST", "/api/prep"): lambda r: s.prepare(PrepRequest.parse(r.body)),
             ("POST", "/api/generate"): lambda r: s.start_generation(GenerateRequest.parse(r.body)),
             ("GET", "/api/project"): lambda r: s.project_status(r.query.get("id", "")),

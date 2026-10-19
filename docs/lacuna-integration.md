@@ -7,11 +7,14 @@ Written 2026-10-17. Every number here was measured on this machine; where a
 figure comes from lacuna's own documentation rather than a local run, it says
 so.
 
-The files named below have since moved into the `proteinviewer` package:
-`lacuna.py` is `proteinviewer/detectors/lacuna.py`, `pockets.py` is split into
-`structure.py`, `pockets.py` and `detectors/fpocket.py`, `serve.py`'s endpoints
-are `service.py` and `web.py`, and `/api/status` lists lacuna under
-`detectors`. What is described here still holds.
+The files named below have since moved twice: into the `proteinviewer`
+package, and then, with pocket detection as a whole, into the separate
+[pocketbench](../../pocketbench) package, which the server runs as a command.
+`lacuna.py` is `pocketbench/detectors/lacuna.py`; `pockets.py` is split into
+pocketbench's `structure.py`, `pockets.py` and `detectors/fpocket.py`;
+`serve.py`'s endpoints are `service.py` and `web.py`, and `/api/status` still
+lists lacuna under `detectors`. The validation scripts are pocketbench's
+`apo`, `site` and `score` commands now. What is described here still holds.
 
 ---
 
@@ -206,7 +209,7 @@ Two apo/holo pairs, both real structures with published allosteric sites. The
 apo entry is prepared and detected on with the ligand never present; ground
 truth is the holo ligand's 5 Å residue shell, compared by author numbering
 (shared between each pair, so no superposition is needed for residue overlap).
-Scripts are in `docs/validation/`.
+The procedure is in `docs/validation/`, run with pocketbench's commands.
 
 **All PDB IDs here were checked against RCSB.** One correction worth carrying:
 the commonly cited PTP1B apo partner **`1T48` is not apo** — it contains

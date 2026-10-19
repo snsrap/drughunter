@@ -1,7 +1,7 @@
 """What the viewer can do, independent of how it is asked.
 
 Each public method is one use case -- buffer a structure, find pockets,
-prepare, generate, report a job -- taking a parsed request from
+superpose, prepare, generate, report a job -- taking a parsed request from
 ``schemas.py`` and returning a JSON-ready dict. Nothing here knows about HTTP,
 and nothing here knows which concrete tools are installed: those arrive
 through the constructor (see ``server.build_service``), typed by the small
@@ -19,26 +19,47 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .buffer import BufferedStructure, PocketRun, StructureBuffer
-from .detectors import DetectorRegistry
 from .errors import BadRequest, Conflict, NotFound
 from .pockets import residue_list, spheres_pdb
 from .project import (Project, ProjectStore, csv_text, resolve_destination,
                       safe_name)
 from .schemas import (BufferRequest, GenerateRequest, JobQuery, PocketRequest,
-                      PrepRequest, ProjectRequest, ProjectSaveRequest)
+                      PrepRequest, ProjectRequest, ProjectSaveRequest, SuperposeRequest)
 
-__all__ = ["ViewerService", "API_VERSION", "Preparer", "Generator", "GenerationJob"]
+__all__ = ["ViewerService", "API_VERSION", "PocketTools", "Preparer", "Generator",
+           "GenerationJob"]
 
 log = logging.getLogger("proteinviewer")
 
 #: Bumped when a response changes shape, so the page can tell a server that
 #: predates it (and needs a restart) from one that is merely missing a tool.
-API_VERSION = 3
+#: 4: /api/superpose; status lists additives and superposition; buffering no
+#: longer counts atoms (the server parses no structures).
+API_VERSION = 4
 
 #: The molecule-table columns written to a project's CSV, in table order. The
 #: depictions in the same rows are left out; they are in molecules.json.
 MOLECULE_COLUMNS = ("rank", "i", "name", "formula", "mw", "heavy", "logp",
                     "tpsa", "qed", "rings", "rotb", "smiles")
+
+
+class PocketTools(Protocol):
+    """Pocket detection and superposition: pocketbench (pocketbench.py)."""
+
+    def describe(self) -> dict: ...
+
+    def detectors(self) -> dict[str, dict]: ...
+
+    def additives(self) -> list[str]: ...
+
+    def options(self, method: str, raw: Mapping[str, Any]) -> dict[str, Any]: ...
+
+    def detect(self, method: str, path: str, workdir: str, *, cutoff: float,
+               ligands: Iterable[str] = (), options: Mapping[str, Any] | None = None) -> dict: ...
+
+    def superpose(self, mobile: str, reference: str, out: str, *,
+                  on: Iterable[tuple[str, int, str]] = (),
+                  mobile_on: Iterable[tuple[str, int, str]] = ()) -> dict: ...
 
 
 class Preparer(Protocol):
@@ -69,12 +90,12 @@ class Generator(Protocol):
 
 
 class ViewerService:
-    def __init__(self, buffer: StructureBuffer, detectors: DetectorRegistry,
+    def __init__(self, buffer: StructureBuffer, pockets: PocketTools,
                  prep: Preparer, generator: Generator,
                  projects: ProjectStore | None = None,
                  work_root: os.PathLike | str | None = None):
         self.buffer = buffer
-        self.detectors = detectors
+        self.pockets = pockets
         self.prep = prep
         self.generator = generator
         self.projects = projects
@@ -89,7 +110,11 @@ class ViewerService:
         """Which tools this server can run. Probing some of them starts an
         interpreter, so the first call can take a few seconds."""
         return {"api": API_VERSION,
-                "detectors": self.detectors.describe(),
+                "detectors": self.pockets.detectors(),
+                # What every detector drops on its own: the page does not
+                # offer to delete these before a run.
+                "additives": self.pockets.additives(),
+                "superpose": self.pockets.describe(),
                 "prep": self.prep.describe(),
                 "neat": self.generator.describe(),
                 "projects": {"available": self.projects is not None,
@@ -100,8 +125,7 @@ class ViewerService:
             entry = self.buffer.put(req.token, req.data, req.fmt)
         except ValueError as exc:  # no atoms in it
             raise BadRequest(str(exc)) from None
-        return {"token": entry.token, "nAtoms": len(entry.structure),
-                "chains": entry.structure.chains(), "path": entry.path}
+        return {"token": entry.token, "fmt": entry.fmt, "path": entry.path}
 
     def find_pockets(self, req: PocketRequest) -> dict:
         """Run the chosen detector against the buffered copy, never against
@@ -114,11 +138,10 @@ class ViewerService:
         """
         entry = self.buffer.require(req.token)
         project = self._project(req.project)
-        detector = self.detectors.get(req.method)
-        options = detector.options(req.raw)
+        options = self.pockets.options(req.method, req.raw)
         # The options are part of the identity of a result: the same
         # structure with another backend is a different run, not a cache hit.
-        key = (detector.name, round(req.cutoff, 3), tuple(sorted(req.ligands)),
+        key = (req.method, round(req.cutoff, 3), tuple(sorted(req.ligands)),
                tuple(sorted(options.items())))
 
         cached = True
@@ -127,24 +150,41 @@ class ViewerService:
             if last is not None and last.key == key:
                 run = last
             else:
-                result = detector.run(entry.structure, entry.workdir,
-                                      cutoff=req.cutoff, ligand_resnames=req.ligands,
-                                      **options)
-                meta = result.meta()
-                meta.update(ligandRemoved=sorted(req.ligands),
-                            totalAtoms=len(entry.structure), method=detector.name)
-                entry.pockets = run = PocketRun(key, [p.as_dict() for p in result], meta)
+                out = self.pockets.detect(req.method, entry.path, entry.workdir,
+                                          cutoff=req.cutoff, ligands=req.ligands,
+                                          options=options)
+                meta = dict(out.get("meta") or {})
+                meta.update(ligandRemoved=sorted(req.ligands), method=req.method)
+                entry.pockets = run = PocketRun(key, list(out.get("pockets") or []), meta)
                 cached = False
 
         if not cached:
-            log.info("%s %s: %d pockets in %ss", detector.name, entry.token,
+            log.info("%s %s: %d pockets in %ss", req.method, entry.token,
                      len(run.pockets), run.meta.get("elapsed"))
         # Written for a cache hit too: the project a page names holds the
         # results of every run it asked for, however they were answered.
         if project is not None:
-            self._write_pockets(project, entry, detector.name, run)
+            self._write_pockets(project, entry, req.method, run)
         return {"token": entry.token, "cached": cached,
                 "pockets": run.pockets, "meta": run.meta}
+
+    def superpose(self, req: SuperposeRequest) -> dict:
+        """Superpose one buffered structure onto another; returns the moved
+        text, written in the structure's own format, and the fit it rests on.
+        Nothing is kept: the page owns the moved structure from here, and
+        buffers it again under its own name when a run needs it."""
+        mobile = self.buffer.require(req.token)
+        reference = self.buffer.require(req.reference)
+        out = os.path.join(mobile.workdir, "superposed." + mobile.fmt)
+        with mobile.lock("superpose"):
+            fit = self.pockets.superpose(mobile.path, reference.path, out,
+                                         on=req.on, mobile_on=req.mobile_on)
+            with open(out) as fh:
+                data = fh.read()
+        log.info("superposed %s onto %s: %.2f A over %s CA", mobile.token,
+                 reference.token, fit.get("rmsd", 0), fit.get("n"))
+        keep = ("rmsd", "n", "aligned", "paired", "ident", "related", "chains")
+        return {"data": data, "fit": {k: fit.get(k) for k in keep}}
 
     def prepare(self, req: PrepRequest) -> dict:
         """Prepare a buffered structure; returns the prepared PDB text, the
@@ -246,8 +286,7 @@ class ViewerService:
         """The exact text a run ran on. Everything else in the project is
         derived from one of these, so they go in beside the results."""
         rel = "structures/%s.%s" % (safe_name(entry.token), entry.fmt)
-        project.put_file(rel, entry.path, kind="structure", structure=entry.token,
-                         atoms=len(entry.structure))
+        project.put_file(rel, entry.path, kind="structure", structure=entry.token)
         return rel
 
     def _write_pockets(self, project: Project, entry: BufferedStructure,

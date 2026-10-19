@@ -1,8 +1,8 @@
 """Start the viewer: build the service from settings, serve it, clean up.
 
 The composition root -- the one module that names concrete tools. Everything
-it wires together only sees interfaces: the service sees a detector registry,
-a preparer and a generator; the web layer sees the service.
+it wires together only sees interfaces: the service sees pocket tools, a
+preparer and a generator; the web layer sees the service.
 
     ./serve.py            # port 8000, opens a browser
     ./serve.py 9000       # pick a port
@@ -26,10 +26,8 @@ from pathlib import Path
 
 from .buffer import StructureBuffer
 from .config import Settings, default_project_root
-from .detectors import DetectorRegistry
-from .detectors.fpocket import FpocketDetector
-from .detectors.lacuna import LacunaDetector
 from .generation import NeatPocket
+from .pocketbench import Pocketbench
 from .prep import QuickPrep
 from .project import ProjectStore
 from .service import API_VERSION, ViewerService
@@ -41,15 +39,12 @@ log = logging.getLogger("proteinviewer")
 
 
 def build_service(settings: Settings, work_root: Path) -> ViewerService:
-    """Every tool the viewer drives, found and wired. Registering a detector
-    here is all it takes to offer it."""
-    detectors = DetectorRegistry([
-        FpocketDetector(settings.fpocket_bin),
-        LacunaDetector(settings.lacuna_bin),
-    ])
+    """Every tool the viewer drives, found and wired. The detectors themselves
+    are pocketbench's: one added there is listed here with no change."""
     return ViewerService(
         buffer=StructureBuffer(work_root / "structures", settings.buffer_limit),
-        detectors=detectors,
+        pockets=Pocketbench(settings.pocketbench_python, fpocket_bin=settings.fpocket_bin,
+                            lacuna_bin=settings.lacuna_bin),
         prep=QuickPrep(settings.quickprep_python),
         generator=NeatPocket(work_root / "jobs", neat_dir=settings.neat_dir,
                              python=settings.neat_python, limit=settings.job_limit),
@@ -70,7 +65,7 @@ def make_server(settings: Settings, service: ViewerService) -> ThreadingHTTPServ
 
 
 def tool_status_lines(service: ViewerService) -> list[str]:
-    return ([d.status_line() for d in service.detectors]
+    return (service.pockets.status_lines()
             + [service.generator.status_line(), service.prep.status_line()])
 
 

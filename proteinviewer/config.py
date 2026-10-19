@@ -46,8 +46,9 @@ class Settings:
     job_limit: int = 32         # finished generation jobs kept
     max_body: int = 64 * 1024 * 1024  # deposited mmCIF entries get large
 
-    fpocket_bin: str | None = None       # FPOCKET_BIN
-    lacuna_bin: str | None = None        # LACUNA_BIN
+    pocketbench_python: str | None = None  # POCKETBENCH_PYTHON
+    fpocket_bin: str | None = None       # FPOCKET_BIN, passed on to pocketbench
+    lacuna_bin: str | None = None        # LACUNA_BIN, passed on to pocketbench
     quickprep_python: str | None = None  # QUICKPREP_PYTHON
     neat_dir: str | None = None          # NEAT_POCKET_DIR
     neat_python: str | None = None       # NEAT_PYTHON
@@ -59,6 +60,7 @@ class Settings:
         root = env.get("PV_PROJECT_DIR") or None
         base = cls(
             project_root=Path(os.path.expanduser(root)) if root else None,
+            pocketbench_python=env.get("POCKETBENCH_PYTHON") or None,
             fpocket_bin=env.get("FPOCKET_BIN") or None,
             lacuna_bin=env.get("LACUNA_BIN") or None,
             quickprep_python=env.get("QUICKPREP_PYTHON") or None,

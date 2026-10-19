@@ -7,6 +7,10 @@ this location rather than the coordinates being posted again per request.
 
 Each entry gets its own directory so tool output cannot collide between
 structures. Thread-safe: the server handles requests on many threads.
+
+The text is not parsed here -- reading a structure is pocketbench's job, and
+quickprep's -- only checked for atom records, so an empty or unrelated file
+is refused at the door rather than by whichever tool reads it first.
 """
 
 from __future__ import annotations
@@ -20,9 +24,32 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 
 from .errors import BadRequest, NotFound
-from .structure import Structure, detect_format
 
-__all__ = ["StructureBuffer", "BufferedStructure", "PocketRun", "safe_token"]
+__all__ = ["StructureBuffer", "BufferedStructure", "PocketRun", "safe_token",
+           "detect_format", "check_structure"]
+
+
+def detect_format(text: str, fmt: str | None = None) -> str:
+    """``"cif"`` or ``"pdb"``: the declared format if there is one, else
+    sniffed -- mmCIF always carries a ``data_`` block."""
+    fmt = (fmt or "").lower()
+    if fmt in ("cif", "mmcif"):
+        return "cif"
+    if fmt == "pdb":
+        return "pdb"
+    head = text[:4096]
+    if "_atom_site." in head or head.lstrip().startswith("data_"):
+        return "cif"
+    return "pdb"
+
+
+def check_structure(text: str, fmt: str) -> None:
+    """Raise ``ValueError`` unless the text holds coordinates at all."""
+    if fmt == "cif":
+        if "_atom_site." not in text:
+            raise ValueError("no _atom_site loop found in mmCIF")
+    elif not re.search(r"^(ATOM  |HETATM)", text, re.M):
+        raise ValueError("no ATOM/HETATM records found")
 
 
 @dataclass(frozen=True)
@@ -41,7 +68,6 @@ class BufferedStructure:
     path: str           # the posted text, as written
     workdir: str        # scratch space for every tool run on it
     digest: str         # of the posted text: same digest, same structure
-    structure: Structure
     pockets: PocketRun | None = None
     _locks: dict[str, threading.Lock] = field(default_factory=dict, repr=False)
     _guard: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -94,10 +120,8 @@ class StructureBuffer:
                 self._entries.move_to_end(token)
                 return old
 
-        # Outside the lock: a large mmCIF entry takes a while to parse, and
-        # nothing else should wait on that.
-        structure = Structure.from_text(text, fmt)
         fmt = detect_format(text, fmt)
+        check_structure(text, fmt)
 
         with self._lock:
             old = self._entries.pop(token, None)
@@ -110,7 +134,7 @@ class StructureBuffer:
             path = os.path.join(work, "source." + fmt)
             with open(path, "w") as fh:
                 fh.write(text)
-            entry = BufferedStructure(token, fmt, path, work, digest, structure)
+            entry = BufferedStructure(token, fmt, path, work, digest)
             self._entries[token] = entry
             self._evict()
         return entry

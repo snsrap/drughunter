@@ -8,13 +8,6 @@ export const WATERS = ["HOH", "WAT", "DOD"];
 /* Chain-end caps (ACE, NME, NH2: what Prepare puts at a gap it does not
    build) carry no CA, but they belong to the chain, not among the ligands. */
 const CAPS = ["ACE", "NME", "NH2"];
-/* Solvent and the usual crystallisation additives. A detector never sees
-   these -- the server drops them before every run -- so they are not bound
-   ligands the user could choose to delete. Kept equal to structure.ADDITIVES
-   by tests/test_architecture.py. */
-export const ADDITIVES = ["HOH", "WAT", "DOD", "EDO", "GOL", "SO4", "PO4", "ACT", "DMS",
-                          "MES", "TRS", "PEG", "PG4", "IPA", "MPD", "FMT", "NO3", "CL",
-                          "BR", "IOD", "AZI", "CAC", "BME"];
 
 export function polymerLike(names, resn){
   return (names.N && names.CA && names.C) || (names.P && names["C1'"]) || CAPS.indexOf(resn) !== -1;
@@ -87,17 +80,20 @@ export function buildTree(e, atoms){
 }
 
 /* The bound ligands of a structure, or of the part of it `nodes` names: the
-   residue names of its ligand rows, minus solvent and additives.
+   residue names of its ligand rows, minus `additives` -- the solvent and
+   crystallisation additives a detector drops on its own, which the server
+   lists (pocketbench's list), so they are not ligands the user could choose
+   to delete.
 
    These are the residues a detector reads as wall rather than as cavity: a
    bound ligand fills its own site, so that site is ranked low or missed
    altogether unless it is deleted first. Read off the tree, which has already
    decided what counts as a ligand, so it costs nothing per render. */
-export function ligandsIn(e, nodes){
-  const out = [];
+export function ligandsIn(e, nodes, additives){
+  const out = [], skip = additives || [];
   const walk = n => {
     const resn = n.kind === "lig" && n.sel ? n.sel.resn : null;
-    if (resn && ADDITIVES.indexOf(resn) === -1 && out.indexOf(resn) === -1) out.push(resn);
+    if (resn && skip.indexOf(resn) === -1 && out.indexOf(resn) === -1) out.push(resn);
     (n.kids || []).forEach(walk);
   };
   (nodes && nodes.length ? nodes : [e.tree]).forEach(n => { if (n) walk(n); });

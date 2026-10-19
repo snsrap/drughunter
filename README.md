@@ -237,8 +237,9 @@ the same scope.
 With two or more structures loaded, the **Superpose** panel under *Receptor*
 moves them into one frame. Choose the reference under **Onto** — it stays where
 it is — and tick the structures to move; every structure not already in the
-reference's frame starts ticked. Each is fitted on its own, the way PyMOL's
-`align` does it (`app/js/model/superpose.js`):
+reference's frame starts ticked. Each is fitted on its own by
+[pocketbench](../pocketbench), which the server runs (see *Finding pockets* for
+installing it), the way PyMOL's `align` does it:
 
 - **Pairing.** Each structure's protein chains are read as sequences and
   aligned to the reference's chains: BLOSUM62, a gap costing 10 to open and 0.5
@@ -289,8 +290,23 @@ superposed, and the panel says so.
 
 **Find pockets** runs [fpocket](https://github.com/Discngine/fpocket) on the
 current selection (see *What the operations run on*) and lights up the residues
-of whichever pocket you pick. It needs the fpocket binary on `PATH` (or `FPOCKET_BIN` set); `serve.py`
-prints whether it found one at startup, and the panel says so if it did not.
+of whichever pocket you pick.
+
+Detection is [pocketbench](../pocketbench)'s, a separate package that drives
+the detectors, turns what they find into residues, and also does the
+superposing above. The server runs it in its own environment as `python -m
+pocketbench`, as it runs quickprep:
+
+```sh
+pyenv virtualenv 3.11.14 pocketbench
+~/.pyenv/versions/pocketbench/bin/pip install -e ../pocketbench
+```
+
+`serve.py` looks for it at `~/.pyenv/versions/pocketbench/bin/python` (or
+`POCKETBENCH_PYTHON`). fpocket itself needs its binary on `PATH` (or
+`FPOCKET_BIN` set, which is passed on to pocketbench). `serve.py` prints what
+each tool's install can do at startup, and the panel says so when something is
+missing.
 
 The detector dropdown also offers [lacuna](https://github.com/mooreneural/lacuna),
 which detects over a conformational ensemble it generates rather than over the
@@ -309,8 +325,8 @@ fpocket's alpha-sphere centres stand in for the ligand that would normally
 define the site. On 3R8G this reproduces `cut_pocket` exactly, residue for
 residue, at the same protonation state.
 
-Two details that are easy to get wrong, both handled in the server
-(`proteinviewer/detectors/__init__.py` and `proteinviewer/pockets.py`):
+Two details that are easy to get wrong, both handled in pocketbench
+(`pocketbench/detectors/__init__.py` and `pocketbench/pockets.py`):
 
 - fpocket **silently ignores `HETATM`**. A cofactor left as hetero is invisible
   to it, so its volume is detected as empty cavity and merged into the
@@ -352,9 +368,9 @@ says `ligand MK1 deleted`, and the atom count drops with it.
 
 The names come from the structure tree, which has already decided what is a
 ligand and what is a modified residue of a chain, minus the solvent and
-crystallisation additives the server drops on its own (`structure.ADDITIVES`;
-`tests/test_architecture.py` keeps the page's copy of that list equal to the
-server's). It is off by default — deleting part of the structure is the user's
+crystallisation additives every detector drops on its own (pocketbench's
+`ADDITIVES`, which the page reads from `/api/status` rather than keeping a copy
+of). It is off by default — deleting part of the structure is the user's
 decision, not the viewer's — and it is part of a run's identity, so the results
 on screen keep saying which ligands they were found without.
 
@@ -419,8 +435,9 @@ maps back to the model drawn in the stage.
 
 | route | purpose |
 | --- | --- |
-| `GET /api/status` | `{api, detectors: {fpocket, lacuna}, prep, neat, projects}`: what each tool's install can do, and where projects go |
-| `POST /api/structure` | buffer `{id, fmt, data}` → `{token, nAtoms, chains}` |
+| `GET /api/status` | `{api, detectors: {fpocket, lacuna}, additives, superpose, prep, neat, projects}`: what each tool's install can do, what every detector drops on its own, and where projects go |
+| `POST /api/structure` | buffer `{id, fmt, data}` → `{token, fmt, path}`; refused if the text holds no atom records |
+| `POST /api/superpose` | `{token, reference, on, mobileOn}` → `{data, fit}`: the first structure moved onto the second, in its own format; `on` and `mobileOn` are the residues to fit on, as `[chain, number, insertion code]` |
 | `POST /api/pockets` | `{token, method, cutoff, ligand, …}` → ranked pockets, cached per structure; lacuna also takes `backend`, `detector`, `conformers` |
 | `POST /api/generate` | `{token, ranks, n}` → starts a job, returns `{job}` |
 | `GET /api/job?id=` | job progress; `&mols=1` adds the SDF per pocket, `&table=1` the rows |
@@ -446,11 +463,12 @@ whoever asks, so a page on another site must not be able to ask: POSTs must be
 without the browser asking first), must not name another `Origin`, and the
 `Host` must be a loopback name, which defeats DNS rebinding.
 
-Each detector is also a CLI:
+Detection and superposition are pocketbench's own commands too:
 
 ```sh
-python -m proteinviewer.detectors.fpocket structure.cif --ligand IZP --top 5
-python -m proteinviewer.detectors.lacuna structure.cif --backend nma --conformers 20
+pocketbench detect fpocket structure.cif --ligand IZP --top 5
+pocketbench detect lacuna structure.cif --backend nma --conformers 20
+pocketbench superpose mobile.pdb reference.pdb -o moved.pdb
 ```
 
 ## Preparing structures
@@ -482,14 +500,13 @@ Hydrogens are hidden in the 3D view.
 ```
 serve.py                     entry point (start.sh looks for it): runs proteinviewer.server
 proteinviewer/               the server: Python standard library only
-  structure.py  pockets.py     domain: PDB/mmCIF parsing, the pocket model, the residue cut
   errors.py  validate.py       what can go wrong, and checking request values
   config.py                    every setting and environment variable, in one place
   process.py                   subprocess plumbing shared by the tool adapters
-  detectors/                   one PocketDetector per tool: fpocket.py, lacuna.py
-  prep.py  generation.py       quickprep and NEAT-POCKET adapters
+  pocketbench.py               adapter: detection and superposition (../pocketbench)
+  prep.py  generation.py       adapters: quickprep and NEAT-POCKET
   buffer.py                    structures held on disk, per-structure locks, LRU eviction
-  project.py                   a session's artifacts on disk, and where they may be copied
+  project.py  pockets.py       a session's artifacts on disk, and pocket results as files
   schemas.py  service.py       parsed requests, and the use cases over them
   web.py                       HTTP: routing, status codes, the cross-site checks
   server.py                    composition root: picks the tools, wires, serves, cleans up
@@ -500,8 +517,7 @@ app/                         the page: no build step, no install
   js/core/                     state store, API client, RCSB fetch, files in and out,
                                  colours, DOM helpers
   js/model/                    pure: tree building, cutting a selection out of its file,
-                                 scope, reading a structure file, superposition, the
-                                 session snapshot
+                                 scope, reading a structure file, the session snapshot
   js/scene.js                  the 3D stage (3Dmol), drawn in keyed layers
   js/features/                 one module per panel: its view, its controls, its actions
 tests/                       python -m unittest; tests/js via npm test; tests/e2e walkthrough
@@ -510,14 +526,19 @@ tests/                       python -m unittest; tests/js via npm test; tests/e2
 ### How the pieces fit
 
 **Server.** Each layer imports only from the ones below it, and
-`tests/test_architecture.py` fails the build when one does not: the domain
-(`structure`, `pockets`) knows nothing of tools or HTTP; the adapters know their
-tool and nothing of HTTP; the stores (`buffer`, `project`) know the filesystem
-and neither of those; `service.py` holds the use cases and sees tools only
-through the detector registry and two small protocols; `web.py` turns requests
-into calls on the service and errors into statuses; `server.py` is the one place
-that names concrete tools. The domain is the part that could leave this
-repository as its own package, as quickprep did.
+`tests/test_architecture.py` fails the build when one does not: the adapters
+know their tool and nothing of HTTP; the stores (`buffer`, `project`) know the
+filesystem and neither of those; `service.py` holds the use cases and sees
+tools only through small protocols; `web.py` turns requests into calls on the
+service and errors into statuses; `server.py` is the one place that names
+concrete tools.
+
+The server holds no science of its own. Reading structures, the pocket model,
+the detectors and superposition are [pocketbench](../pocketbench); preparation
+is quickprep; generation is NEAT-POCKET. Each is a package in its own
+environment, run as a command, so the server never parses a structure: it
+buffers text, passes it on, and keeps what comes back. What used to be the
+domain layer here left as pocketbench, as quickprep had before it.
 
 Requests on different structures run in parallel. Each buffered structure has
 one lock per kind of work, so two pocket runs on the same structure take turns
@@ -535,25 +556,23 @@ only the layers whose inputs changed.
 
 ### Adding a pocket detector
 
-Subclass `PocketDetector` in `proteinviewer/detectors/<tool>.py`: give it a
-`name`, `available`, `describe()`, `status_line()`, `options()` for any settings
-of its own, and `run()` returning a `DetectionResult` whose pockets went through
-`select_residues`. Register an instance in `server.build_service`. Status,
-caching and the API need no changes; in the page, add an `<option>` to the
-detector menu and, if it reports new numbers, show them in
-`js/features/pockets.js`.
+Detectors live in pocketbench: subclass `PocketDetector` in
+`pocketbench/detectors/<tool>.py` and add it to `default_detectors` (its README
+says what to give it). `pocketbench detectors --json` then lists it with its
+options, and the server passes both on, so status, option checking, caching and
+the API need no change here. In the page, add an `<option>` to the detector
+menu and, if it reports new numbers, show them in `js/features/pockets.js`.
 
 ### Tests
 
 ```sh
 python3 -m unittest discover -s tests -t .   # server: about a second, no tools needed
-PV_SLOW_TESTS=1 python3 -m unittest tests.test_detectors   # also runs real lacuna
 npm test                                     # the page's pure modules, Node 18+
 npm install && npm run e2e -- http://127.0.0.1:8000 /tmp/pv-ui --slow   # the whole UI
 ```
 
-The server tests use fake tools, so they pass with nothing installed; the real
-fpocket is exercised when it is on `PATH`. The end-to-end walkthrough drives a
+The server tests use fake tools, so they pass with nothing installed; real
+fpocket and lacuna are exercised in pocketbench's own tests. The end-to-end walkthrough drives a
 real browser through every panel and writes what each one said, plus a
 screenshot of the stage, at every step. Run it against the old and the new
 server and diff the two to check that a refactor kept behaviour.

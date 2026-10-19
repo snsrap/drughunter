@@ -31,7 +31,7 @@ print("status: api=%s  fpocket=%s  lacuna=%s %s backends=%s"
 
 code, buf = post("/api/structure", {"id": "1BTL", "data": open(STRUCT).read(),
                                     "fmt": "pdb"})
-print("buffer: %s  %d atoms, chains %s" % (code, buf["nAtoms"], buf["chains"]))
+print("buffer: %s  %s as %s" % (code, buf["token"], buf["fmt"]))
 token = buf["token"]
 
 for label, body in [

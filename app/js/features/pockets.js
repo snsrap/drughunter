@@ -53,7 +53,7 @@ function rankedBy(meta){
 
 /* The bound ligands the run would delete first, if the box is ticked. */
 function ligands(sc){
-  return sc.e && sc.e.tree ? ligandsIn(sc.e, sc.nodes) : [];
+  return sc.e && sc.e.tree ? ligandsIn(sc.e, sc.nodes, state.server.additives) : [];
 }
 
 /* ---------------- view ---------------- */

@@ -34,6 +34,8 @@ async function probeServer(){
        minute into a run instead of now. */
     s.lacuna = d.lacuna && d.lacuna.available ? (d.lacuna.backends || []) : [];
     s.prep = !!(j.prep && j.prep.available);
+    s.superpose = !!(j.superpose && j.superpose.available);
+    s.additives = Array.isArray(j.additives) ? j.additives.map(String) : [];
     s.neat = !!(j.neat && j.neat.available);
     s.projects = !!(j.projects && j.projects.available);
     s.projectRoot = (j.projects && j.projects.root) || "";

@@ -1,237 +1,229 @@
-# Graph Report - ProteinViewer  (2026-10-18)
+# Graph Report - ProteinViewer  (2026-10-19)
 
 ## Corpus Check
-- 76 files · ~539,783 words
-- Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 9 file(s) not represented in the graph (top: .pdb 3, .cif 2, (none) 1)
+- cluster-only mode — file stats not available
 
 ## Summary
-- 1039 nodes · 2877 edges · 40 communities (32 shown, 8 thin omitted)
-- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 257 edges (avg confidence: 0.91)
+- 896 nodes · 2445 edges · 43 communities (30 shown, 13 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 182 edges (avg confidence: 0.89)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `47fbc05d`
+- Built from commit: `a5538c06`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- ServiceTest
+- commit
 - Structure Buffering & Locking
-- Lacuna Detector Backend
-- Detector Registry Interface
-- Lacuna Integration Docs
+- Project
+- Handler
+- StructureBuffer
+- NeatPocket
+- model.test.js
 - service.py
-- superpose.test.js
-- lacuna.py
 - Neat Pocket Job
 - HTTP Request Handler
 - Scene Colors & Pockets
 - Server Configuration
-- Pocket Scoring & Prep
-- Structure Load & Generate
-- read
-- File Fetch & RCSB
-- StructureBuffer
+- model/session.js
+- pocketbench.py
+- errors.py
+- PocketTools
+- ui_snapshot.mjs
 - Session Model State
-- Feature Tree UI
+- generation.py
 - E2E Test Setup
-- resolve_destination
-- Structure & Atom Parsing
+- ServiceTest
+- imports
 - CSV & Generation Jobs
-- Fpocket Detector
-- ViewerService
-- Pocket Table UI
-- Pockets Panel UI
-- API Client
-- ToolUnavailable
-- App State & Bootstrap
-- $
-- Test Fixtures & Helpers
-- Startup Script
-- ProteinViewer Root
-- BadRequest
-- PocketDetector
-- first_executable
+- Ensemble pocket detection in ProteinViewer
+- .setUp
+- helpers.py
+- Validation
+- ProteinViewer
+- FakePockets
+- pockets.py
 - FakeJob
 - manifest.json
+- Startup Script
+- ProteinViewer Root
+- Tests Package Init
+- Layout
+- Generating binders
+- Finding pockets
+- Structure tree
+- start.sh
+- proteinviewer
 
 ## God Nodes (most connected - your core abstractions)
-1. `BadRequest` - 49 edges
-2. `commit()` - 45 edges
-3. `ViewerService` - 45 edges
-4. `$` - 42 edges
+1. `commit()` - 45 edges
+2. `ViewerService` - 42 edges
+3. `$` - 42 edges
+4. `BadRequest` - 38 edges
 5. `esc()` - 36 edges
-6. `Structure` - 36 edges
-7. `LacunaDetector` - 30 edges
-8. `ProjectArtifactsTest` - 28 edges
-9. `StructureBuffer` - 27 edges
-10. `NotFound` - 27 edges
+6. `ProjectArtifactsTest` - 25 edges
+7. `Project` - 24 edges
+8. `StructureBuffer` - 24 edges
+9. `liveRun()` - 24 edges
+10. `Pocketbench` - 23 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Superposing structures` --references--> `align()`  [INFERRED]
-  README.md → app/js/model/superpose.js
 - `How the pieces fit` --references--> `commit()`  [INFERRED]
   README.md → app/js/core/state.js
-- `Adding a pocket detector` --references--> `PocketDetector`  [INFERRED]
-  README.md → proteinviewer/detectors/__init__.py
-- `2. What changed` --references--> `_parse_info()`  [INFERRED]
-  docs/lacuna-integration.md → proteinviewer/detectors/fpocket.py
-- `Adding a pocket detector` --references--> `DetectionResult`  [INFERRED]
-  README.md → proteinviewer/pockets.py
+- `How the pieces fit` --references--> `buffer()`  [INFERRED]
+  README.md → app/js/features/superpose.js
+- `BufferTest` --uses--> `NotFound`  [INFERRED]
+  tests/test_buffer.py → proteinviewer/errors.py
+- `StoreTest` --uses--> `NotFound`  [INFERRED]
+  tests/test_project.py → proteinviewer/errors.py
+- `FakeService` --uses--> `NotFound`  [INFERRED]
+  tests/test_web.py → proteinviewer/errors.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (40 total, 8 thin omitted)
+## Communities (43 total, 13 thin omitted)
 
-### Community 0 - "ServiceTest"
-Cohesion: 0.11
-Nodes (3): PocketRequest, SchemaTest, ServiceTest
+### Community 0 - "commit"
+Cohesion: 0.05
+Nodes (129): API_VERSION, bufferStructure(), createProject(), findPockets(), isJSON(), job(), post(), prepare() (+121 more)
 
 ### Community 1 - "Structure Buffering & Locking"
-Cohesion: 0.06
-Nodes (10): residue_list(), spheres_pdb(), free_dir(), _now(), Project, safe_name(), safe_relpath(), NamesTest (+2 more)
-
-### Community 2 - "Lacuna Detector Backend"
-Cohesion: 0.11
-Nodes (7): _f(), LacunaDetector, main(), _read_pseudoatoms(), probe(), LacunaOptionsTest, RealLacunaTest
-
-### Community 3 - "Detector Registry Interface"
 Cohesion: 0.10
-Nodes (7): 2. What changed, Design decisions worth knowing, DetectionResult, _num(), Pocket, PocketTest, FakeDetector
+Nodes (54): cssVar(), entColor(), POCKET_COLORS, pocketColor(), rankColor(), entity(), liveGen(), liveRun() (+46 more)
 
-### Community 4 - "Lacuna Integration Docs"
-Cohesion: 0.04
-Nodes (45): 1. Why, 3. Environments, 4. Backends, 5. Validation, 6. Measured timings, 7. Coverage against the MOE tutorial, 8. What is not done, 9. Verification performed (+37 more)
+### Community 2 - "Project"
+Cohesion: 0.07
+Nodes (8): free_dir(), Project, ProjectStore, resolve_destination(), safe_relpath(), DestinationTest, ProjectTest, StoreTest
 
-### Community 5 - "service.py"
-Cohesion: 0.08
-Nodes (13): PocketRun, safe_token(), Conflict, NotFound, ViewerError, ProjectStore, BufferRequest, GenerateRequest (+5 more)
+### Community 3 - "Handler"
+Cohesion: 0.07
+Nodes (7): ApiRequest, dumps(), _finite(), Handler, status_for(), FakeService, WebTest
 
-### Community 6 - "superpose.test.js"
-Cohesion: 0.06
-Nodes (61): downloadPockets(), scopeAtoms(), scopeStructure(), CIF_EXT, cifFirstModel(), cifTitle(), firstModel(), PDB_EXT (+53 more)
+### Community 4 - "StructureBuffer"
+Cohesion: 0.09
+Nodes (7): BufferedStructure, check_structure(), detect_format(), safe_token(), StructureBuffer, read(), BufferTest
 
-### Community 7 - "lacuna.py"
-Cohesion: 0.12
-Nodes (5): _parse_info(), find_python(), output_tail(), run(), _element_from_name()
+### Community 5 - "NeatPocket"
+Cohesion: 0.09
+Nodes (4): Job, NeatPocket, JobProgressTest, RunnerTest
+
+### Community 6 - "model.test.js"
+Cohesion: 0.10
+Nodes (29): CIF_EXT, cifFirstModel(), cifTitle(), firstModel(), PDB_EXT, pdbFirstModel(), tidy(), titleOf() (+21 more)
+
+### Community 7 - "service.py"
+Cohesion: 0.13
+Nodes (10): Conflict, ViewerError, BufferRequest, GenerateRequest, JobQuery, PocketRequest, PrepRequest, ProjectRequest (+2 more)
 
 ### Community 8 - "Neat Pocket Job"
-Cohesion: 0.07
-Nodes (7): find_neat_dir(), Job, _last_json_line(), NeatPocket, _read_json(), JobProgressTest, RunnerTest
+Cohesion: 0.14
+Nodes (11): BadRequest, PayloadTooLarge, _residues(), _check_range(), choice(), _get(), integer(), names() (+3 more)
 
 ### Community 9 - "HTTP Request Handler"
-Cohesion: 0.07
-Nodes (7): PayloadTooLarge, ApiRequest, dumps(), _finite(), Handler, FakeService, WebTest
-
-### Community 10 - "Scene Colors & Pockets"
-Cohesion: 0.15
-Nodes (36): cssVar(), entColor(), POCKET_COLORS, pocketColor(), rankColor(), entity(), liveRun(), picksOf() (+28 more)
-
-### Community 11 - "Server Configuration"
 Cohesion: 0.11
 Nodes (9): default_project_root(), Settings, build_service(), main(), make_server(), parse_args(), _print_tool_status(), _stop() (+1 more)
 
-### Community 12 - "Pocket Scoring & Prep"
-Cohesion: 0.09
-Nodes (13): main(), parse(), kabsch(), main(), parse(), post(), Adding a pocket detector, imports() (+5 more)
+### Community 11 - "Server Configuration"
+Cohesion: 0.12
+Nodes (4): PocketRun, NotFound, safe_name(), ViewerService
 
-### Community 13 - "Structure Load & Generate"
-Cohesion: 0.23
-Nodes (26): job(), projectStatus(), esc(), fault(), note(), commit(), bind(), finish() (+18 more)
-
-### Community 14 - "read"
-Cohesion: 0.07
-Nodes (11): BufferedStructure, _near(), select_residues(), detect_format(), pdb_line(), read(), BufferTest, brute_force() (+3 more)
-
-### Community 15 - "File Fetch & RCSB"
-Cohesion: 0.17
-Nodes (22): ENT_COLORS, gunzip(), hasFiles(), readText(), cache, fetchEntry(), getText(), isPdbId() (+14 more)
-
-### Community 16 - "StructureBuffer"
-Cohesion: 0.09
-Nodes (5): StructureBuffer, DetectorRegistry, RegistryTest, FakeGenerator, FakePrep
-
-### Community 17 - "Session Model State"
+### Community 12 - "model/session.js"
 Cohesion: 0.16
-Nodes (20): boldOnly(), ENT, entity(), fitOf(), flags(), num(), pocket(), point() (+12 more)
+Nodes (22): boldOnly(), ENT, entity(), fitOf(), flags(), isSessionText(), num(), pocket() (+14 more)
 
-### Community 18 - "Feature Tree UI"
-Cohesion: 0.27
-Nodes (17): clearRun(), bind(), clearPicks(), focusRow(), fold(), forget(), pick(), reload() (+9 more)
+### Community 13 - "pocketbench.py"
+Cohesion: 0.14
+Nodes (4): first_executable(), output_tail(), probe(), run()
 
-### Community 19 - "E2E Test Setup"
+### Community 14 - "errors.py"
+Cohesion: 0.16
+Nodes (3): ToolError, ToolFailed, ToolUnavailable
+
+### Community 15 - "PocketTools"
+Cohesion: 0.11
+Nodes (4): GenerationJob, Generator, PocketTools, Preparer
+
+### Community 16 - "ui_snapshot.mjs"
 Cohesion: 0.10
 Nodes (17): description, devDependencies, playwright-core, name, private, scripts, e2e, test (+9 more)
 
-### Community 21 - "Structure & Atom Parsing"
-Cohesion: 0.11
-Nodes (3): Atom, _split_cif(), Structure
+### Community 17 - "Session Model State"
+Cohesion: 0.16
+Nodes (4): QuickPrep, residue_ranges(), Once, PrepTest
+
+### Community 18 - "generation.py"
+Cohesion: 0.14
+Nodes (5): post(), find_neat_dir(), find_python(), _last_json_line(), _read_json()
+
+### Community 21 - "imports"
+Cohesion: 0.27
+Nodes (5): imports(), name(), visit(), LayeringTest, module_name()
 
 ### Community 22 - "CSV & Generation Jobs"
-Cohesion: 0.14
-Nodes (5): csv_text(), _csv_value(), GenerationJob, Generator, Preparer
-
-### Community 23 - "Fpocket Detector"
-Cohesion: 0.20
-Nodes (5): FpocketDetector, main(), _parse_vert(), FpocketTest, RealFpocketTest
-
-### Community 24 - "ViewerService"
-Cohesion: 0.15
-Nodes (3): ProjectSaveRequest, ViewerService, ProjectArtifactsTest
-
-### Community 25 - "Pocket Table UI"
-Cohesion: 0.24
-Nodes (16): save(), liveGen(), bind(), bindPanel(), csv(), CSV_COLS, downloadCsv(), downloadSdf() (+8 more)
-
-### Community 26 - "Pockets Panel UI"
-Cohesion: 0.19
-Nodes (17): bind(), find(), ligands(), message(), parseMethod(), pocketRow(), rankedBy(), render() (+9 more)
-
-### Community 27 - "API Client"
-Cohesion: 0.29
-Nodes (12): API_VERSION, bufferStructure(), createProject(), findPockets(), isJSON(), post(), prepare(), request() (+4 more)
-
-### Community 28 - "ToolUnavailable"
-Cohesion: 0.15
-Nodes (6): ToolError, ToolFailed, ToolUnavailable, QuickPrep, residue_ranges(), PrepTest
-
-### Community 29 - "App State & Bootstrap"
-Cohesion: 0.25
-Nodes (11): nodeOf(), state, subscribe(), views, frames(), render(), bind(), FEATURES (+3 more)
-
-### Community 30 - "$"
 Cohesion: 0.21
-Nodes (23): $, attr(), plural(), setHTML(), setMsg(), frameOf(), render(), render() (+15 more)
+Nodes (4): csv_text(), _csv_value(), _now(), NamesTest
 
-### Community 35 - "BadRequest"
-Cohesion: 0.23
-Nodes (8): BadRequest, _check_range(), choice(), _get(), integer(), names(), number(), text()
+### Community 23 - "Ensemble pocket detection in ProteinViewer"
+Cohesion: 0.18
+Nodes (11): 1. Why, 2. What changed, 3. Environments, 6. Measured timings, 7. Coverage against the MOE tutorial, 8. What is not done, 9. Verification performed, CPU only (enough for the nma backend) (+3 more)
 
-### Community 39 - "manifest.json"
+### Community 26 - "Validation"
+Cohesion: 0.22
+Nodes (6): API smoke test, Hit criteria, Reproducibility, Running a case, The pairs, Validation
+
+### Community 27 - "ProteinViewer"
+Cohesion: 0.22
+Nodes (9): Fetching other structures, Getting results out, Opening your own files, Preparing structures, ProteinViewer, Run, Saving a session, Superposing structures (+1 more)
+
+### Community 31 - "manifest.json"
 Cohesion: 0.40
 Nodes (4): api, artifacts, created, project
 
+### Community 32 - "Startup Script"
+Cohesion: 0.50
+Nodes (4): 4. Backends, Detectors, `nma` — default, 2 s, deterministic, `openmm` — 50 s on CUDA, **not reproducible**
+
+### Community 33 - "ProteinViewer Root"
+Cohesion: 0.50
+Nodes (4): 5. Validation, PTP1B — not recovered, for a legible reason, TEM-1 β-lactamase — recovered, The MD backend does not replicate
+
+### Community 35 - "Layout"
+Cohesion: 0.50
+Nodes (4): Adding a pocket detector, How the pieces fit, Layout, Tests
+
+### Community 36 - "Generating binders"
+Cohesion: 0.50
+Nodes (4): Endpoints, Generating binders, No reference ligand is needed, The molecule table
+
+### Community 38 - "Finding pockets"
+Cohesion: 0.67
+Nodes (3): Bound ligands, Finding pockets, What you see
+
+### Community 39 - "Structure tree"
+Cohesion: 0.67
+Nodes (3): Showing, hiding and removing, Structure tree, What the operations run on
+
 ## Knowledge Gaps
 - **1 isolated node(s):** `proteinviewer`
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 295 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 257 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `commit()` connect `Structure Load & Generate` to `Lacuna Integration Docs`, `superpose.test.js`, `Scene Colors & Pockets`, `File Fetch & RCSB`, `Feature Tree UI`, `Pocket Table UI`, `Pockets Panel UI`, `App State & Bootstrap`, `$`?**
-  _High betweenness centrality (0.407) - this node is a cross-community bridge._
-- **Are the 17 inferred relationships involving `BadRequest` (e.g. with `StructureBuffer` and `DetectorRegistry`) actually correct?**
-  _`BadRequest` has 17 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `ProteinViewer` connect `ProteinViewer` to `Layout`, `Generating binders`, `Finding pockets`, `Structure tree`, `Validation`?**
+  _High betweenness centrality (0.459) - this node is a cross-community bridge._
+- **Are the 17 inferred relationships involving `ViewerService` (e.g. with `make_server()` and `_print_tool_status()`) actually correct?**
+  _`ViewerService` has 17 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `proteinviewer` to the rest of the system?**
   _1 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `ServiceTest` be split into smaller, more focused modules?**
-  _Cohesion score 0.10837438423645321 - nodes in this community are weakly interconnected._
-- **Why does `How the pieces fit` connect `Lacuna Integration Docs` to `ServiceTest`, `Structure Load & Generate`?**
-  _High betweenness centrality (0.399) - this node is a cross-community bridge._
-- **Are the 21 inferred relationships involving `ViewerService` (e.g. with `make_server()` and `_print_tool_status()`) actually correct?**
-  _`ViewerService` has 21 INFERRED edges - model-reasoned connections that need verification._
+- **Should `commit` be split into smaller, more focused modules?**
+  _Cohesion score 0.05239463601532567 - nodes in this community are weakly interconnected._
+- **Why does `Generating binders` connect `Generating binders` to `ProteinViewer`?**
+  _High betweenness centrality (0.433) - this node is a cross-community bridge._
+- **Are the 3 inferred relationships involving `BadRequest` (e.g. with `DestinationTest` and `NamesTest`) actually correct?**
+  _`BadRequest` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Structure Buffering & Locking` be split into smaller, more focused modules?**
-  _Cohesion score 0.06428988895382817 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09800362976406533 - nodes in this community are weakly interconnected._

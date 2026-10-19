@@ -3,21 +3,22 @@
    homologues -- can be compared where they overlap.
 
    The reference stays where it is. Every structure ticked under it is fitted
-   onto it by Cα atoms paired through a sequence alignment
-   (model/superpose.js), and its own text is rewritten in the new frame. That
-   is a real edit, like a removal: what is drawn, downloaded, prepared and
-   searched for pockets from then on is the superposed structure, and Undo
-   puts it back where it was.
+   onto it by Cα atoms paired through a sequence alignment, and its own text
+   is rewritten in the new frame. The fitting is pocketbench's, which the
+   server runs (POST /api/superpose); this panel says what to fit on and
+   keeps what comes back. That is a real edit, like a removal: what is drawn,
+   downloaded, prepared and searched for pockets from then on is the
+   superposed structure, and Undo puts it back where it was.
 
    A selection in the tree narrows the fit: picks in the reference (a chain,
    the residues of a site) fit on those residues only, and picks in a
    structure being moved restrict its side the same way. */
 
 import {state, commit, entity, picksOf, frameOf, liveRun} from "../core/state.js";
-import {$, esc, attr, setHTML, setMsg, plural} from "../core/dom.js";
+import {$, esc, attr, setHTML, setMsg, note, plural} from "../core/dom.js";
 import {entColor} from "../core/colors.js";
+import * as api from "../core/api.js";
 import {scopeAtoms, summarize} from "../model/scope.js";
-import {superpose, moveText} from "../model/superpose.js";
 import {remember, reload} from "./tree.js";
 
 /* The structure the others move onto: the one chosen while it is loaded, else
@@ -42,11 +43,17 @@ function pickedNodes(e){
   const nodes = picksOf(e).map(k => e.nodes && e.nodes[k]).filter(Boolean);
   return nodes.some(n => n.kind === "root") ? [] : nodes;
 }
-/* One side of the fit: every atom, and the ones the picks restrict it to. */
-function side(e){
-  const nodes = pickedNodes(e);
-  return {atoms: e.model.selectedAtoms({}),
-          only: nodes.length ? scopeAtoms({e, whole: false, nodes}) : null};
+/* The residues one side of the fit is restricted to, [chain, number,
+   insertion code] -- none for the whole structure. A blank chain id is sent
+   as "A", which is how the server's parser reads it. */
+function fitOn(e){
+  const nodes = pickedNodes(e), seen = {}, out = [];
+  if (!nodes.length) return out;
+  scopeAtoms({e, whole: false, nodes}).forEach(a => {
+    const k = [String(a.chain || "").trim() || "A", a.resi, String(a.icode || "").trim()];
+    if (!seen[k.join("|")]){ seen[k.join("|")] = true; out.push(k); }
+  });
+  return out;
 }
 
 /* ---------------- view ---------------- */
@@ -81,9 +88,21 @@ export function render(st){
   btn.textContent = busy ? "Superposing…"
     : ["Superpose", list.length === 1 ? list[0].id : list.length ? plural(list.length, "structure") : null,
        "onto", ref.id].filter(Boolean).join(" ");
-  btn.disabled = busy || !list.length;
+  btn.disabled = busy || !list.length || st.server.known && !st.server.superpose;
+  setMsg($("sup-msg"), message(st));
+}
+
+function message(st){
   const m = st.sup.msg;
-  setMsg($("sup-msg"), m && (m.fits || []).every(([uid, fit]) => { const e = entity(uid); return e && e.sup === fit; }) ? m : null);
+  /* What a run reported holds while those fits stand: an Undo, or a later
+     fit, takes it down. */
+  if (m && (m.fits || []).every(([uid, fit]) => { const e = entity(uid); return e && e.sup === fit; }))
+    return m;
+  if (st.server.stale)
+    return {html: "Restart <span class='mono'>./serve.py</span> — the running server predates this page.", err: true};
+  if (st.server.known && !st.server.superpose)
+    return note("Superposition unavailable: the server found no pocketbench package.");
+  return null;
 }
 
 /* A structure that could move: its tick, its colour, and the last fit that
@@ -105,28 +124,46 @@ function rowHTML(e, ref, busy){
 }
 
 /* ---------------- actions ---------------- */
+/* Each structure as the server should hold it: buffered under its own name,
+   as the other panels buffer a whole structure. */
+function buffer(e){
+  return api.bufferStructure({token: e.id, data: e.data, fmt: e.fmt});
+}
+
 async function run(){
   const ref = reference(), list = ref ? movers(ref) : [];
   if (!list.length || state.sup.busy) return;
   state.sup.busy = true; state.sup.msg = null;
   state.busy = "superposing…";
   commit();
-  /* The alignment holds the page for a moment on a large structure; let the
-     busy pill paint first. */
-  await new Promise(r => setTimeout(r, 30));
 
-  const target = side(ref), moved = [], errors = [], low = [];
-  list.forEach(e => {
-    let fit, data;
-    try{ fit = superpose(side(e), target); data = moveText(e.data, e.fmt, fit); }
-    catch(err){ errors.push(e.id + ": " + err.message); return; }
-    moved.push({e, prev: {data: e.data, frame: e.frame, sup: e.sup}});
-    e.data = data;
-    e.frame = frameOf(ref);
-    e.sup = {onto: ref.id, rmsd: fit.rmsd, n: fit.n, aligned: fit.aligned, ident: fit.ident};
-    /* The numbers alone would not say that the pairing they rest on is chance. */
-    if (!fit.related) low.push(e.id + " (" + Math.round(fit.ident * 100) + " % over " + fit.paired + ")");
-  });
+  const moved = [], errors = [], low = [], refData = ref.data;
+  try{
+    const target = await buffer(ref), on = fitOn(ref);
+    for (const e of list){
+      const sent = e.data;
+      let r;
+      try{
+        const buf = await buffer(e);
+        r = await api.superpose({token: buf.token, reference: target.token, on, mobileOn: fitOn(e)});
+      }catch(err){ errors.push(e.id + ": " + err.message); continue; }
+      /* Each answer takes a moment; something removed or edited meanwhile,
+         or a reference that changed under the fit, keeps what it has now. */
+      if (state.ents.indexOf(e) === -1 || e.data !== sent || ref.data !== refData){
+        errors.push(e.id + ": it changed while it was being superposed — try again");
+        continue;
+      }
+      const fit = r.fit;
+      moved.push({e, prev: {data: e.data, frame: e.frame, sup: e.sup}});
+      e.data = r.data;
+      e.frame = frameOf(ref);
+      e.sup = {onto: ref.id, rmsd: fit.rmsd, n: fit.n, aligned: fit.aligned, ident: fit.ident};
+      /* The numbers alone would not say that the pairing they rest on is chance. */
+      if (!fit.related) low.push(e.id + " (" + Math.round(fit.ident * 100) + " % over " + fit.paired + ")");
+    }
+  }catch(err){
+    errors.push(ref.id + ": " + err.message);    /* the reference would not buffer */
+  }
   if (moved.length){
     const one = moved.length === 1;
     remember({kind: "edits", items: moved,
@@ -137,8 +174,6 @@ async function run(){
      untick them; a choice made by hand has done its job. */
   state.sup.move = {};
   state.sup.msg = report(ref, moved, errors, low);
-  /* What it reports holds while those fits stand: an Undo, or a later fit,
-     takes it down. */
   state.sup.msg.fits = moved.map(x => [x.e.uid, x.e.sup]);
   reload(moved.map(x => x.e), {fit: moved.length > 0});
 }

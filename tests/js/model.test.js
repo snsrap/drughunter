@@ -60,7 +60,8 @@ test("hider: a node is hidden by itself, a folder above it, or its structure", (
   assert.equal(hider(e, gly).kind, "root");
 });
 
-test("ligandsIn: bound ligands, not solvent, additives or modified residues", () => {
+test("ligandsIn: bound ligands, not the additives the server lists, nor modified residues", () => {
+  const additives = ["HOH", "GOL", "SO4"];     // the server's list, from pocketbench
   const e = entity("e1", [
     ...backbone("A", 1, "GLY"),
     ...backbone("A", 2, "MSE").map(a => ({...a, hetflag: true})),   // modified residue
@@ -71,11 +72,13 @@ test("ligandsIn: bound ligands, not solvent, additives or modified residues", ()
     atom("A", 904, "SO4", "S", true),                               // crystallisation salt
     atom("A", 1001, "HOH", "O", true),
   ]);
-  assert.deepEqual(ligandsIn(e, []), ["HEM", "MK1"]);
+  assert.deepEqual(ligandsIn(e, [], additives), ["HEM", "MK1"]);
   // On a selection, only the ligands it covers.
-  assert.deepEqual(ligandsIn(e, [e.nodes["e1/B:901:MK1"]]), ["MK1"]);
-  assert.deepEqual(ligandsIn(e, [e.nodes["e1/chain:A"]]), []);
-  assert.deepEqual(ligandsIn(e, [e.nodes["e1/ligs"]]), ["HEM", "MK1"]);
+  assert.deepEqual(ligandsIn(e, [e.nodes["e1/B:901:MK1"]], additives), ["MK1"]);
+  assert.deepEqual(ligandsIn(e, [e.nodes["e1/chain:A"]], additives), []);
+  assert.deepEqual(ligandsIn(e, [e.nodes["e1/ligs"]], additives), ["HEM", "MK1"]);
+  // Before the server has said, nothing is held back.
+  assert.deepEqual(ligandsIn(e, []), ["GOL", "HEM", "MK1", "SO4"]);
 });
 
 test("polymerLike", () => {

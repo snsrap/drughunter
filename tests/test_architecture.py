@@ -7,7 +7,6 @@ blocks are skipped: an annotation is not a runtime dependency.
 """
 
 import ast
-import re
 import sys
 import unittest
 from pathlib import Path
@@ -15,41 +14,33 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PKG = ROOT / "proteinviewer"
 
-DOMAIN = {"structure", "pockets"}
 SHARED = {"errors", "validate", "config"}
-ADAPTERS = {"process", "detectors", "detectors.fpocket", "detectors.lacuna",
-            "prep", "generation"}
-# Files on disk: not the domain, but no knowledge of a tool or of HTTP either.
+ADAPTERS = {"process", "pocketbench", "prep", "generation"}
+# Files on disk: no knowledge of a tool or of HTTP.
 STORES = {"buffer", "project"}
 
-# module -> the package modules it may import
+# module -> the package modules it may import. There is no domain layer: what
+# was one -- parsing structures, the pocket model, the detectors -- is the
+# pocketbench package now, which the server runs and never imports.
 ALLOWED = {
-    "structure": set(),
-    "pockets": {"structure"},
+    "pockets": set(),
     "errors": set(),
     "validate": {"errors"},
     "config": set(),
     "process": {"errors"},
-    "detectors": DOMAIN | {"errors"},
-    "detectors.fpocket": DOMAIN | {"errors", "process", "detectors"},
-    "detectors.lacuna": DOMAIN | {"errors", "process", "detectors", "validate"},
+    "pocketbench": {"errors", "process", "validate"},
     "prep": {"errors", "process"},
     "generation": {"errors", "process"},
-    "buffer": DOMAIN | {"errors"},
+    "buffer": {"errors"},
     "project": {"errors"},
-    "schemas": DOMAIN | {"errors", "validate"},
-    # The service sees tools only through the registry and its own protocols.
-    "service": DOMAIN | STORES | {"errors", "schemas", "detectors"},
+    "schemas": {"errors", "validate"},
+    # The service sees tools only through its own protocols.
+    "service": STORES | {"errors", "schemas", "pockets"},
     "web": {"errors", "schemas", "service"},
-    "server": DOMAIN | SHARED | ADAPTERS | STORES | {"service", "web"},
+    "server": SHARED | ADAPTERS | STORES | {"service", "web"},
     "__main__": {"server"},
     "__init__": set(),
 }
-
-# The domain is the part that could leave this repository as its own package:
-# nothing outside the standard library, and no I/O.
-DOMAIN_STDLIB = {"__future__", "dataclasses", "re", "math", "collections",
-                 "typing"}
 
 
 def module_name(path: Path) -> str:
@@ -118,35 +109,11 @@ class LayeringTest(unittest.TestCase):
             illegal = internal - ALLOWED[name] - {name}
             self.assertEqual(illegal, set(), "%s imports %s" % (name, sorted(illegal)))
 
-    def test_domain_is_standard_library_only(self):
-        for name in DOMAIN:
-            _, external = imports(PKG / (name + ".py"))
-            self.assertLessEqual(external, DOMAIN_STDLIB, name)
-
     def test_the_server_runs_on_the_standard_library(self):
         stdlib = set(sys.stdlib_module_names)
         for path in PKG.rglob("*.py"):
             _, external = imports(path)
             self.assertLessEqual(external - {""}, stdlib, module_name(path))
-
-
-class PageMirrorsServerTest(unittest.TestCase):
-    """Two lists of the same thing, one per language, kept equal.
-
-    The page offers to delete the bound ligands before a run, and names them.
-    It can only name the ones a detector would otherwise see, so it has to
-    know what the server drops on its own -- and if the two lists drift, the
-    page offers to delete something that was never there.
-    """
-
-    def test_the_pages_additive_list_matches_the_servers(self):
-        from proteinviewer.structure import ADDITIVES
-
-        source = (ROOT / "app" / "js" / "model" / "tree.js").read_text()
-        m = re.search(r"export const ADDITIVES = \[(.*?)\];", source, re.S)
-        self.assertIsNotNone(m, "app/js/model/tree.js no longer exports ADDITIVES")
-        page = set(re.findall(r'"([A-Z0-9]+)"', m.group(1)))
-        self.assertEqual(page, set(ADDITIVES))
 
 
 if __name__ == "__main__":
