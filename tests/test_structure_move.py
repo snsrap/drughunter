@@ -66,3 +66,69 @@ def test_moving_an_mmcif_file_rewrites_three_tokens_a_row():
         if l != m:
             x, y = cif_tokens(l), cif_tokens(m)
             assert len(x) == len(y) and {k for k in range(len(x)) if x[k] != y[k]} <= cols
+
+
+# ---------------------------------------------------------------- ported from ProteinViewer
+from helpers import pdb_line, read
+from pocketbench.structure import detect_format
+
+
+def test_format_is_sniffed_when_not_declared():
+    assert detect_format(read("1CRN.cif")) == "cif"
+    assert detect_format(read("1CRN.pdb")) == "pdb"
+    assert detect_format("anything", "mmCIF") == "cif"
+    assert len(Structure.from_text(read("1CRN.cif"))) == 327
+
+
+def test_one_altloc_is_kept():
+    s = Structure.from_text("\n".join([
+        pdb_line(1, "CA", "SER", "A", 5, 0, 0, 0, "C", alt="A"),
+        pdb_line(2, "CA", "SER", "A", 5, 9, 9, 9, "C", alt="B"),
+        pdb_line(3, "CA", "GLY", "A", 6, 1, 1, 1, "C")]), "pdb")
+    assert [(a.resi, a.x) for a in s.atoms] == [(5, 0.0), (6, 1.0)]
+
+
+def test_element_falls_back_to_the_atom_name():
+    assert Structure.from_text(pdb_line(1, "CA", "GLY", "A", 1, 0, 0, 0, ""), "pdb").atoms[0].element == "C"
+
+
+def test_no_atoms_is_an_error():
+    with pytest.raises(ValueError):
+        Structure.from_text("HEADER nothing here\n", "pdb")
+    with pytest.raises(ValueError):
+        Structure.from_text("data_x\n_cell.length_a 1\n", "cif")
+
+
+def test_cif_quoted_values_and_insertion_codes():
+    text = "\n".join([
+        "data_q", "loop_",
+        "_atom_site.group_PDB", "_atom_site.label_atom_id", "_atom_site.auth_comp_id",
+        "_atom_site.auth_asym_id", "_atom_site.auth_seq_id", "_atom_site.pdbx_PDB_ins_code",
+        "_atom_site.Cartn_x", "_atom_site.Cartn_y", "_atom_site.Cartn_z", "_atom_site.type_symbol",
+        "HETATM \"C1'\" NAG B 7 ? 1.0 2.0 3.0 C",
+        "ATOM CA GLY B 52 A 4.0 5.0 6.0 C",
+        "#"])
+    a, b = Structure.from_text(text).atoms
+    assert (a.name, a.resn, a.chain, a.resi, a.hetero, a.icode) == ("C1'", "NAG", "B", 7, True, "")
+    assert b.key == ("B", 52, "A")
+
+
+def receptor_input():
+    return Structure.from_text("\n".join([
+        pdb_line(1, "CA", "ALA", "A", 1, 0, 0, 0, "C"),
+        pdb_line(2, "H", "ALA", "A", 1, 0, 0, 1, "H"),
+        pdb_line(3, "O", "HOH", "A", 100, 5, 5, 5, "O", het=True),
+        pdb_line(4, "C1", "LIG", "B", 200, 3, 3, 3, "C", het=True),
+        pdb_line(5, "ZN", "ZN", "B", 300, 4, 4, 4, "ZN", het=True)]), "pdb")
+
+
+def test_receptor_drops_solvent_hydrogens_and_named_ligands():
+    r = receptor_input().receptor(drop_extra=frozenset({"LIG"}))
+    assert [a.resn for a in r.atoms] == ["ALA", "ZN"]
+
+
+def test_every_receptor_atom_is_written_as_ATOM():
+    # fpocket ignores HETATM, so a cofactor left as hetero reads as cavity.
+    lines = receptor_input().receptor().to_pdb().splitlines()
+    assert all(l.startswith("ATOM  ") for l in lines[:-1]) and lines[-1] == "END"
+    assert len(Structure.from_text(receptor_input().receptor().to_pdb())) == 3

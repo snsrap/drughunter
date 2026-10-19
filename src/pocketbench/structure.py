@@ -14,12 +14,22 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-__all__ = ["Atom", "Structure", "STANDARD_AA", "detect_format", "read_text",
+__all__ = ["Atom", "Structure", "STANDARD_AA", "ADDITIVES", "detect_format", "read_text",
            "cif_tokens", "cif_loops", "ATOM_SITE"]
 
 STANDARD_AA = frozenset(
     "ALA ARG ASN ASP CYS GLN GLU GLY HIS ILE "
     "LEU LYS MET PHE PRO SER THR TRP TYR VAL".split()
+)
+
+# Solvent and common crystallisation additives. Not part of a receptor: left
+# in, they block cavity a ligand could occupy. ProteinViewer offers to delete a
+# structure's bound ligands before a run and needs to know which residues a
+# detector drops anyway, so this list is part of what `pocketbench detectors`
+# reports.
+ADDITIVES = frozenset(
+    "HOH WAT DOD EDO GOL SO4 PO4 ACT DMS MES TRS PEG PG4 IPA MPD FMT "
+    "NO3 CL BR IOD AZI CAC BME".split()
 )
 
 Key = tuple[str, int, str]          # chain, residue number, insertion code
@@ -96,6 +106,41 @@ class Structure:
         if not atoms:
             raise ValueError("no atoms found" if fmt == "pdb" else "no _atom_site rows found")
         return cls(atoms, text, fmt)
+
+    def chains(self) -> list[str]:
+        """Chain ids in order of first appearance."""
+        return list(dict.fromkeys(a.chain for a in self.atoms))
+
+    def receptor(self, drop: frozenset[str] = ADDITIVES,
+                 drop_extra: frozenset[str] = frozenset()) -> "Structure":
+        """Everything a detector should treat as wall: no solvent, no
+        additives, no hydrogens, and no residue named in ``drop_extra`` (a
+        bound ligand the user chose to delete)."""
+        skip = drop | drop_extra
+        return Structure([a for a in self.atoms if a.resn not in skip and a.element != "H"],
+                         fmt=self.fmt)
+
+    def to_pdb(self) -> str:
+        """Every atom as an ``ATOM`` record.
+
+        fpocket ignores HETATM, so a cofactor or ion left as hetero is detected
+        as empty cavity. Serial numbers and chain ids are rewritten freely:
+        nothing is read back from a detector by identity, only coordinates, so
+        this file does not have to round-trip.
+        """
+        chain_map: dict[str, str] = {}
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        for a in self.atoms:
+            if a.chain not in chain_map:
+                chain_map[a.chain] = alphabet[len(chain_map) % len(alphabet)]
+        out = []
+        for i, a in enumerate(self.atoms, start=1):
+            name = a.name if len(a.name) >= 4 else " " + a.name.ljust(3)
+            out.append("ATOM  %5d %-4s %-3s %1s%4d%1s   %8.3f%8.3f%8.3f  1.00  0.00          %2s"
+                       % (i % 100000, name[:4], a.resn[:3], chain_map[a.chain], a.resi % 10000,
+                          a.icode[:1], a.x, a.y, a.z, a.element.upper()[:2]))
+        out.append("END")
+        return "\n".join(out) + "\n"
 
     def residue(self, code: str) -> dict[Key, list[Atom]]:
         """Every copy of the residue named ``code``, by residue identity."""

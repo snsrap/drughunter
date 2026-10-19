@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .pockets import Pocket
+from .reports import ReportedPocket
 from .site import Site
 from .superpose import d2
 
@@ -39,7 +39,7 @@ class Criteria:
 
 @dataclass
 class PocketScore:
-    pocket: Pocket
+    pocket: ReportedPocket
     overlap: int
     coverage: float
     jaccard: float
@@ -54,7 +54,7 @@ class PocketScore:
                 **self.pocket.info}
 
 
-def score(pockets: list[Pocket], site: Site, crit: Criteria = Criteria()) -> list[PocketScore]:
+def score(pockets: list[ReportedPocket], site: Site, crit: Criteria = Criteria()) -> list[PocketScore]:
     centre = site.centroid
     out = []
     for p in pockets:

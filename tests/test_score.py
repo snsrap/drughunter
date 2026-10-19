@@ -5,7 +5,7 @@ import json
 
 from helpers import SEQ, T0, chain_lines, ligand_lines, pdb, trace
 from pocketbench.cli import main
-from pocketbench.pockets import parse_pockets
+from pocketbench.reports import parse_pockets
 from pocketbench.score import Criteria, best_rank, score
 from pocketbench.site import sites
 
@@ -109,5 +109,5 @@ def test_the_command_line_superposes_and_writes_the_moved_file(tmp_path, capsys)
 def test_the_command_line_reports_errors_without_a_traceback(tmp_path, capsys):
     apo, holo, _ = apo_holo()
     a, h, r = write(tmp_path, apo, holo, {"pockets": []})
-    assert main(["site", a, h, "NOPE"]) == 1
+    assert main(["site", a, h, "NOPE"]) == 2
     assert "no residue named NOPE" in capsys.readouterr().err

@@ -1,15 +1,19 @@
 # pocketbench
 
-Superpose protein structures, and score pocket detectors against sites known
-from experiment.
+Find pockets in protein structures, superpose structures, and score pocket
+detectors against sites known from experiment.
 
 Built for apo/holo recovery testing. A detector runs on the **apo** structure,
 the ligand never present. The **holo** structure is superposed onto it, so its
 ligand lands where the pocket should open. The detector's pockets are then
-scored against that site. The superposition is the same one ProteinViewer's
-Superpose panel uses.
+scored against that site.
 
-Standard library only, Python 3.10+.
+ProteinViewer does its pocket detection and its superposition through this
+package. Its server runs `python -m pocketbench … --json` in this package's
+environment and never imports it (see *Driven by a program*).
+
+Standard library only, Python 3.10+. The detectors are external: fpocket is a
+binary, lacuna lives in its own environment.
 
 ## Install
 
@@ -66,6 +70,8 @@ where the old script fitted every Cα.
 
 | command | does |
 | --- | --- |
+| `detectors` | what this installation can run, each detector's options, and the additives every detector drops |
+| `detect METHOD STRUCTURE` | find pockets with `fpocket` or `lacuna`, each resolved to whole residues |
 | `superpose MOBILE REFERENCE [-o OUT]` | fit one structure onto another; `-o` writes the moved structure in its own format |
 | `apo APO -o OUT [--chain A]` | a detector's input: standard amino acids, no hydrogens, the chains named. From a PDB file the lines are copied as they are |
 | `site APO HOLO LIGAND` | the holo ligand's site, carried into the apo frame and numbering |
@@ -73,9 +79,64 @@ where the old script fitted every Cα.
 
 All of them take `--json`. `superpose`, `site` and `score` take `--on SPEC`
 to fit only on some residues of the reference (the apo structure), e.g.
-`--on A:1-29,A:39-58,A:77-169` for KRAS without its switches. `score` takes
-`--cutoff` for the shell radius and `--coverage`, `--dcc`, `--dca` for the hit
-thresholds.
+`--on A:1-29,A:39-58,A:77-169` for KRAS without its switches; `superpose` also
+takes `--mobile-on`. A spec names a chain (`A`), a residue (`A:52`, `A:52A`) or
+a range (`A:10-50`, inserted residues included). `score` takes `--cutoff` for
+the shell radius and `--coverage`, `--dcc`, `--dca` for the hit thresholds.
+
+`detect` takes `--cutoff` (residues within this of a site point, default 6 Å),
+`--ligand MK1,HEM` (residues to delete first), `--workdir` (keep the tool's
+files), and each detector's own options as flags (`--backend`, `--detector`,
+`--conformers` for lacuna). `detectors` and `detect` take `--fpocket-bin` and
+`--lacuna-bin`; otherwise `FPOCKET_BIN`, `LACUNA_BIN`, then where each tool
+usually lives.
+
+## Detection
+
+`detect` writes the structure as a receptor and runs the tool on it:
+
+- **What the detector sees.** Solvent, crystallisation additives (`ADDITIVES`),
+  hydrogens and any residue named with `--ligand` are dropped. Every remaining
+  atom is written as `ATOM`, because fpocket silently ignores `HETATM`: a
+  cofactor left as hetero is detected as empty cavity and merged into the
+  pocket beside it.
+- **What a pocket is.** The detector's site points (fpocket's alpha-sphere
+  centres, lacuna's pocket pseudoatoms) stand in for a ligand. The pocket is
+  every whole standard residue with an atom within the cutoff of any point:
+  NEAT-POCKET's `cut_pocket`, driven by site points instead of a bound ligand.
+  On 3R8G this reproduces `cut_pocket` residue for residue. Residues are kept
+  per chain, since a pocket can span chains.
+- **lacuna** detects over a conformational ensemble it generates (`nma`
+  normal modes, or `openmm` MD), and reports each pocket's persistence across
+  the ensemble and its crypticity. The MD backend is not reproducible from
+  run to run; see `detectors/lacuna.py`.
+
+With `--json` a run is `{tool, pockets, meta}`. Each pocket carries its rank,
+scores, centroid, residues as `sel: [{chain, resi}]`, and site points.
+
+## Driven by a program
+
+ProteinViewer's server treats pocketbench as a tool in its own environment:
+
+- `detectors --json`, asked once at startup, says what is installed and which
+  options each detector takes (`{default, choices}` or `{default, integer,
+  min, max}`). The server checks a request against these before starting a run.
+- `detect … --json` and `superpose … --json` print their result on stdout.
+- **The exit code says whose problem a failure is:** 2 a bad input, 3 a tool
+  that is not installed, 4 a tool that ran and failed. With `--json` the error
+  is printed as `{"error", "kind"}`. The server maps these to 400, 503 and 502.
+
+## Adding a detector
+
+Subclass `PocketDetector` in `detectors/<tool>.py`. Give it:
+- a `name` and its `OPTIONS` (`Option` objects);
+- `available`, `describe()` and `status_line()`;
+- a `run()` that returns a `DetectionResult` whose pockets went through
+  `select_residues`; `write_receptor()` prepares the input.
+
+Add an instance to `default_detectors()`. `detect` takes it by name and
+`detectors` lists it. ProteinViewer passes both on, and needs only an
+`<option>` in its page's detector menu.
 
 `POCKETS` is either lacuna's `pocket_report.json` or the pockets file
 ProteinViewer writes into a project (`pockets/<structure>.<tool>.json`, from
@@ -147,17 +208,24 @@ for site in found:
 
 ```
 src/pocketbench/
-  structure.py   reading PDB and mmCIF: first model, one altloc, author numbering
+  structure.py   reading PDB and mmCIF: first model, one altloc, author numbering;
+                   the receptor a detector sees
+  pockets.py     the pocket model and the residue cut
+  detectors/     one PocketDetector per tool: fpocket.py, lacuna.py
+  errors.py  process.py   what can go wrong, and running the tools
   align.py       BLOSUM62 sequence alignment, end gaps free
   superpose.py   chain pairing, the fit, outlier rejection, relatedness
   move.py        writing a transform into a structure's own text
   site.py        a holo ligand's site in the apo frame and numbering
-  pockets.py     lacuna reports and ProteinViewer pocket files
+  reports.py     reading pocket files: lacuna reports, detect --json, ProteinViewer projects
   score.py       overlap, DCC, DCA, and the hit criteria
   cli.py         the commands
-tests/           pytest; synthetic structures, plus 1CRN as PDB and mmCIF
+tests/           pytest; synthetic structures, a stand-in fpocket, 1CRN as PDB and mmCIF
 ```
 
 ```sh
-~/.pyenv/versions/pocketbench/bin/python -m pytest
+~/.pyenv/versions/pocketbench/bin/python -m pytest                 # about a second
+PB_SLOW_TESTS=1 ~/.pyenv/versions/pocketbench/bin/python -m pytest  # also runs real lacuna
 ```
+
+The real fpocket is exercised whenever it is on `PATH`.
