@@ -58,6 +58,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import time
 from typing import Any
 
@@ -87,8 +88,8 @@ class LacunaDetector(PocketDetector):
     """Runs the lacuna CLI and resolves each pocket to whole residues.
 
     lacuna needs numpy, scipy and biopython, and its MD backend needs OpenMM,
-    so it lives in its own environment and is run as a command rather than
-    imported.
+    so it is run as a command rather than imported: from an environment of its
+    own, or from drughunter's when that was installed with the ``lacuna`` extra.
     """
 
     name = "lacuna"
@@ -97,7 +98,10 @@ class LacunaDetector(PocketDetector):
                Option("conformers", DEFAULT_CONFORMERS, lo=1, hi=500))
 
     def __init__(self, binary: str | None = None, timeout: float = 3600.0):
-        self.binary = first_executable(binary, *SEARCH_PATHS, shutil.which("lacuna"))
+        # After the environments made for it: the one pocketbench runs in,
+        # where drughunter's ``lacuna`` extra puts it.
+        here = os.path.join(os.path.dirname(sys.executable), "lacuna")
+        self.binary = first_executable(binary, *SEARCH_PATHS, here, shutil.which("lacuna"))
         self.timeout = timeout
         self._version = Once(self._probe_version)
         self._backends = Once(self._probe_backends)

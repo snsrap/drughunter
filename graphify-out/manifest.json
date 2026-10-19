@@ -1,9 +1,9 @@
 {
   "serve.py": {
     "mtime": 1792453658.1538312,
-    "seen": 1792453791.489005,
+    "seen": 1792453813.8257744,
     "ast_hash": "e01d6fb564d02885f4c7492d6770555d",
-    "semantic_hash": ""
+    "semantic_hash": "e01d6fb564d02885f4c7492d6770555d"
   },
   "start.sh": {
     "mtime": 1792453431.0867136,
@@ -37,15 +37,15 @@
   },
   "package.json": {
     "mtime": 1792453658.1538546,
-    "seen": 1792453791.4889548,
+    "seen": 1792453813.825529,
     "ast_hash": "ee295d4aaf8e611d50fd962c42cefe6b",
-    "semantic_hash": ""
+    "semantic_hash": "ee295d4aaf8e611d50fd962c42cefe6b"
   },
   "proteinviewer/__init__.py": {
     "mtime": 1792453658.153742,
-    "seen": 1792453791.4889686,
+    "seen": 1792453813.8255427,
     "ast_hash": "8e9eb67b18b37b0c1c0747cb3b38a6cf",
-    "semantic_hash": ""
+    "semantic_hash": "8e9eb67b18b37b0c1c0747cb3b38a6cf"
   },
   "proteinviewer/__main__.py": {
     "mtime": 1792453431.0831614,
@@ -61,9 +61,9 @@
   },
   "proteinviewer/config.py": {
     "mtime": 1792453658.153612,
-    "seen": 1792453791.488989,
+    "seen": 1792453813.8256028,
     "ast_hash": "cdea8528d45bc2370de3d5358086e09c",
-    "semantic_hash": ""
+    "semantic_hash": "cdea8528d45bc2370de3d5358086e09c"
   },
   "proteinviewer/errors.py": {
     "mtime": 1792453431.0839677,
@@ -85,9 +85,9 @@
   },
   "proteinviewer/prep.py": {
     "mtime": 1792453658.153697,
-    "seen": 1792453791.4889932,
+    "seen": 1792453813.8256552,
     "ast_hash": "0e85538d1fca49e266157ea07ce010d3",
-    "semantic_hash": ""
+    "semantic_hash": "0e85538d1fca49e266157ea07ce010d3"
   },
   "proteinviewer/process.py": {
     "mtime": 1792453431.084909,
@@ -127,9 +127,9 @@
   },
   "pyproject.toml": {
     "mtime": 1792453671.7201924,
-    "seen": 1792453791.4890013,
+    "seen": 1792453813.825771,
     "ast_hash": "e2cd50f7b5af39ba43d9828662f815a0",
-    "semantic_hash": ""
+    "semantic_hash": "e2cd50f7b5af39ba43d9828662f815a0"
   },
   "tests/__init__.py": {
     "mtime": 1792453431.0867136,
@@ -151,9 +151,9 @@
   },
   "tests/js/model.test.js": {
     "mtime": 1792453526.31619,
-    "seen": 1792453791.4890091,
+    "seen": 1792453813.8258414,
     "ast_hash": "e115c6b581e2c8c68412f6bda2ddc4c0",
-    "semantic_hash": ""
+    "semantic_hash": "e115c6b581e2c8c68412f6bda2ddc4c0"
   },
   "tests/test_architecture.py": {
     "mtime": 1792453431.0897899,
@@ -193,15 +193,15 @@
   },
   "tests/js/session.test.js": {
     "mtime": 1792453526.3163893,
-    "seen": 1792453791.48901,
+    "seen": 1792453813.8258424,
     "ast_hash": "9e9b286185dc31265dcafbb9a4301bf9",
-    "semantic_hash": ""
+    "semantic_hash": "9e9b286185dc31265dcafbb9a4301bf9"
   },
   "tests/js/structurefile.test.js": {
     "mtime": 1792453526.3165488,
-    "seen": 1792453791.489011,
+    "seen": 1792453813.825843,
     "ast_hash": "6ccb121cd99638306686b4121d6af460",
-    "semantic_hash": ""
+    "semantic_hash": "6ccb121cd99638306686b4121d6af460"
   },
   "proteinviewer/project.py": {
     "mtime": 1792453431.0850954,
@@ -217,321 +217,321 @@
   },
   "proteinviewer/pocketbench.py": {
     "mtime": 1792453658.1536646,
-    "seen": 1792453791.4889917,
+    "seen": 1792453813.8256378,
     "ast_hash": "5229490d301739d8d092cf97d7191127",
-    "semantic_hash": ""
+    "semantic_hash": "5229490d301739d8d092cf97d7191127"
   },
   "tests/test_pocketbench.py": {
     "mtime": 1792453658.1537218,
-    "seen": 1792453791.4890203,
+    "seen": 1792453813.8259008,
     "ast_hash": "0fdf0db699d402479af3e76aaca3dbad",
-    "semantic_hash": ""
+    "semantic_hash": "0fdf0db699d402479af3e76aaca3dbad"
   },
   ".claude/settings.json": {
     "mtime": 1792453431.1810954,
-    "seen": 1792453791.4889498,
+    "seen": 1792453813.8254766,
     "ast_hash": "d0f8ca88719ba65e04ee00cd3413e61b",
-    "semantic_hash": ""
+    "semantic_hash": "d0f8ca88719ba65e04ee00cd3413e61b"
   },
   "pocketbench/__init__.py": {
     "mtime": 1792453658.1537783,
-    "seen": 1792453791.488956,
+    "seen": 1792453813.82553,
     "ast_hash": "742a2bd32bc5abc2cee5fce3481671f2",
-    "semantic_hash": ""
+    "semantic_hash": "742a2bd32bc5abc2cee5fce3481671f2"
   },
   "pocketbench/__main__.py": {
     "mtime": 1792453431.1350164,
-    "seen": 1792453791.488957,
+    "seen": 1792453813.8255308,
     "ast_hash": "5109ab95441454c3d40c9321c4c146b7",
-    "semantic_hash": ""
+    "semantic_hash": "5109ab95441454c3d40c9321c4c146b7"
   },
   "pocketbench/align.py": {
     "mtime": 1792453431.1350164,
-    "seen": 1792453791.4889576,
+    "seen": 1792453813.8255317,
     "ast_hash": "ac061812d967bd7d755492b413894aba",
-    "semantic_hash": ""
+    "semantic_hash": "ac061812d967bd7d755492b413894aba"
   },
   "pocketbench/cli.py": {
     "mtime": 1792453431.1350164,
-    "seen": 1792453791.4889584,
+    "seen": 1792453813.8255324,
     "ast_hash": "47a4210cae7d3212d20ee7d06825cb7d",
-    "semantic_hash": ""
+    "semantic_hash": "47a4210cae7d3212d20ee7d06825cb7d"
   },
   "pocketbench/detectors/__init__.py": {
     "mtime": 1792453431.1350164,
-    "seen": 1792453791.48896,
+    "seen": 1792453813.8255334,
     "ast_hash": "1fed79f853470ac9c505f0e39843c6f8",
-    "semantic_hash": ""
+    "semantic_hash": "1fed79f853470ac9c505f0e39843c6f8"
   },
   "pocketbench/detectors/fpocket.py": {
     "mtime": 1792453431.135358,
-    "seen": 1792453791.4889605,
+    "seen": 1792453813.825534,
     "ast_hash": "ff3751defc1ff26f7ce80ab62dccae76",
-    "semantic_hash": ""
+    "semantic_hash": "ff3751defc1ff26f7ce80ab62dccae76"
   },
   "pocketbench/detectors/lacuna.py": {
     "mtime": 1792453431.135358,
-    "seen": 1792453791.4889612,
+    "seen": 1792453813.825535,
     "ast_hash": "1a64e660196f58befbe69f9480c448ea",
-    "semantic_hash": ""
+    "semantic_hash": "1a64e660196f58befbe69f9480c448ea"
   },
   "pocketbench/errors.py": {
     "mtime": 1792453431.135358,
-    "seen": 1792453791.488962,
+    "seen": 1792453813.8255358,
     "ast_hash": "007a35f951525f083f9dae1d1a9e1096",
-    "semantic_hash": ""
+    "semantic_hash": "007a35f951525f083f9dae1d1a9e1096"
   },
   "pocketbench/move.py": {
     "mtime": 1792453431.135358,
-    "seen": 1792453791.488963,
+    "seen": 1792453813.8255365,
     "ast_hash": "088e23b548fdeedc1d9a56a78355aaf8",
-    "semantic_hash": ""
+    "semantic_hash": "088e23b548fdeedc1d9a56a78355aaf8"
   },
   "pocketbench/pockets.py": {
     "mtime": 1792453431.135358,
-    "seen": 1792453791.4889636,
+    "seen": 1792453813.8255372,
     "ast_hash": "6902bcc107de539cab11e156fafda0a6",
-    "semantic_hash": ""
+    "semantic_hash": "6902bcc107de539cab11e156fafda0a6"
   },
   "pocketbench/process.py": {
     "mtime": 1792453431.1356702,
-    "seen": 1792453791.4889643,
+    "seen": 1792453813.8255382,
     "ast_hash": "094e0e4a6c95ea2b552d7fdc75e699d0",
-    "semantic_hash": ""
+    "semantic_hash": "094e0e4a6c95ea2b552d7fdc75e699d0"
   },
   "pocketbench/reports.py": {
     "mtime": 1792453431.1357265,
-    "seen": 1792453791.488965,
+    "seen": 1792453813.8255389,
     "ast_hash": "6e8cedbdc640ca8ceb7d716ed04cd5a3",
-    "semantic_hash": ""
+    "semantic_hash": "6e8cedbdc640ca8ceb7d716ed04cd5a3"
   },
   "pocketbench/score.py": {
     "mtime": 1792453431.1357265,
-    "seen": 1792453791.488966,
+    "seen": 1792453813.8255396,
     "ast_hash": "f7394f562084fb70d4f3b9a5f3451107",
-    "semantic_hash": ""
+    "semantic_hash": "f7394f562084fb70d4f3b9a5f3451107"
   },
   "pocketbench/site.py": {
     "mtime": 1792453431.1357265,
-    "seen": 1792453791.4889665,
+    "seen": 1792453813.8255403,
     "ast_hash": "b73e01ac7fc36cad89b2df577fdd377f",
-    "semantic_hash": ""
+    "semantic_hash": "b73e01ac7fc36cad89b2df577fdd377f"
   },
   "pocketbench/structure.py": {
     "mtime": 1792453431.1357265,
-    "seen": 1792453791.4889672,
+    "seen": 1792453813.825541,
     "ast_hash": "752a3d44494dada270a66aa35a1655d3",
-    "semantic_hash": ""
+    "semantic_hash": "752a3d44494dada270a66aa35a1655d3"
   },
   "pocketbench/superpose.py": {
     "mtime": 1792453431.1357265,
-    "seen": 1792453791.4889677,
+    "seen": 1792453813.825542,
     "ast_hash": "5b56ea10e98b5c792ebe5cb259b7d525",
-    "semantic_hash": ""
+    "semantic_hash": "5b56ea10e98b5c792ebe5cb259b7d525"
   },
   "proteinviewer/app/js/core/api.js": {
     "mtime": 1792453431.0684836,
-    "seen": 1792453791.4889705,
+    "seen": 1792453813.8255653,
     "ast_hash": "269e83e44012389884f35cb6525b607f",
-    "semantic_hash": ""
+    "semantic_hash": "269e83e44012389884f35cb6525b607f"
   },
   "proteinviewer/app/js/core/colors.js": {
     "mtime": 1792453431.068794,
-    "seen": 1792453791.4889712,
+    "seen": 1792453813.8255663,
     "ast_hash": "04f686835e49d2d36d6ff8cf3de52c6e",
-    "semantic_hash": ""
+    "semantic_hash": "04f686835e49d2d36d6ff8cf3de52c6e"
   },
   "proteinviewer/app/js/core/dom.js": {
     "mtime": 1792453431.0690126,
-    "seen": 1792453791.488972,
+    "seen": 1792453813.825567,
     "ast_hash": "fea38644f5fa351c1bfa0efdc78cc74b",
-    "semantic_hash": ""
+    "semantic_hash": "fea38644f5fa351c1bfa0efdc78cc74b"
   },
   "proteinviewer/app/js/core/files.js": {
     "mtime": 1792453431.0690954,
-    "seen": 1792453791.4889724,
+    "seen": 1792453813.825568,
     "ast_hash": "f48bce1aa218a1d516f4ab8c4089b61d",
-    "semantic_hash": ""
+    "semantic_hash": "f48bce1aa218a1d516f4ab8c4089b61d"
   },
   "proteinviewer/app/js/core/rcsb.js": {
     "mtime": 1792453431.0695226,
-    "seen": 1792453791.4889734,
+    "seen": 1792453813.8255687,
     "ast_hash": "de43c484ff43ce2e1b7c422cb6892797",
-    "semantic_hash": ""
+    "semantic_hash": "de43c484ff43ce2e1b7c422cb6892797"
   },
   "proteinviewer/app/js/core/state.js": {
     "mtime": 1792453431.0696964,
-    "seen": 1792453791.488974,
+    "seen": 1792453813.8255696,
     "ast_hash": "ad1d92a083977670d452393ea0d66d79",
-    "semantic_hash": ""
+    "semantic_hash": "ad1d92a083977670d452393ea0d66d79"
   },
   "proteinviewer/app/js/features/chrome.js": {
     "mtime": 1792453431.0698318,
-    "seen": 1792453791.4889748,
+    "seen": 1792453813.8255703,
     "ast_hash": "26b0216479f42d2da09cdcecf32145d9",
-    "semantic_hash": ""
+    "semantic_hash": "26b0216479f42d2da09cdcecf32145d9"
   },
   "proteinviewer/app/js/features/fetch.js": {
     "mtime": 1792453431.0700204,
-    "seen": 1792453791.4889753,
+    "seen": 1792453813.825571,
     "ast_hash": "7de74d25876d1da2a7205aa5d789d70e",
-    "semantic_hash": ""
+    "semantic_hash": "7de74d25876d1da2a7205aa5d789d70e"
   },
   "proteinviewer/app/js/features/generate.js": {
     "mtime": 1792453431.0704513,
-    "seen": 1792453791.4889762,
+    "seen": 1792453813.8255718,
     "ast_hash": "01ea9824731a8c740f220ef3b0796b68",
-    "semantic_hash": ""
+    "semantic_hash": "01ea9824731a8c740f220ef3b0796b68"
   },
   "proteinviewer/app/js/features/pockets.js": {
     "mtime": 1792453431.0706186,
-    "seen": 1792453791.488977,
+    "seen": 1792453813.8255725,
     "ast_hash": "4d1774af5058b94da9cef010fbb409d3",
-    "semantic_hash": ""
+    "semantic_hash": "4d1774af5058b94da9cef010fbb409d3"
   },
   "proteinviewer/app/js/features/prep.js": {
     "mtime": 1792453431.070818,
-    "seen": 1792453791.4889774,
+    "seen": 1792453813.8255734,
     "ast_hash": "76af51ee8db12228fad49d0dc559c16d",
-    "semantic_hash": ""
+    "semantic_hash": "76af51ee8db12228fad49d0dc559c16d"
   },
   "proteinviewer/app/js/features/project.js": {
     "mtime": 1792453431.0711145,
-    "seen": 1792453791.4889781,
+    "seen": 1792453813.8255742,
     "ast_hash": "c16d30353b784699cbba88b428772f59",
-    "semantic_hash": ""
+    "semantic_hash": "c16d30353b784699cbba88b428772f59"
   },
   "proteinviewer/app/js/features/session.js": {
     "mtime": 1792453431.0713341,
-    "seen": 1792453791.4889789,
+    "seen": 1792453813.8255749,
     "ast_hash": "3bac2adb6f6d3de80b7e252ab14dfe18",
-    "semantic_hash": ""
+    "semantic_hash": "3bac2adb6f6d3de80b7e252ab14dfe18"
   },
   "proteinviewer/app/js/features/superpose.js": {
     "mtime": 1792453431.071507,
-    "seen": 1792453791.4889798,
+    "seen": 1792453813.8255756,
     "ast_hash": "e8ce9a1bc76bd1e6d6cca093b2c46feb",
-    "semantic_hash": ""
+    "semantic_hash": "e8ce9a1bc76bd1e6d6cca093b2c46feb"
   },
   "proteinviewer/app/js/features/table.js": {
     "mtime": 1792453431.0717037,
-    "seen": 1792453791.4889805,
+    "seen": 1792453813.8255763,
     "ast_hash": "795841e518023137c60d216441f0e216",
-    "semantic_hash": ""
+    "semantic_hash": "795841e518023137c60d216441f0e216"
   },
   "proteinviewer/app/js/features/theme.js": {
     "mtime": 1792453431.0720074,
-    "seen": 1792453791.4889812,
+    "seen": 1792453813.825577,
     "ast_hash": "1490df8cd7e6437de10e9fb0207d6974",
-    "semantic_hash": ""
+    "semantic_hash": "1490df8cd7e6437de10e9fb0207d6974"
   },
   "proteinviewer/app/js/features/tree.js": {
     "mtime": 1792453431.0722299,
-    "seen": 1792453791.488982,
+    "seen": 1792453813.8255777,
     "ast_hash": "e51ebcfa7d110006c420385fa8e88714",
-    "semantic_hash": ""
+    "semantic_hash": "e51ebcfa7d110006c420385fa8e88714"
   },
   "proteinviewer/app/js/main.js": {
     "mtime": 1792453431.072426,
-    "seen": 1792453791.4889827,
+    "seen": 1792453813.8255785,
     "ast_hash": "f2a8df2264474f6c95e48a03eeb1e7ff",
-    "semantic_hash": ""
+    "semantic_hash": "f2a8df2264474f6c95e48a03eeb1e7ff"
   },
   "proteinviewer/app/js/model/scope.js": {
     "mtime": 1792453431.0725646,
-    "seen": 1792453791.4889836,
+    "seen": 1792453813.8255794,
     "ast_hash": "09641deb93496f1dfcea41ac9ddab3e2",
-    "semantic_hash": ""
+    "semantic_hash": "09641deb93496f1dfcea41ac9ddab3e2"
   },
   "proteinviewer/app/js/model/session.js": {
     "mtime": 1792453431.0727286,
-    "seen": 1792453791.4889843,
+    "seen": 1792453813.8255804,
     "ast_hash": "62c8b1187a35eb73ca3a06d06999aff7",
-    "semantic_hash": ""
+    "semantic_hash": "62c8b1187a35eb73ca3a06d06999aff7"
   },
   "proteinviewer/app/js/model/structurefile.js": {
     "mtime": 1792453431.0730953,
-    "seen": 1792453791.488985,
+    "seen": 1792453813.825581,
     "ast_hash": "30c084737685093c049d4f0caf2cebda",
-    "semantic_hash": ""
+    "semantic_hash": "30c084737685093c049d4f0caf2cebda"
   },
   "proteinviewer/app/js/model/subset.js": {
     "mtime": 1792453431.0735304,
-    "seen": 1792453791.4889858,
+    "seen": 1792453813.8255818,
     "ast_hash": "c18b4116cbafe62fff4d5b35425e797b",
-    "semantic_hash": ""
+    "semantic_hash": "c18b4116cbafe62fff4d5b35425e797b"
   },
   "proteinviewer/app/js/model/tree.js": {
     "mtime": 1792453431.073818,
-    "seen": 1792453791.4889867,
+    "seen": 1792453813.8255825,
     "ast_hash": "3b75439ce55fc73ae473dbeef134e994",
-    "semantic_hash": ""
+    "semantic_hash": "3b75439ce55fc73ae473dbeef134e994"
   },
   "proteinviewer/app/js/scene.js": {
     "mtime": 1792453431.0740259,
-    "seen": 1792453791.4889874,
+    "seen": 1792453813.8255837,
     "ast_hash": "ff6fbe6c7634051fe28e079f46b063c1",
-    "semantic_hash": ""
+    "semantic_hash": "ff6fbe6c7634051fe28e079f46b063c1"
   },
   "quickprep/__init__.py": {
     "mtime": 1792453658.1538079,
-    "seen": 1792453791.489002,
+    "seen": 1792453813.8257718,
     "ast_hash": "7796ad37ed84de929ab75ab25f520821",
-    "semantic_hash": ""
+    "semantic_hash": "7796ad37ed84de929ab75ab25f520821"
   },
   "quickprep/__main__.py": {
     "mtime": 1792453431.1827774,
-    "seen": 1792453791.4890027,
+    "seen": 1792453813.8257728,
     "ast_hash": "ef7fefb6df33d95349ad9ec4b9c6023f",
-    "semantic_hash": ""
+    "semantic_hash": "ef7fefb6df33d95349ad9ec4b9c6023f"
   },
   "quickprep/prep.py": {
     "mtime": 1792453431.1831129,
-    "seen": 1792453791.4890037,
+    "seen": 1792453813.8257735,
     "ast_hash": "9875f1cc4c4c5e5fb061558e18db9fe8",
-    "semantic_hash": ""
+    "semantic_hash": "9875f1cc4c4c5e5fb061558e18db9fe8"
   },
   "tests/pocketbench/helpers.py": {
     "mtime": 1792453431.1365213,
-    "seen": 1792453791.4890118,
+    "seen": 1792453813.825844,
     "ast_hash": "47e58258804937c2d8b44c0ae4ff869c",
-    "semantic_hash": ""
+    "semantic_hash": "47e58258804937c2d8b44c0ae4ff869c"
   },
   "tests/pocketbench/test_detect.py": {
     "mtime": 1792453431.1365213,
-    "seen": 1792453791.4890122,
+    "seen": 1792453813.8258448,
     "ast_hash": "61b1217d0e0dfa6604225c712b46530c",
-    "semantic_hash": ""
+    "semantic_hash": "61b1217d0e0dfa6604225c712b46530c"
   },
   "tests/pocketbench/test_score.py": {
     "mtime": 1792453431.1365213,
-    "seen": 1792453791.4890132,
+    "seen": 1792453813.8258455,
     "ast_hash": "0b3086091dcc62e2f4f9429e61e2db09",
-    "semantic_hash": ""
+    "semantic_hash": "0b3086091dcc62e2f4f9429e61e2db09"
   },
   "tests/pocketbench/test_structure_move.py": {
     "mtime": 1792453431.1365213,
-    "seen": 1792453791.4890137,
+    "seen": 1792453813.8258464,
     "ast_hash": "059659e0756ee6cdddd69cbea5d7fbfd",
-    "semantic_hash": ""
+    "semantic_hash": "059659e0756ee6cdddd69cbea5d7fbfd"
   },
   "tests/pocketbench/test_superpose.py": {
     "mtime": 1792453431.1365213,
-    "seen": 1792453791.4890153,
+    "seen": 1792453813.8258474,
     "ast_hash": "949db460a74ec2c65cd236e271edfc82",
-    "semantic_hash": ""
+    "semantic_hash": "949db460a74ec2c65cd236e271edfc82"
   },
   "tests/quickprep/test_prepare.py": {
     "mtime": 1792453431.1847444,
-    "seen": 1792453791.489016,
+    "seen": 1792453813.8258483,
     "ast_hash": "8e605ef9e227353ad835a87b0e06917f",
-    "semantic_hash": ""
+    "semantic_hash": "8e605ef9e227353ad835a87b0e06917f"
   },
   "tests/test_packaging.py": {
     "mtime": 1792453671.7223074,
-    "seen": 1792453791.4890194,
+    "seen": 1792453813.8259,
     "ast_hash": "ef53fc7a81c1df8b278c04bb09da27fd",
-    "semantic_hash": ""
+    "semantic_hash": "ef53fc7a81c1df8b278c04bb09da27fd"
   },
   "CLAUDE.md": {
     "mtime": 1792453431.1330955,

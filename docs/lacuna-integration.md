@@ -93,9 +93,10 @@ report entry exactly.
 ## 3. Environments
 
 lacuna needs scipy and biopython; its MD backend needs OpenMM and PDBFixer. It
-lives in its own environment and is run as a command. The search order is
-`LACUNA_BIN`, then the micromamba env `lacuna-gpu`, then the pyenv virtualenv
-`lacuna`, then `PATH`.
+is run as a command, from an environment of its own or from drughunter's
+(`pip install -e '.[lacuna]'`). The search order is `LACUNA_BIN`, then the
+micromamba env `lacuna-gpu`, then the pyenv virtualenv `lacuna`, then the
+environment pocketbench runs in, then `PATH`.
 
 ### CPU only (enough for the nma backend)
 

@@ -118,6 +118,15 @@ def test_a_missing_binary(tmp_path, monkeypatch):
         det.run(LINE, str(tmp_path))
 
 
+def test_lacuna_beside_the_interpreter_is_found(tmp_path, monkeypatch):
+    # Where drughunter's ``lacuna`` extra installs it: pocketbench's own environment.
+    binary = fake_executable(tmp_path, "lacuna", "")
+    monkeypatch.setattr("pocketbench.detectors.lacuna.SEARCH_PATHS", ())
+    monkeypatch.setattr("pocketbench.detectors.lacuna.shutil.which", lambda _: None)
+    monkeypatch.setattr("pocketbench.detectors.lacuna.sys.executable", str(tmp_path / "python"))
+    assert LacunaDetector().binary == binary
+
+
 def test_nothing_left_after_solvent_is_bad_input(fpocket, tmp_path):
     det, _ = fpocket
     water = Structure.from_text(pdb_line(1, "O", "HOH", "A", 1, 0, 0, 0, "O", het=True))

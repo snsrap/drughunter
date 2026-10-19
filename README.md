@@ -24,22 +24,27 @@ One environment holds all three. With pyenv:
 ```sh
 pyenv virtualenv 3.11.14 drughunter
 cd drughunter && pyenv local drughunter
-pip install -e '.[test]'
+pip install -e '.[test,lacuna]'     # lacuna is optional
 ```
 
 Any virtual environment does (`python -m venv .venv`); Python 3.10 or newer.
 This pulls in what quickprep needs (OpenMM, PDBFixer, PDB2PQR, PROPKA, gemmi,
 numpy); the viewer's server and pocketbench need only the standard library.
 
-### External tools
+### Optional and external tools
 
-These are not Python dependencies of drughunter. The server looks for each at
-startup, prints what it found, and the page says what is missing.
+lacuna is an optional dependency: the `lacuna` extra above installs it into
+the same environment. fpocket and NEAT-POCKET cannot come from
+`pyproject.toml`: fpocket is a C program that is not on PyPI, and NEAT-POCKET
+runs from a checkout of its own (its scripts, configuration and model weights)
+with torch and PyTorch Geometric builds that must match the GPU. The server
+looks for each tool at startup, prints what it found, and the page says what
+is missing.
 
 | tool | needed for | install | or point at it with |
 | --- | --- | --- | --- |
 | [fpocket](https://github.com/Discngine/fpocket) | **Find pockets** | a binary on `PATH`: `conda install -c conda-forge fpocket`, or build it from the repository | `FPOCKET_BIN` |
-| [lacuna](https://github.com/mooreneural/lacuna) | the ensemble detector (optional) | its own environment: `pip install lacuna-pockets`; for MD on a GPU see [docs/lacuna-integration.md](docs/lacuna-integration.md) | `LACUNA_BIN` |
+| [lacuna](https://github.com/mooreneural/lacuna) | the ensemble detector (optional) | the `lacuna` extra, or an environment of its own; for MD on a GPU under WSL2 see [docs/lacuna-integration.md](docs/lacuna-integration.md) | `LACUNA_BIN` |
 | [NEAT-POCKET](https://github.com/molinfo-vienna/NEAT-POCKET) | **Generate binders** (optional) | its own environment with torch, per its README, plus its model weights | `NEAT_POCKET_DIR`, `NEAT_PYTHON` |
 
 Generation also needs `scripts/generate_from_pocket.py` in the NEAT-POCKET

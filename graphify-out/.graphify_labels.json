@@ -1,10 +1,7 @@
 {
-  "1": "Structure Buffering & Locking",
   "2": "Project",
   "4": "StructureBuffer",
   "5": "NeatPocket",
-  "10": "Scene Colors & Pockets",
-  "13": "pocketbench.py",
   "15": "PocketTools",
   "16": "ui_snapshot.mjs",
   "17": "Session Model State",
@@ -15,8 +12,6 @@
   "26": "Validation",
   "28": "FakePockets",
   "30": "FakeJob",
-  "31": "manifest.json",
   "40": "start.sh",
-  "41": "proteinviewer",
   "42": "tests/__init__.py"
 }
