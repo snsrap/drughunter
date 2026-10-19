@@ -8,6 +8,7 @@ import {state, commit, liveRun, liveGen} from "../core/state.js";
 import {$, esc, setHTML, setMsg, note, fault} from "../core/dom.js";
 import {rankColor} from "../core/colors.js";
 import * as api from "../core/api.js";
+import {ensureProject, touch} from "./project.js";
 
 const POLL_MS = 1500;
 let pollTimer = null;
@@ -49,6 +50,12 @@ function finish(msg){
 async function run(){
   const live = liveRun();
   if (!live || !live.picks.length) return finish(fault("Tick at least one pocket above first."));
+  /* Generation reads the server's buffered copy of the structure the pockets
+     were found in, and a restored session has no copy there -- the same run
+     again is cheap, since the structure and the selection are unchanged. */
+  if (live.restored)
+    return finish(fault("These pockets came from a saved session, so the server no longer holds " +
+                        "the structure they were found in. Press Find pockets again, then generate."));
   if (state.server.known && !state.server.neat)
     return finish(fault("NEAT-POCKET is not reachable from the server. Set NEAT_POCKET_DIR " +
                         "and NEAT_PYTHON, then restart serve.py."));
@@ -57,8 +64,10 @@ async function run(){
   state.genTask = {busy: true, msg: note("Generating " + n + " molecules for pocket" +
     (ranks.length > 1 ? "s " : " ") + ranks.join(", ") + "…")};
   commit();
+  const project = await ensureProject();
   try{
-    const r = await api.startGeneration({token: live.token, ranks, n, batch_size: Math.min(n, 50)});
+    const r = await api.startGeneration({token: live.token, ranks, n, project,
+                                         batch_size: Math.min(n, 50)});
     poll(r.job, live.id, ranks.length * n);
   }catch(err){
     finish(fault("Could not start generation: " + err.message));
@@ -109,6 +118,9 @@ async function load(id, forRun){
   state.table.sel = null;
   const ng = Object.keys(groups).length;
   finish(note("<b>Done.</b> " + ng + " group" + (ng > 1 ? "s" : "") + " below."));
+  /* The server writes the molecules into the project when it sees the job
+     finished, which is the request just made. */
+  touch();
 }
 
 export function bind(){

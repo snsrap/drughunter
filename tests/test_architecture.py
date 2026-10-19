@@ -7,16 +7,20 @@ blocks are skipped: an annotation is not a runtime dependency.
 """
 
 import ast
+import re
 import sys
 import unittest
 from pathlib import Path
 
-PKG = Path(__file__).resolve().parent.parent / "proteinviewer"
+ROOT = Path(__file__).resolve().parent.parent
+PKG = ROOT / "proteinviewer"
 
 DOMAIN = {"structure", "pockets"}
 SHARED = {"errors", "validate", "config"}
 ADAPTERS = {"process", "detectors", "detectors.fpocket", "detectors.lacuna",
             "prep", "generation"}
+# Files on disk: not the domain, but no knowledge of a tool or of HTTP either.
+STORES = {"buffer", "project"}
 
 # module -> the package modules it may import
 ALLOWED = {
@@ -32,11 +36,12 @@ ALLOWED = {
     "prep": {"errors", "process"},
     "generation": {"errors", "process"},
     "buffer": DOMAIN | {"errors"},
+    "project": {"errors"},
     "schemas": DOMAIN | {"errors", "validate"},
     # The service sees tools only through the registry and its own protocols.
-    "service": DOMAIN | {"errors", "buffer", "schemas", "detectors"},
+    "service": DOMAIN | STORES | {"errors", "schemas", "detectors"},
     "web": {"errors", "schemas", "service"},
-    "server": DOMAIN | SHARED | ADAPTERS | {"buffer", "service", "web"},
+    "server": DOMAIN | SHARED | ADAPTERS | STORES | {"service", "web"},
     "__main__": {"server"},
     "__init__": set(),
 }
@@ -123,6 +128,25 @@ class LayeringTest(unittest.TestCase):
         for path in PKG.rglob("*.py"):
             _, external = imports(path)
             self.assertLessEqual(external - {""}, stdlib, module_name(path))
+
+
+class PageMirrorsServerTest(unittest.TestCase):
+    """Two lists of the same thing, one per language, kept equal.
+
+    The page offers to delete the bound ligands before a run, and names them.
+    It can only name the ones a detector would otherwise see, so it has to
+    know what the server drops on its own -- and if the two lists drift, the
+    page offers to delete something that was never there.
+    """
+
+    def test_the_pages_additive_list_matches_the_servers(self):
+        from proteinviewer.structure import ADDITIVES
+
+        source = (ROOT / "app" / "js" / "model" / "tree.js").read_text()
+        m = re.search(r"export const ADDITIVES = \[(.*?)\];", source, re.S)
+        self.assertIsNotNone(m, "app/js/model/tree.js no longer exports ADDITIVES")
+        page = set(re.findall(r'"([A-Z0-9]+)"', m.group(1)))
+        self.assertEqual(page, set(ADDITIVES))
 
 
 if __name__ == "__main__":

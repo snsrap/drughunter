@@ -4,10 +4,15 @@
 
 import {state, commit, liveRun, liveGen} from "../core/state.js";
 import {$, esc} from "../core/dom.js";
+import {save} from "../core/files.js";
 import {rankColor} from "../core/colors.js";
 import * as scene from "../scene.js";
 
 const CSV_COLS = ["rank", "name", "formula", "mw", "heavy", "logp", "tpsa", "qed", "rings", "rotb", "smiles"];
+/* Written into the SDF as data tags, so the poses carry what the table shows.
+   `i` is in there too: it is the molecule's index in its pocket's SDF, which
+   is how a row maps back to a record. */
+const SDF_TAGS = ["rank", "i"].concat(CSV_COLS.slice(1));
 
 function rows(st, gen){
   let out = gen.table.slice();
@@ -101,12 +106,34 @@ function csv(){
   return out.join("\n");
 }
 
-function download(){
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv()], {type: "text/csv"}));
-  a.download = "generated_molecules.csv";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+/* The molecules themselves: one SDF of the rows the table is showing, in the
+   order it is showing them, each record carrying its properties as SD tags.
+   The coordinates are the pose in the pocket, which is the whole point of
+   generating into one and the one thing the CSV cannot hold. */
+function sdf(){
+  const gen = liveGen();
+  if (!gen) return "";
+  const out = [];
+  rows(state, gen).forEach(r => {
+    const group = gen.groups[String(r.rank)], block = group && group.mols[r.i];
+    if (block) out.push(tagged(block, r));
+  });
+  return out.join("");
+}
+
+function tagged(block, row){
+  const tags = SDF_TAGS.map(k => row[k] === null || row[k] === undefined
+    ? "" : "> <" + k + ">\n" + row[k] + "\n\n").join("");
+  return block.replace(/\$\$\$\$\s*$/, "") + tags + "$$$$\n";
+}
+
+function downloadCsv(){
+  save("generated_molecules.csv", csv(), "text/csv");
+}
+
+function downloadSdf(){
+  const text = sdf();
+  if (text) save("generated_molecules.sdf", text, "chemical/x-mdl-sdfile");
 }
 
 export function bind(){
@@ -119,7 +146,8 @@ export function bind(){
     };
   });
   $("gt-only").onchange = ev => { state.table.only = ev.target.checked; commit(); };
-  $("gt-csv").onclick = download;
+  $("gt-csv").onclick = downloadCsv;
+  $("gt-sdf").onclick = downloadSdf;
   bindPanel();
 }
 

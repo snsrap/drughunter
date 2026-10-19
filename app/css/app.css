@@ -75,8 +75,18 @@ h1,h2,h3{margin:0; text-wrap:balance}
 .chk input{accent-color:var(--accent); margin:0}
 .chks{display:flex; flex-direction:column; gap:4px}
 .chk .aside{color:var(--muted); font-size:11px}
+/* The ligand names can be several, so this one wraps instead of eliding. */
+.chk.lig{flex-wrap:wrap; row-gap:1px; margin-bottom:7px}
+.chk.lig .mono{font-family:"IBM Plex Mono",monospace; color:var(--ink); font-weight:600}
+/* Two buttons sharing a line: Save project and Session file. */
+.row2{display:flex; gap:6px; margin:7px 0 6px}
+.row2 .btn{flex:1}
+/* A path is long and worth reading in full, so it wraps rather than eliding. */
+#pj-where .mono{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-2);
+  word-break:break-all}
+#pj-path{font-family:"IBM Plex Mono",monospace; font-size:11.5px}
 label.fld{display:flex; flex-direction:column; gap:4px}
-select,input[type=number]{
+select,input[type=number],input[type=text]{
   font:inherit; font-size:12.5px; padding:5px 6px; border:1px solid var(--line);
   border-radius:2px; background:var(--panel); color:var(--ink); width:100%;
 }
@@ -230,6 +240,15 @@ table.gt tbody tr:last-child td{border-bottom:0}
 .scope{font-size:11.5px; line-height:1.4; color:var(--ink-2); padding:5px 7px; background:var(--panel-2); border-radius:2px}
 .scope b{font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--ink)}
 .scope.err{color:var(--fail); background:var(--fail-soft)}
+
+/* Shown only while files are over the page. It takes no pointer events: the
+   drop is handled on the window, and an overlay that swallowed them would
+   stop the drop it is advertising. */
+.dropzone{position:fixed; inset:0; z-index:40; display:grid; place-items:center;
+  background:var(--bg); opacity:.93; pointer-events:none}
+.dropzone div{padding:22px 30px; border:2px dashed var(--accent); border-radius:10px;
+  background:var(--panel); box-shadow:var(--shadow); color:var(--ink);
+  font:600 15px/1.2 "IBM Plex Sans Condensed","IBM Plex Sans",sans-serif}
 
 /* ---------- narrower screens ---------- */
 @media (max-width:1180px){

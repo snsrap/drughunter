@@ -17,12 +17,21 @@ export const state = {
 
   /* What the server can run; filled in by the status probe. */
   server: {known: false, stale: false, error: null,
-           fpocket: false, lacuna: [], prep: false, neat: false},
-  fetch: {busy: false, msg: null},          /* the PDB fetch form */
+           fpocket: false, lacuna: [], prep: false, neat: false,
+           projects: false, projectRoot: ""},
+  fetch: {busy: false, msg: null},          /* the PDB fetch form, and files */
+  session: {msg: null},                     /* saving and opening a session */
+  /* This session's output directory on the server, where each run's
+     artifacts are collected: {id, path} once there is one, dest the path the
+     user last asked for a copy at. */
+  project: {id: null, path: null, files: 0, bytes: 0, dest: "", busy: false, msg: null},
   prep: {busy: null, error: null},          /* busy: the label being prepared */
 
   /* Which detector the Pockets panel is set to. */
   method: {method: "fpocket", backend: "nma"},
+  /* Whether to delete the bound ligands before detecting: one fills its own
+     site, so that site is ranked low or missed while it is there. */
+  noLigand: false,
   /* The one live pocket run, or null:
        {id, ent, token, label, pockets, meta, cached, picks}
      ent is the structure it ran on, id names the run (generated molecules

@@ -25,13 +25,14 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from .buffer import StructureBuffer
-from .config import Settings
+from .config import Settings, default_project_root
 from .detectors import DetectorRegistry
 from .detectors.fpocket import FpocketDetector
 from .detectors.lacuna import LacunaDetector
 from .generation import NeatPocket
 from .prep import QuickPrep
-from .service import ViewerService
+from .project import ProjectStore
+from .service import API_VERSION, ViewerService
 from .web import LOOPBACK, Api, Handler
 
 __all__ = ["build_service", "make_server", "main"]
@@ -52,6 +53,10 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
         prep=QuickPrep(settings.quickprep_python),
         generator=NeatPocket(work_root / "jobs", neat_dir=settings.neat_dir,
                              python=settings.neat_python, limit=settings.job_limit),
+        projects=ProjectStore(settings.project_root or default_project_root(),
+                              api=API_VERSION),
+        # What a project may not be saved into: the tree the runs write in.
+        work_root=work_root,
     )
 
 
@@ -80,6 +85,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     ap.add_argument("port", nargs="?", type=int, default=8000)
     ap.add_argument("--no-open", action="store_true",
                     help="serve without opening a browser")
+    ap.add_argument("--projects", metavar="DIR", default=None,
+                    help="where session output directories are collected "
+                         "(default: ~/.local/share/proteinviewer/projects)")
     return ap.parse_args(argv)
 
 
@@ -91,7 +99,10 @@ def _stop(signum, frame):
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    settings = Settings.from_env(port=args.port, open_browser=not args.no_open)
+    overrides = {"port": args.port, "open_browser": not args.no_open}
+    if args.projects:
+        overrides["project_root"] = Path(args.projects).expanduser()
+    settings = Settings.from_env(**overrides)
     logging.basicConfig(level=logging.INFO, format="  %(message)s", stream=sys.stderr)
     if not settings.app_dir.is_dir():
         print("no app/ directory at %s" % settings.app_dir, file=sys.stderr)
@@ -114,7 +125,8 @@ def main(argv: list[str] | None = None) -> int:
         with httpd:
             url = "http://%s:%d/" % (settings.host, settings.port)
             print("serving %s at %s  (ctrl-c to stop)" % (settings.app_dir, url))
-            print("work directory: %s" % work_root, flush=True)
+            print("work directory: %s" % work_root)
+            print("projects: %s" % service.projects.root, flush=True)
             # Probing the tools starts their interpreters (OpenMM takes a few
             # seconds to import), so it happens beside serving, not before.
             threading.Thread(target=_print_tool_status, args=(service,),

@@ -26,7 +26,7 @@ export function render(st){
   b.className = vis.length ? "banner" : "banner info on";
   setHTML(b, vis.length ? ""
     : st.ents.length ? "<b>Everything is hidden.</b> Use the eye beside a structure in the Receptor panel to show it."
-    : "<b>Nothing loaded.</b> Fetch a PDB entry to start.");
+    : "<b>Nothing loaded.</b> Fetch a PDB entry, or open a file of your own, to start.");
 
   $("ent-n").textContent = st.ents.length ? st.ents.length + " loaded" : "";
   $("ent-empty").hidden = st.ents.length > 0;

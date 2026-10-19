@@ -7,7 +7,8 @@ whatever comes back -- a dict, or one of the errors in ``errors.py`` -- is
 written as JSON with the status the error's class calls for.
 
 Every API request must come from the page itself. The server writes into a
-temp tree on behalf of whoever asks, so a page on another site must not be
+temp tree -- and, for ``/api/project/save``, wherever the user it belongs to
+asked -- on behalf of whoever asks, so a page on another site must not be
 able to ask: POSTs must be JSON (a cross-site "simple" request cannot be, so
 the browser has to ask first, and is refused), must not name another origin,
 and the Host must be a loopback name (which defeats DNS rebinding).
@@ -27,7 +28,7 @@ from urllib.parse import parse_qs, urlsplit
 from .errors import (BadRequest, Conflict, NotFound, PayloadTooLarge,
                      ToolFailed, ToolUnavailable, ViewerError)
 from .schemas import (BufferRequest, GenerateRequest, JobQuery, PocketRequest,
-                      PrepRequest)
+                      PrepRequest, ProjectRequest, ProjectSaveRequest)
 from .service import ViewerService
 
 __all__ = ["Api", "ApiRequest", "Handler", "status_for"]
@@ -75,6 +76,9 @@ class Api:
             ("POST", "/api/pockets"): lambda r: s.find_pockets(PocketRequest.parse(r.body)),
             ("POST", "/api/prep"): lambda r: s.prepare(PrepRequest.parse(r.body)),
             ("POST", "/api/generate"): lambda r: s.start_generation(GenerateRequest.parse(r.body)),
+            ("GET", "/api/project"): lambda r: s.project_status(r.query.get("id", "")),
+            ("POST", "/api/project"): lambda r: s.create_project(ProjectRequest.parse(r.body)),
+            ("POST", "/api/project/save"): lambda r: s.save_project(ProjectSaveRequest.parse(r.body)),
         }
 
     def handle(self, method: str, path: str, req: ApiRequest) -> tuple[int, dict]:

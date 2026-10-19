@@ -10,7 +10,8 @@ import {$, esc, attr, setHTML} from "../core/dom.js";
 import {entColor} from "../core/colors.js";
 import {hider} from "../model/tree.js";
 import {leafSels, pdbSubset, cifSubset} from "../model/subset.js";
-import {scope} from "../model/scope.js";
+import {scope, scopeStructure} from "../model/scope.js";
+import {save} from "../core/files.js";
 import * as scene from "../scene.js";
 
 const UNDO_DEPTH = 20;
@@ -76,6 +77,25 @@ export function render(st){
   box.hidden = !st.ents.length;
   box.className = sc.e || sc.soft ? "scope" : "scope err";
   setHTML(box, sc.e ? "Prepare and Find pockets run on <b>" + esc(sc.label) + "</b>" : esc(sc.err || ""));
+
+  const dl = $("ent-dl");
+  dl.hidden = !(sc.e && sc.e.model);
+  if (!dl.hidden){
+    dl.textContent = sc.whole ? "Download" : "Download selection";
+    dl.title = "Save " + sc.label + " as a file";
+  }
+}
+
+/* The scoped structure as a file: a whole structure as it stands -- edited,
+   prepared or as deposited -- or the selection cut out of its own text, which
+   is the same cut Prepare and Find pockets run on. */
+function download(){
+  const sc = scope(state);
+  if (!sc.e || !sc.e.model) return;
+  let st;
+  try{ st = scopeStructure(sc); }
+  catch(err){ return; }
+  save(st.token + "." + st.fmt, st.data, "text/plain;charset=utf-8");
 }
 
 export function focusRow(key, part){
@@ -194,6 +214,7 @@ export function bind(){
   const tree = $("tree");
   $("sel-clear").onclick = clearPicks;
   $("undo").onclick = undo;
+  $("ent-dl").onclick = download;
   /* the caret folds, the row picks, the eye shows or hides, the cross removes */
   tree.onclick = ev => {
     const row = ev.target.closest("[data-key]"), x = row && nodeOf(row.dataset.key);

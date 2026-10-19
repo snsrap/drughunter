@@ -8,7 +8,7 @@ import {leafSels, pdbSubset, cifSubset, leftOut} from "./subset.js";
 /* {e, whole, nodes, label} or {err, soft}. */
 export function scope(st){
   const ents = st.ents, byUid = uid => ents.find(e => e.uid === uid);
-  if (!ents.length) return {err: "Fetch a PDB entry above."};
+  if (!ents.length) return {err: "Fetch a PDB entry, or open a file, above."};
   const uids = [];
   st.picks.forEach(k => {
     const u = k.split("/")[0];
@@ -46,18 +46,24 @@ export function summarize(nodes){
   return parts.join(", ");
 }
 
+/* The atoms the scope names, as 3Dmol parsed them. */
+export function scopeAtoms(sc){
+  if (!sc.e || !sc.e.model) return [];
+  if (sc.whole) return sc.e.model.selectedAtoms({});
+  const sel = {or: []};
+  sc.nodes.forEach(n => { sel.or = sel.or.concat(leafSels(n.sel)); });
+  return sc.e.model.selectedAtoms(sel);
+}
+
 /* The scoped structure as text the server can buffer:
    {token, data, fmt, noRebuild}. A part is posted as its own structure
    (<id>.sel-<hash>), so pocket results and caching stay separate per
    selection. */
 export function scopeStructure(sc){
-  const e = sc.e;
+  const e = sc.e, atoms = scopeAtoms(sc);
   if (sc.whole){
-    return {token: e.id, data: e.data, fmt: e.fmt, noRebuild: leftOut(e, e.model.selectedAtoms({}))};
+    return {token: e.id, data: e.data, fmt: e.fmt, noRebuild: leftOut(e, atoms)};
   }
-  let sel = {or: []};
-  sc.nodes.forEach(n => { sel.or = sel.or.concat(leafSels(n.sel)); });
-  const atoms = e.model.selectedAtoms(sel);
   if (!atoms.length) throw new Error("the selection has no atoms");
   const data = e.fmt === "cif" ? cifSubset(e.data, atoms) : pdbSubset(e.data, atoms);
   const keys = sc.nodes.map(n => n.key).sort().join(",");

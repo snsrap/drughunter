@@ -28,7 +28,7 @@
   <!-- ============ control rail ============ -->
   <div class="rail">
     <section class="mod">
-      <div class="hd"><span class="eyebrow">Fetch from PDB</span><span class="eyebrow">RCSB</span></div>
+      <div class="hd"><span class="eyebrow">Load a structure</span><span class="eyebrow">RCSB or file</span></div>
       <div class="bd">
         <form class="pdbq" id="pdbq" role="search">
           <input type="search" id="pdb-id" placeholder="PDB ID, e.g. 1HSG" autocomplete="off"
@@ -36,16 +36,23 @@
           <button class="btn solid" type="submit">Fetch</button>
         </form>
         <div class="pdbq-msg" id="pdb-msg" aria-live="polite"></div>
+        <button class="btn wide" type="button" id="open-file" style="margin:7px 0 6px">Open file&hellip;</button>
+        <div class="sub">A .pdb or .cif file of your own (.gz too), or a session saved here —
+          drop one anywhere on the page.</div>
+        <input type="file" id="file-input" multiple hidden
+               accept=".pdb,.ent,.brk,.cif,.mmcif,.pdbx,.json,.gz"
+               aria-label="Structure or session file to open">
       </div>
     </section>
 
     <section class="mod">
       <div class="hd"><span class="eyebrow">Receptor</span>
         <span class="hd-end"><button class="lnk" type="button" id="undo" hidden>Undo</button>
+          <button class="lnk" type="button" id="ent-dl" hidden>Download</button>
           <button class="lnk" type="button" id="sel-clear" hidden>Clear selection</button>
           <span class="eyebrow" id="ent-n"></span></span></div>
       <div class="bd">
-        <div class="sub" id="ent-empty">Nothing loaded — fetch a PDB entry above.</div>
+        <div class="sub" id="ent-empty">Nothing loaded — fetch a PDB entry or open a file above.</div>
         <div class="tree" id="tree" role="tree" aria-label="Loaded structures" aria-multiselectable="true" hidden></div>
         <div class="sub" id="tree-hint" hidden>Click selects · Ctrl/⌘-click adds · Shift-click selects a range · Esc clears ·
           the eye (H) hides, × (Del) removes, Ctrl/⌘-Z undoes</div>
@@ -58,7 +65,10 @@
 
     <!-- Runs on whichever receptor is selected above. -->
     <section class="mod">
-      <div class="hd"><span class="eyebrow">Pockets</span><span class="eyebrow" id="pk-n"></span></div>
+      <div class="hd"><span class="eyebrow">Pockets</span>
+        <span class="hd-end"><button class="lnk" type="button" id="pk-dl" hidden
+            title="Save the ticked pockets' residues as a file">Download</button>
+          <span class="eyebrow" id="pk-n"></span></span></div>
       <div class="bd">
         <select id="pk-method" style="width:100%;margin-bottom:6px"
                 aria-label="Pocket detector">
@@ -66,6 +76,11 @@
           <option value="lacuna:nma">lacuna — normal-mode ensemble</option>
           <option value="lacuna:openmm">lacuna — MD ensemble (OpenMM)</option>
         </select>
+        <!-- A bound ligand fills its own site, so fpocket ranks that site low
+             or misses it; this deletes it before the run. -->
+        <label class="chk lig" id="pk-lig-wrap" hidden><input type="checkbox" id="c-nolig">
+          Delete <span class="mono" id="pk-lig-names"></span> first
+          <span class="aside">&middot; a bound ligand fills its own site</span></label>
         <button class="btn solid wide" type="button" id="find-pockets">Find pockets</button>
         <div class="pdbq-msg" id="pk-msg" aria-live="polite"></div>
         <label class="chk" id="pk-sph-wrap" hidden><input type="checkbox" id="c-spheres">
@@ -90,6 +105,24 @@
         <label class="fld"><span class="eyebrow">Show per group <span class="mono" id="lab-genshow">25</span></span>
           <input type="range" id="gen-show" min="1" max="100" step="1" value="25"></label>
         <details class="runlog" id="gen-runlog" hidden><summary>What was run</summary><div class="pdbq-msg" id="gen-meta"></div></details>
+      </div>
+    </section>
+
+    <!-- Where this session's artifacts are collected, and where they go. -->
+    <section class="mod" id="mod-project">
+      <div class="hd"><span class="eyebrow">Project</span><span class="eyebrow" id="pj-n"></span></div>
+      <div class="bd">
+        <div class="sub" id="pj-where"></div>
+        <label class="fld"><span class="eyebrow">Save a copy to</span>
+          <input type="text" id="pj-path" spellcheck="false" autocomplete="off"
+                 placeholder="~/work/1HSG-run1"></label>
+        <div class="row2">
+          <button class="btn solid" type="button" id="pj-save">Save project</button>
+          <button class="btn" type="button" id="sess-save"
+                  title="The session's state as one file, straight from the browser">Session file</button>
+        </div>
+        <div class="pdbq-msg" id="pj-msg" aria-live="polite"></div>
+        <div class="pdbq-msg" id="sess-msg" aria-live="polite"></div>
       </div>
     </section>
   </div>
@@ -124,7 +157,10 @@
         <span class="eyebrow" id="gt-n"></span>
         <span class="sp">
           <label class="chk"><input type="checkbox" id="gt-only"> Visible groups only</label>
-          <button class="btn" type="button" id="gt-csv">CSV</button>
+          <button class="btn" type="button" id="gt-sdf"
+                  title="The molecules themselves: poses with their properties as SD tags">SDF</button>
+          <button class="btn" type="button" id="gt-csv"
+                  title="The properties of the rows listed here">CSV</button>
         </span>
       </div>
       <div class="gscroll" id="gscroll">
@@ -151,6 +187,9 @@
 
 </main>
 </div>
+
+<!-- Shown while files are dragged over the page; fetch.js does the dropping. -->
+<div class="dropzone" id="dropzone" hidden><div>Drop a structure or a session file</div></div>
 
 <script type="module" src="js/main.js"></script>
 </body>

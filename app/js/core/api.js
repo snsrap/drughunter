@@ -2,7 +2,7 @@
    here, so errors come back as one kind of Error with a readable message. */
 
 /* The response shape this page expects; see proteinviewer/service.py. */
-export const API_VERSION = 2;
+export const API_VERSION = 3;
 
 export class StaleServerError extends Error {}
 
@@ -42,6 +42,13 @@ export function bufferStructure(st){
   return post("/api/structure", {id: st.token, fmt: st.fmt, data: st.data});
 }
 export function findPockets(body){ return post("/api/pockets", body); }
+/* The session's output directory: started on demand, then named by every
+   request that produces a file. */
+export function createProject(name){ return post("/api/project", {name}); }
+export function projectStatus(id){
+  return request("/api/project?id=" + encodeURIComponent(id));
+}
+export function saveProject(body){ return post("/api/project/save", body); }
 export function prepare(body){ return post("/api/prep", body); }
 export function startGeneration(body){ return post("/api/generate", body); }
 /* opts.molecules / opts.table also fetch the SDF per pocket and the rows. */

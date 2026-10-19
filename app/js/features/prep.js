@@ -8,6 +8,7 @@ import {$, esc, setMsg, note, fault} from "../core/dom.js";
 import {ENT_COLORS} from "../core/colors.js";
 import * as api from "../core/api.js";
 import {scope, scopeStructure} from "../model/scope.js";
+import {ensureProject, touch} from "./project.js";
 
 export function render(st){
   const sc = scope(st), e = sc.e, btn = $("prep-btn"), busy = st.prep.busy;
@@ -66,9 +67,10 @@ async function run(){
   state.busy = "preparing " + sc.label + "…";
   commit();
   let fit = false;
+  const project = await ensureProject();
   try{
     const buf = await api.bufferStructure(st);
-    const r = await api.prepare({token: buf.token, ph: 7.0, noRebuild: st.noRebuild});
+    const r = await api.prepare({token: buf.token, ph: 7.0, noRebuild: st.noRebuild, project});
     const rep = r.report || {}, out = rep.output || {};
     addEntity({id: freeId(src.id + "-prep"), data: r.data, fmt: "pdb", prepared: true,
       title: "prepared from " + sc.label,
@@ -85,6 +87,7 @@ async function run(){
   }
   state.prep.busy = null; state.busy = null;
   commit({fit});
+  touch();
 }
 
 export function bind(){

@@ -7,11 +7,15 @@
    whole residues around the detector's site points -- the same cut
    NEAT-POCKET conditions on. */
 
-import {state, commit, liveRun, clearRun} from "../core/state.js";
+import {state, commit, liveRun, clearRun, entity} from "../core/state.js";
 import {$, esc, setHTML, setMsg, note, fault} from "../core/dom.js";
 import {pocketColor} from "../core/colors.js";
 import * as api from "../core/api.js";
 import {scope, scopeStructure} from "../model/scope.js";
+import {ligandsIn} from "../model/tree.js";
+import {pdbSubset, cifSubset} from "../model/subset.js";
+import {save} from "../core/files.js";
+import {ensureProject, touch} from "./project.js";
 import * as scene from "../scene.js";
 
 /* Twenty is lacuna's measured sweet spot: more conformers find more sites
@@ -47,6 +51,11 @@ function rankedBy(meta){
     : " · ranked by fpocket score";
 }
 
+/* The bound ligands the run would delete first, if the box is ticked. */
+function ligands(sc){
+  return sc.e && sc.e.tree ? ligandsIn(sc.e, sc.nodes) : [];
+}
+
 /* ---------------- view ---------------- */
 export function render(st){
   const sc = scope(st), run = liveRun(), btn = $("find-pockets");
@@ -54,7 +63,13 @@ export function render(st){
   btn.disabled = !sc.e || toolReady(st) === false || !!st.pocketTask.busy;
   setMsg($("pk-msg"), message(st, sc, run));
 
+  const ligs = ligands(sc);
+  $("pk-lig-wrap").hidden = !ligs.length;
+  $("pk-lig-names").textContent = ligs.join(", ");
+  $("c-nolig").checked = st.noLigand;
+
   const pockets = run ? run.pockets : [];
+  $("pk-dl").hidden = !(run && run.picks.length && entity(run.ent).model);
   $("pk-sph-wrap").hidden = !pockets.length;
   $("c-spheres").checked = st.spheres;
   $("pk-runlog").hidden = !(pockets.length && run.meta);
@@ -69,7 +84,8 @@ function message(st, sc, run){
   if (run){
     return run.pockets.length
       ? note("<b>" + run.pockets.length + "</b> pockets in " + esc(run.label) +
-             rankedBy(run.meta) + (run.cached ? " · cached" : ""))
+             rankedBy(run.meta) + (run.cached ? " · cached" : "") +
+             (run.restored ? " · restored from a session" : ""))
       : note("No pockets found in " + esc(run.label) + ".");
   }
   /* A failure is about what was searched; select something else and it no
@@ -142,10 +158,17 @@ async function find(){
         (sel.backend === "openmm" ? " — this runs MD and takes a minute" : "")
       : "") + "…"};
   commit();
+  const project = await ensureProject();
   try{
     const buf = await api.bufferStructure(st);
-    const body = {token: buf.token, cutoff: CUTOFF, method: sel.method};
+    const body = {token: buf.token, cutoff: CUTOFF, method: sel.method, project};
     if (sel.method === "lacuna"){ body.backend = sel.backend; body.conformers = CONFORMERS; }
+    /* Deleted by name, server-side, before the detector runs: the names come
+       from the tree, which is read from the same atoms. */
+    if (state.noLigand){
+      const ligs = ligands(sc);
+      if (ligs.length) body.ligand = ligs;
+    }
     const r = await api.findPockets(body);
     const pockets = r.pockets || [];
     state.run = {id: sc.e.uid + "#" + (++state.runSerial), ent: sc.e.uid, token: buf.token,
@@ -158,6 +181,30 @@ async function find(){
   state.pocketTask.busy = null;
   commit();
   scene.zoomPocket();
+  touch();
+}
+
+/* The ticked pockets as a file: their residues cut from the structure's own
+   text, the same cut the operations run on, so nothing the file said about
+   those atoms is lost. The site points and the residue lists are written into
+   the project directory, which keeps the whole run. */
+function downloadPockets(){
+  const run = liveRun(), e = run && entity(run.ent);
+  if (!run || !e || !e.model || !run.picks.length) return;
+  const sel = {or: []}, ranks = [];
+  run.picks.forEach(i => {
+    const p = run.pockets[i];
+    if (!p) return;
+    ranks.push(p.rank);
+    p.sel.forEach(g => sel.or.push({chain: g.chain, resi: g.resi}));
+  });
+  const atoms = sel.or.length ? e.model.selectedAtoms(sel) : [];
+  if (!atoms.length){
+    state.pocketTask.error = {label: run.label, message: "those pockets have no atoms left"};
+    return commit();
+  }
+  const data = e.fmt === "cif" ? cifSubset(e.data, atoms) : pdbSubset(e.data, atoms);
+  save(e.id + ".pocket" + ranks.join("+") + "." + e.fmt, data, "text/plain;charset=utf-8");
 }
 
 /* Selection is multi: generation runs on every pocket ticked here. */
@@ -178,7 +225,11 @@ export function bind(){
      described, so the panel re-renders rather than waiting for the next run. */
   method.onchange = () => { state.method = parseMethod(method.value); commit(); };
   $("find-pockets").onclick = find;
+  /* Part of what the next run is, not of the one on screen: the results keep
+     saying which ligands they were found without. */
+  $("c-nolig").onchange = ev => { state.noLigand = ev.target.checked; commit(); };
   $("c-spheres").onchange = ev => { state.spheres = ev.target.checked; commit(); };
+  $("pk-dl").onclick = downloadPockets;
   $("pk-list").onclick = ev => {
     const b = ev.target.closest("[data-pk]");
     if (b) toggle(+b.dataset.pk);

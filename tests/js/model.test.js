@@ -3,7 +3,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 
-import {buildTree, hider, polymerLike} from "../../app/js/model/tree.js";
+import {buildTree, hider, polymerLike, ligandsIn} from "../../app/js/model/tree.js";
 import {pdbSubset, cifSubset, leftOut, leafSels, inModel} from "../../app/js/model/subset.js";
 import {scope, summarize, scopeStructure} from "../../app/js/model/scope.js";
 
@@ -58,6 +58,24 @@ test("hider: a node is hidden by itself, a folder above it, or its structure", (
   assert.equal(hider(e, gly), null);
   e.visible = false;
   assert.equal(hider(e, gly).kind, "root");
+});
+
+test("ligandsIn: bound ligands, not solvent, additives or modified residues", () => {
+  const e = entity("e1", [
+    ...backbone("A", 1, "GLY"),
+    ...backbone("A", 2, "MSE").map(a => ({...a, hetflag: true})),   // modified residue
+    atom("A", 900, "MK1", "C1", true),
+    atom("B", 901, "MK1", "C1", true),                              // the same ligand twice
+    atom("A", 902, "HEM", "FE", true),
+    atom("A", 903, "GOL", "C1", true),                              // cryoprotectant
+    atom("A", 904, "SO4", "S", true),                               // crystallisation salt
+    atom("A", 1001, "HOH", "O", true),
+  ]);
+  assert.deepEqual(ligandsIn(e, []), ["HEM", "MK1"]);
+  // On a selection, only the ligands it covers.
+  assert.deepEqual(ligandsIn(e, [e.nodes["e1/B:901:MK1"]]), ["MK1"]);
+  assert.deepEqual(ligandsIn(e, [e.nodes["e1/chain:A"]]), []);
+  assert.deepEqual(ligandsIn(e, [e.nodes["e1/ligs"]]), ["HEM", "MK1"]);
 });
 
 test("polymerLike", () => {
@@ -128,7 +146,7 @@ test("scope: nothing picked runs on the only visible structure, else asks", () =
   assert.equal(scope(st).soft, true);
   st.ents[1].visible = false;
   assert.equal(scope(st).label, "E1");
-  assert.equal(scope({ents: [], picks: []}).err, "Fetch a PDB entry above.");
+  assert.equal(scope({ents: [], picks: []}).err, "Fetch a PDB entry, or open a file, above.");
 });
 
 test("scope: picks name the part; two structures is an error", () => {

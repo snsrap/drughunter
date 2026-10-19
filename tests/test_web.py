@@ -34,6 +34,16 @@ class FakeService:
     def start_generation(self, req):
         return {"ranks": sorted(req.ranks)}
 
+    def create_project(self, req):
+        return {"id": "2026-10-18-" + (req.name or "session")}
+
+    def save_project(self, req):
+        return {"project": req.project, "path": req.path,
+                "session": req.session is not None, "overwrite": req.overwrite}
+
+    def project_status(self, project_id):
+        raise NotFound("no such project %r" % project_id)
+
 
 class WebTest(unittest.TestCase):
     @classmethod
@@ -77,6 +87,17 @@ class WebTest(unittest.TestCase):
                          (200, {"token": "x"}))
         self.assertEqual(self.api("POST", "/api/generate/", {"ranks": [2, 1]}),
                          (200, {"ranks": [1, 2]}))
+
+    def test_the_project_routes(self):
+        self.assertEqual(self.api("POST", "/api/project", {"name": "1HSG"}),
+                         (200, {"id": "2026-10-18-1HSG"}))
+        self.assertEqual(
+            self.api("POST", "/api/project/save",
+                     {"project": "p1", "path": "~/out", "session": {"app": "x"}}),
+            (200, {"project": "p1", "path": "~/out", "session": True, "overwrite": False}))
+        # A save with nothing to save, and a project nobody has.
+        self.assertEqual(self.api("POST", "/api/project/save", {"path": "~/out"})[0], 400)
+        self.assertEqual(self.api("GET", "/api/project?id=nope")[0], 404)
 
     def test_errors_map_to_statuses(self):
         for token, code in (("busy", 502), ("missing", 503), ("late", 409)):

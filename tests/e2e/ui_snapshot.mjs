@@ -58,6 +58,15 @@ async function snap(label, { shot = true } = {}) {
         [b.getAttribute("aria-checked"), b.querySelector(".dot").getAttribute("style"), txt(b)]),
       pkRun: vis($("pk-runlog")) ? txt($("pk-run")) : null,
       spheres: vis($("pk-sph-wrap")), genWrap: vis($("gen-wrap")),
+      lig: vis($("pk-lig-wrap")) ? [txt($("pk-lig-names")), $("c-nolig").checked] : null,
+      downloads: [vis($("ent-dl")) ? txt($("ent-dl")) : null,
+                  vis($("pk-dl")) ? txt($("pk-dl")) : null],
+      sessMsg: [$("sess-msg").className, txt($("sess-msg"))],
+      saveBtn: $("sess-save").disabled,
+      // The project directory's path is this run's temp tree, so only
+      // whether there is one is comparable between runs.
+      project: [txt($("pj-n")), !!$("pj-where").querySelector(".mono"),
+                $("pj-save").disabled, [$("pj-msg").className, txt($("pj-msg"))]],
       genMsg: txt($("gen-msg")), genBtn: $("gen-run").disabled,
       genMod: vis($("mod-gen")) ? [txt($("gen-count")),
         [...document.querySelectorAll("#gen-list [data-gen]")].map(b => [b.getAttribute("aria-checked"), b.querySelector(".dot").getAttribute("style"), txt(b)]),
@@ -76,7 +85,7 @@ async function snap(label, { shot = true } = {}) {
         (document.activeElement.closest("[data-key]") || {dataset:{}}).dataset.key || null] : null,
     };
   });
-  for (const k of ["prepMsg", "pkMsg", "genMsg", "pkRun", "pdbMsg"]) {
+  for (const k of ["prepMsg", "pkMsg", "genMsg", "pkRun", "pdbMsg", "sessMsg"]) {
     if (Array.isArray(s[k])) s[k] = s[k].map(v => typeof v === "string" ? T(v) : v);
     else if (typeof s[k] === "string") s[k] = T(s[k]);
   }

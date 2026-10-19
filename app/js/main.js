@@ -15,9 +15,10 @@ import * as prep from "./features/prep.js";
 import * as pockets from "./features/pockets.js";
 import * as generate from "./features/generate.js";
 import * as table from "./features/table.js";
+import * as project from "./features/project.js";
 import * as theme from "./features/theme.js";
 
-const FEATURES = [fetchPanel, tree, prep, pockets, generate, table];
+const FEATURES = [fetchPanel, tree, prep, pockets, generate, table, project];
 
 /* Ask once, on load, so a missing tool or a stale server is reported before
    anyone presses a button. */
@@ -33,6 +34,8 @@ async function probeServer(){
     s.lacuna = d.lacuna && d.lacuna.available ? (d.lacuna.backends || []) : [];
     s.prep = !!(j.prep && j.prep.available);
     s.neat = !!(j.neat && j.neat.available);
+    s.projects = !!(j.projects && j.projects.available);
+    s.projectRoot = (j.projects && j.projects.root) || "";
   }catch(err){
     if (err instanceof api.StaleServerError) s.stale = true;
     else s.error = err.message;

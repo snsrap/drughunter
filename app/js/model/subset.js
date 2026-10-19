@@ -38,14 +38,17 @@ export function pdbSubset(text, atoms){
 }
 
 const CIF_TOKEN = /'(?:[^']|'(?=\S))*'|"(?:[^"]|"(?=\S))*"|\S+/g;
-/* 3Dmol numbers mmCIF atoms by position, not by _atom_site.id, so rows are
-   matched on the coordinates it parsed from them. Anisotropic rows follow
-   their atom by id. */
-export function cifSubset(text, atoms){
-  const lines = text.split("\n"), n = lines.length, want = {}, keep = {}, drop = {}, loops = [];
-  atoms.forEach(a => { want[a.x + "|" + a.y + "|" + a.z] = true; });
+/* The tokens of one mmCIF data line, quoted values honoured. */
+export function cifTokens(line){ return line.trim().match(CIF_TOKEN) || []; }
+
+/* The looped categories of an mmCIF whose name matches `re`, as
+   {cat, cols, rows}: the category prefix, its column names in order, and the
+   line indices of its rows. One parser, so every pass over a file reads its
+   loops the same way. */
+export function cifLoops(lines, re){
+  const n = lines.length, loops = [];
   for (let i = 0; i < n; i++){
-    const cat = lines[i].trim() === "loop_" && /^_atom_site(_anisotrop)?\./.exec((lines[i + 1] || "").trim());
+    const cat = lines[i].trim() === "loop_" && re.exec((lines[i + 1] || "").trim());
     if (!cat) continue;
     const L = {cat: cat[0], cols: [], rows: []};
     let j = i + 1;
@@ -57,20 +60,34 @@ export function cifSubset(text, atoms){
     }
     loops.push(L);
   }
-  const site = loops.filter(L => L.cat === "_atom_site.")[0];
+  return loops;
+}
+/* Where one column sits in a loop's rows, or -1 if the file omits it. */
+export function cifCol(L, name){ return L.cols.indexOf(L.cat + name); }
+
+export const ATOM_SITE = /^_atom_site(_anisotrop)?\./;
+
+/* 3Dmol numbers mmCIF atoms by position, not by _atom_site.id, so rows are
+   matched on the coordinates it parsed from them. Anisotropic rows follow
+   their atom by id. */
+export function cifSubset(text, atoms){
+  const lines = text.split("\n"), want = {}, keep = {}, drop = {};
+  atoms.forEach(a => { want[a.x + "|" + a.y + "|" + a.z] = true; });
+  const loops = cifLoops(lines, ATOM_SITE),
+        site = loops.filter(L => L.cat === "_atom_site.")[0];
   if (!site) throw new Error("this mmCIF file has no _atom_site loop");
-  const col = (L, name) => L.cols.indexOf(L.cat + name);
-  const cx = col(site, "Cartn_x"), cy = col(site, "Cartn_y"), cz = col(site, "Cartn_z"), cid = col(site, "id");
+  const cx = cifCol(site, "Cartn_x"), cy = cifCol(site, "Cartn_y"),
+        cz = cifCol(site, "Cartn_z"), cid = cifCol(site, "id");
   site.rows.forEach(j => {
-    const tok = lines[j].trim().match(CIF_TOKEN);
+    const tok = cifTokens(lines[j]);
     if (want[parseFloat(tok[cx]) + "|" + parseFloat(tok[cy]) + "|" + parseFloat(tok[cz])]) keep[tok[cid]] = true;
     else drop[j] = true;
   });
   loops.forEach(L => {
     if (L === site) return;
-    const ci = col(L, "id");
+    const ci = cifCol(L, "id");
     L.rows.forEach(j => {
-      const tok = lines[j].trim().match(CIF_TOKEN);
+      const tok = cifTokens(lines[j]);
       if (ci < 0 || !keep[tok[ci]]) drop[j] = true;
     });
   });
