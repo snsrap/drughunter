@@ -7,8 +7,8 @@
    needs -- so "what has to be repainted after X" is never a question. */
 
 export const state = {
-  /* Everything loaded, in load order. Each entry is drawn in its own
-     deposited frame; nothing is superposed. See addEntity for the fields. */
+  /* Everything loaded, in load order. Each entry is drawn in its own frame
+     until Superpose moves it into another's. See addEntity for the fields. */
   ents: [], entSerial: 0,
   /* Tree selection: node keys ("<entity uid>/<node>"), in the order picked. */
   picks: [], pickAnchor: null,
@@ -26,6 +26,9 @@ export const state = {
      user last asked for a copy at. */
   project: {id: null, path: null, files: 0, bytes: 0, dest: "", busy: false, msg: null},
   prep: {busy: null, error: null},          /* busy: the label being prepared */
+  /* The Superpose panel: the reference chosen (a uid, or null for the
+     default), the structures ticked or unticked by hand, {uid: bool}. */
+  sup: {ref: null, move: {}, busy: false, msg: null},
 
   /* Which detector the Pockets panel is set to. */
   method: {method: "fpocket", backend: "nma"},
@@ -83,7 +86,8 @@ export function freeId(id){
   return out;
 }
 /* A loaded structure: {uid, id, data, fmt, title, sub, visible, ci (colour
-   slot), and once parsed: model, tree, nodes, open, hidden, orig, rev}. */
+   slot), frame and sup once superposed, and once parsed: model, tree, nodes,
+   open, hidden, orig, rev}. */
 export function addEntity(o, slots){
   const used = state.ents.map(e => e.ci);
   let ci = 0;
@@ -92,6 +96,12 @@ export function addEntity(o, slots){
   state.ents.push(o);
   return o;
 }
+/* The coordinate frame a structure is in, named by the structure whose
+   frame it was: its own uid as loaded, the reference's frame once superposed
+   onto it, its source's for a prepared copy. Two structures share a frame
+   exactly when this is equal, so moving the reference later does not leave
+   the ones superposed onto it claiming to be in its frame. */
+export function frameOf(e){ return e.frame || e.uid; }
 /* Pocket results describe atoms as they were; when those change, the run
    and everything generated from it go. */
 export function clearRun(){

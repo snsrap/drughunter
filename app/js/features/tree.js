@@ -43,7 +43,8 @@ function rowHTML(e, n, depth){
                             : (own ? "Show " : "Hide ") + label;
   const name = root
     ? "<i class='sw' style='background:" + entColor(e) + "'></i><span class='nm fd'>" + esc(e.id) +
-      "</span><span class='as'>" + (e.edited ? "edited · " : "") + esc(e.title || e.sub || "") + "</span>"
+      "</span><span class='as'>" + (e.edited ? "edited · " : "") + (e.sup ? "superposed · " : "") +
+      esc(e.title || e.sub || "") + "</span>"
     : "<span class='nm" + (folder ? " fd" : "") + "'>" + esc(n.name) + "</span>" +
       (n.kind === "lig" || n.kind === "water" ? "<span class='as'>chain " + esc(n.chain || "?") + "</span>" : "");
   return "<div class='tn" + (root ? " root" : "") + (by ? " off" : "") +
@@ -148,7 +149,10 @@ function toggleHidden(x){
   focusRow(n.key, ".eye");
 }
 
-function remember(h){
+/* An undoable change: {kind, what, ...}. "structure" puts a removed
+   structure back, "part" a structure's text from before a removal, "edits"
+   the fields of several structures changed together (a superposition). */
+export function remember(h){
   state.undo.push(h);
   if (state.undo.length > UNDO_DEPTH) state.undo.shift();
 }
@@ -179,20 +183,22 @@ function removeNode(e, n){
             data: e.data, edited: !!e.edited, open: e.open, hidden: e.hidden});
   e.data = e.fmt === "cif" ? cifSubset(e.data, keep) : pdbSubset(e.data, keep);
   e.edited = true;
-  reload(e);
+  reload([e]);
   focusRow(n.parent.key);
 }
 
-/* Parse an entry again after its text changed. Folding, hiding and picks
+/* Parse entries again after their text changed. Folding, hiding and picks
    carry over wherever their node still exists; pocket results described the
    atoms as they were, so they go. */
-function reload(e){
-  e.tree = null; e.rev = (e.rev || 0) + 1;
-  if (state.run && state.run.ent === e.uid) clearRun();
+export function reload(es, opts){
+  es.forEach(e => {
+    e.tree = null; e.rev = (e.rev || 0) + 1;
+    if (state.run && state.run.ent === e.uid) clearRun();
+  });
   scene.ensureModels();
   state.picks = state.picks.filter(k => nodeOf(k));
   if (state.pickAnchor && !nodeOf(state.pickAnchor)) state.pickAnchor = null;
-  commit();
+  commit(opts);
 }
 
 export function undo(){
@@ -201,9 +207,15 @@ export function undo(){
   if (h.kind === "structure"){
     state.ents.splice(Math.min(h.at, state.ents.length), 0, h.e);
     commit();
+  } else if (h.kind === "edits"){
+    /* Structures moved together go back together; a frame they had left
+       is theirs again, so the view is framed afresh. */
+    const live = h.items.filter(x => state.ents.indexOf(x.e) !== -1);
+    live.forEach(x => Object.assign(x.e, x.prev));
+    reload(live.map(x => x.e), {fit: live.length > 0});
   } else if (state.ents.indexOf(h.e) !== -1){
     Object.assign(h.e, {data: h.data, edited: h.edited, open: h.open, hidden: h.hidden});
-    reload(h.e);
+    reload([h.e]);
   } else {
     commit();   /* its structure is gone; the Undo link still has to update */
   }

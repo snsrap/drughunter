@@ -40,6 +40,12 @@ export function pdbSubset(text, atoms){
 const CIF_TOKEN = /'(?:[^']|'(?=\S))*'|"(?:[^"]|"(?=\S))*"|\S+/g;
 /* The tokens of one mmCIF data line, quoted values honoured. */
 export function cifTokens(line){ return line.trim().match(CIF_TOKEN) || []; }
+/* The same line with some of its tokens replaced, {index: text}; the rest of
+   it, spacing included, is left as it was. */
+export function cifSetTokens(line, set){
+  let k = -1;
+  return line.replace(CIF_TOKEN, t => { k++; return k in set ? set[k] : t; });
+}
 
 /* The looped categories of an mmCIF whose name matches `re`, as
    {cat, cols, rows}: the category prefix, its column names in order, and the

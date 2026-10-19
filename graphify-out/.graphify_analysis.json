@@ -1204,7 +1204,7 @@
   "questions": [
     {
       "type": "bridge_node",
-      "question": "Why does `commit()` connect `commit` to `json`, `server.py`, `esc`, `fetch.js`, `table.js`, `pockets.js`, `.options`?",
+      "question": "Why does `commit()` connect `Feature Tree UI` to `Lacuna Integration Docs`, `Scene Colors & Pockets`, `Structure Load & Generate`, `File Fetch & RCSB`, `Pocket Table UI`, `Pockets Panel UI`, `App State & Bootstrap`?",
       "why": "High betweenness centrality (0.370) - this node is a cross-community bridge."
     },
     {
@@ -1219,12 +1219,12 @@
     },
     {
       "type": "low_cohesion",
-      "question": "Should `ProjectArtifactsTest` be split into smaller, more focused modules?",
+      "question": "Should `Pocket Run Execution` be split into smaller, more focused modules?",
       "why": "Cohesion score 0.05017543859649123 - nodes in this community are weakly interconnected."
     },
     {
       "type": "bridge_node",
-      "question": "Why does `How the pieces fit` connect `json` to `ProjectArtifactsTest`, `commit`?",
+      "question": "Why does `How the pieces fit` connect `Lacuna Integration Docs` to `Pocket Run Execution`, `Feature Tree UI`?",
       "why": "High betweenness centrality (0.367) - this node is a cross-community bridge."
     },
     {
@@ -1234,7 +1234,7 @@
     },
     {
       "type": "low_cohesion",
-      "question": "Should `features/tree.js` be split into smaller, more focused modules?",
+      "question": "Should `Structure Buffering & Locking` be split into smaller, more focused modules?",
       "why": "Cohesion score 0.05961538461538462 - nodes in this community are weakly interconnected."
     }
   ]

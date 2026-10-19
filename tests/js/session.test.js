@@ -124,6 +124,22 @@ test("a structure loaded next cannot collide with a restored uid", () => {
   assert.equal(out.entSerial, 2);
 });
 
+test("a superposed structure keeps its frame and its fit, typed", () => {
+  const st = state();
+  Object.assign(st.ents[0], {frame: "e7", sup: {onto: "2XYZ", rmsd: 0.42, n: 287, aligned: 301, ident: 0.98}});
+  const snap = JSON.parse(JSON.stringify(snapshot(st)));
+  snap.ents[1].sup = {onto: "<b>x</b>", rmsd: "<img src=x>", n: "12", aligned: null};
+  const out = {};
+  restore(out, snap);
+  assert.equal(out.ents[0].frame, "e7");
+  assert.deepEqual(out.ents[0].sup, {onto: "2XYZ", rmsd: 0.42, n: 287, aligned: 301, ident: 0.98});
+  assert.equal(out.ents[1].frame, null);
+  assert.deepEqual(out.ents[1].sup, {onto: "<b>x</b>", rmsd: 0, n: 12, aligned: 0, ident: 0});
+  // A frame names a uid; the next structure loaded must not be given it.
+  assert.equal(out.entSerial, 7);
+  assert.deepEqual(out.sup, {ref: null, move: {}, busy: false, msg: null});
+});
+
 test("only sessions are opened", () => {
   assert.throws(() => restore({}, null), /not a Protein Viewer session/);
   assert.throws(() => restore({}, {hello: 1}), /not a Protein Viewer session/);

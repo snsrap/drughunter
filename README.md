@@ -39,8 +39,9 @@ with hetero groups as sticks and waters hidden.
 
 Nothing is bundled: the viewer opens empty. Every structure you fetch is added
 to the view rather than replacing what is there, each in its own cartoon colour
-and its own deposited frame — nothing is superposed. Fetching an entry that is
-already loaded shows it again instead of adding a copy.
+and its own deposited frame until **Superpose** moves it (see *Superposing
+structures*). Fetching an entry that is already loaded shows it again instead
+of adding a copy.
 
 ## Opening your own files
 
@@ -208,8 +209,7 @@ than as a ligand.
 Prepare button says exactly what that is — e.g. *1HSG · chain A, MK1 902*. With
 nothing selected they run on the whole structure, if only one is loaded or only
 one is shown; otherwise the panel asks you to pick one. A selection that spans
-two structures is refused: they sit in unrelated frames, so there is no single
-structure to run on.
+two structures is refused, since there is no single structure to run on.
 
 A selection is cut from the original file, not re-written from 3Dmol's atoms,
 so nothing the file says about those atoms is lost. From a PDB file the header
@@ -231,6 +231,59 @@ in the deposited coordinates are still built as before.
 
 Generated binders come from the pockets of the last pocket run, so they follow
 the same scope.
+
+## Superposing structures
+
+With two or more structures loaded, the **Superpose** panel under *Receptor*
+moves them into one frame. Choose the reference under **Onto** — it stays where
+it is — and tick the structures to move; every structure not already in the
+reference's frame starts ticked. Each is fitted on its own, the way PyMOL's
+`align` does it (`app/js/model/superpose.js`):
+
+- **Pairing.** Each structure's protein chains are read as sequences and
+  aligned to the reference's chains: BLOSUM62, a gap costing 10 to open and 0.5
+  per residue more, end gaps free, so a longer construct or a missing tail costs
+  nothing. Chains pair up best alignment first, so chain ids and their order do
+  not matter, and a chain that aligns less than half as well per residue as the
+  best pair is left out rather than forced onto an unrelated one. Every pair of
+  aligned residues gives a pair of Cα atoms.
+- **Fitting.** The rotation and translation with the least RMSD over those
+  pairs (Horn's quaternion method: always a rotation, never a mirror image),
+  refined up to five times by dropping the pairs more than twice the RMSD
+  apart, so a loop that moved or a domain that hinged does not pull the core
+  out of register.
+- **Moving.** The transform is written into the structure's own text: the
+  coordinates and ANISOU tensors of a PDB file, `Cartn_x/y/z` and the
+  `_atom_site_anisotrop` tensors of an mmCIF. Every other record is kept
+  verbatim, so CRYST1, SCALE and the assembly records still describe the
+  deposited frame, as in a file PyMOL saves after `align`.
+
+The panel says what each fit rests on — *RMSD 0.40 Å over 182 of 198 Cα, 98 %
+identical* — and the row of every structure in the reference's frame keeps its
+numbers. A fit of two unrelated proteins still returns an RMSD, so the identity
+is checked against Rost's twilight-zone curve, which asks for more identity the
+shorter the alignment (about 47 % over 40 residues, 29 % over 100, 20 % from 500
+on); below it the panel says the residue pairing may be chance.
+
+**A selection narrows the fit.** Picks in the reference — a chain, the residues
+lining a site — fit on those residues only, and picks in a structure being
+moved restrict its side the same way. The alignment still runs over the whole
+chains, so which residue pairs with which does not change.
+
+**Superposing is an edit**, like a removal: what is drawn, downloaded, prepared
+and searched for pockets from then on is the superposed structure, and its row
+says *superposed*. **Undo** puts every structure moved together back where it
+was. Pocket results on a structure that moves are cleared, since they were
+found in its old frame; the panel says so before the button is pressed, and
+the reference defaults to the structure the live pocket run is on so that it
+does not happen by accident.
+
+Frames are tracked, not assumed. A prepared copy starts in its original's
+frame; a structure superposed onto one that later moves is no longer counted as
+in its frame; the overlay says *3 structures in 1HSG's frame*, or how many
+frames there are. A session file keeps each structure's frame and its last fit.
+Only protein Cα atoms are fitted, so a structure with no protein chain cannot be
+superposed, and the panel says so.
 
 ## Finding pockets
 
@@ -447,7 +500,8 @@ app/                         the page: no build step, no install
   js/core/                     state store, API client, RCSB fetch, files in and out,
                                  colours, DOM helpers
   js/model/                    pure: tree building, cutting a selection out of its file,
-                                 scope, reading a structure file, the session snapshot
+                                 scope, reading a structure file, superposition, the
+                                 session snapshot
   js/scene.js                  the 3D stage (3Dmol), drawn in keyed layers
   js/features/                 one module per panel: its view, its controls, its actions
 tests/                       python -m unittest; tests/js via npm test; tests/e2e walkthrough

@@ -1,1 +1,27 @@
-{"0": "ProjectArtifactsTest", "1": "features/tree.js", "2": "Ensemble pocket detection in ProteinViewer", "3": "NeatPocket", "4": "json", "5": "service.py", "6": "LacunaDetector", "7": "lacuna.py", "8": "start.sh", "9": "Structure", "10": "server.py", "11": "server.py", "12": "test_architecture.py", "13": "esc", "14": "model/session.js", "15": "fetch.js", "16": "ui_snapshot.mjs", "17": "BadRequest", "18": "commit", "19": "ui_snapshot.mjs", "20": "project.py", "21": "QuickPrep", "22": "GenerationJob", "23": "api.js", "24": ".from_text", "25": "table.js", "26": "pockets.js", "27": "FakeGenerator", "28": "helpers.py", "29": ".options", "30": "$", "31": "helpers.py", "32": "start.sh", "33": "start.sh", "34": "proteinviewer"}
+{
+  "1": "Structure Buffering & Locking",
+  "2": "Lacuna Detector Backend",
+  "3": "Detector Registry Interface",
+  "4": "Lacuna Integration Docs",
+  "8": "Neat Pocket Job",
+  "9": "HTTP Request Handler",
+  "10": "Scene Colors & Pockets",
+  "11": "Server Configuration",
+  "12": "Pocket Scoring & Prep",
+  "13": "Structure Load & Generate",
+  "15": "File Fetch & RCSB",
+  "17": "Session Model State",
+  "18": "Feature Tree UI",
+  "19": "E2E Test Setup",
+  "21": "Structure & Atom Parsing",
+  "22": "CSV & Generation Jobs",
+  "23": "Fpocket Detector",
+  "25": "Pocket Table UI",
+  "26": "Pockets Panel UI",
+  "27": "API Client",
+  "29": "App State & Bootstrap",
+  "31": "Test Fixtures & Helpers",
+  "32": "Startup Script",
+  "33": "ProteinViewer Root",
+  "34": "Tests Package Init"
+}

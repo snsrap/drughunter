@@ -94,8 +94,10 @@ function labelled(){
   return state.picks.map(nodeOf).filter(x =>
     x && x.n.label && x.e.model && !hider(x.e, x.n)).slice(0, 12);
 }
+/* A label sits on its atoms, so it follows them when a structure's text
+   changes (rev) -- a superposition moves every atom. */
 function labelKey(){
-  return [cssVar("--viewer")].concat(labelled().map(x => x.n.key)).join("|");
+  return [cssVar("--viewer")].concat(labelled().map(x => x.n.key + "@" + (x.e.rev || 0))).join("|");
 }
 
 /* ---------------- the view ---------------- */

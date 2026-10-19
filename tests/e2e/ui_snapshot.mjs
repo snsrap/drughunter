@@ -1,5 +1,6 @@
 // Drive the viewer through a whole session -- fetch, select, hide, remove,
-// undo, both detectors, and with --slow also Prepare and generation -- and
+// undo, both detectors, superposition, and with --slow also Prepare and
+// generation -- and
 // record what every panel says, plus a screenshot of the 3D stage, per step.
 //
 //   npm install                      # playwright-core, once
@@ -67,6 +68,10 @@ async function snap(label, { shot = true } = {}) {
       // whether there is one is comparable between runs.
       project: [txt($("pj-n")), !!$("pj-where").querySelector(".mono"),
                 $("pj-save").disabled, [$("pj-msg").className, txt($("pj-msg"))]],
+      sup: vis($("mod-sup")) ? [txt($("sup-n")), $("sup-ref").value,
+        [...document.querySelectorAll("#sup-list label")].map(l => [l.querySelector("input").checked, txt(l)]),
+        txt($("sup-scope")), [txt($("sup-run")), $("sup-run").disabled],
+        [$("sup-msg").className, txt($("sup-msg"))]] : null,
       genMsg: txt($("gen-msg")), genBtn: $("gen-run").disabled,
       genMod: vis($("mod-gen")) ? [txt($("gen-count")),
         [...document.querySelectorAll("#gen-list [data-gen]")].map(b => [b.getAttribute("aria-checked"), b.querySelector(".dot").getAttribute("style"), txt(b)]),
@@ -163,6 +168,13 @@ await row("e1/root").locator(".tl").click({ modifiers: ["Control"] });
 await row("e2/root").locator(".tl").click({ modifiers: ["Control"] });
 await snap("two-structure pick", { shot: false });
 await page.keyboard.press("Escape");
+
+// superposing: 1CRN is unrelated to 1HSG, which the panel has to say; the
+// reference defaults to the structure the pocket run is on. Undo puts it back.
+await page.click("#sup-run");
+await page.waitForFunction(() => !/Superposing/.test(document.getElementById("sup-run").textContent));
+await snap("superpose 1crn");
+await page.click("#undo"); await snap("undo superpose", { shot: false });
 
 if (SLOW) {
   await row("e2/root").locator(".tl").click();

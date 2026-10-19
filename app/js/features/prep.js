@@ -3,7 +3,7 @@
    result is added as a new structure in the original's frame, and the
    original is hidden rather than removed, so its eye brings it back. */
 
-import {state, commit, addEntity, freeId} from "../core/state.js";
+import {state, commit, addEntity, freeId, frameOf} from "../core/state.js";
 import {$, esc, setMsg, note, fault} from "../core/dom.js";
 import {ENT_COLORS} from "../core/colors.js";
 import * as api from "../core/api.js";
@@ -73,6 +73,7 @@ async function run(){
     const r = await api.prepare({token: buf.token, ph: 7.0, noRebuild: st.noRebuild, project});
     const rep = r.report || {}, out = rep.output || {};
     addEntity({id: freeId(src.id + "-prep"), data: r.data, fmt: "pdb", prepared: true,
+      frame: frameOf(src),
       title: "prepared from " + sc.label,
       sub: "QuickPrep-style · pH 7 · " + (out.hydrogens || 0) + " H",
       prepLine: prepLine(rep),

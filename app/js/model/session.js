@@ -19,7 +19,8 @@ export const SESSION_VERSION = 1;
 /* An entity's own fields. model, tree and nodes are left out: they are what
    parsing `data` again produces. */
 const ENT = ["uid", "id", "data", "fmt", "title", "sub", "source", "visible", "ci",
-             "edited", "prepared", "prepLine", "prepSummary", "open", "hidden", "orig"];
+             "edited", "prepared", "prepLine", "prepSummary", "open", "hidden", "orig",
+             "frame", "sup"];
 
 /* ---------------- saving ---------------- */
 export function snapshot(st, now){
@@ -73,10 +74,12 @@ export function restore(st, snap){
   const run = restoreRun(snap.run, uids),
         gen = restoreGen(snap.gen, run);
   st.ents = ents;
-  /* Past every uid in the file, so a structure loaded next cannot collide
-     with a restored one. */
+  /* Past every uid in the file, and every frame (named after a uid that may
+     since have been removed), so a structure loaded next cannot collide
+     with a restored one or land in a frame it was never moved into. */
   st.entSerial = Math.max(int(snap.entSerial, 0),
-                          ...uids.map(u => int(String(u).replace(/^e/, ""), 0)));
+                          ...uids.concat(ents.map(e => e.frame || ""))
+                            .map(u => int(String(u).replace(/^e/, ""), 0)));
   st.picks = (Array.isArray(snap.picks) ? snap.picks : [])
     .filter(k => typeof k === "string" && uids.indexOf(k.split("/")[0]) !== -1);
   st.pickAnchor = st.picks.indexOf(snap.pickAnchor) !== -1 ? snap.pickAnchor : null;
@@ -98,6 +101,7 @@ export function restore(st, snap){
   st.runSerial = int(snap.runSerial, run ? 1 : 0);
   st.gen = gen;
   st.prep = {busy: null, error: null};
+  st.sup = {ref: null, move: {}, busy: false, msg: null};
   st.pocketTask = {busy: null, error: null};
   st.genTask = {busy: false, msg: null};
   st.fetch = {busy: false, msg: null};
@@ -117,9 +121,18 @@ function entity(o){
     edited: !!o.edited, prepared: !!o.prepared,
     prepLine: boldOnly(str(o.prepLine)), prepSummary: str(o.prepSummary),
     open: flags(o.open), hidden: flags(o.hidden), orig: residueMap(o.orig),
+    frame: str(o.frame) || null, sup: fitOf(o.sup),
     /* Parsed on the next commit, which is what rebuilds the tree. */
     model: null, tree: null, nodes: null, rev: 0, styled: null, shown: null,
   };
+}
+
+/* The last superposition a structure went through: the numbers the
+   Superpose panel prints beside it. */
+function fitOf(o){
+  if (!o || typeof o !== "object") return null;
+  return {onto: str(o.onto), rmsd: num(o.rmsd) || 0, n: int(o.n, 0),
+          aligned: int(o.aligned, 0), ident: num(o.ident) || 0};
 }
 
 /* The pocket run stays listed and drawn -- its residues and site points are

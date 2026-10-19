@@ -2,7 +2,7 @@
    what is on screen, the legend, the empty and all-hidden banners, the
    panel counts, the Undo link and the busy pill. */
 
-import {state, nodeOf, liveRun, liveGen, entity} from "../core/state.js";
+import {state, nodeOf, liveRun, liveGen, entity, frameOf} from "../core/state.js";
 import {$, esc, setHTML} from "../core/dom.js";
 import {cssVar, entColor, pocketColor} from "../core/colors.js";
 import {summarize} from "../model/scope.js";
@@ -13,7 +13,7 @@ export function render(st){
   $("ov-id").textContent = vis.map(e => e.id).join(" · ");
   $("ov-sub").textContent = vis.length === 1
     ? [vis[0].title, vis[0].sub].filter(Boolean).join(" · ")
-    : vis.length + " structures, each in its own deposited frame — nothing is superposed";
+    : frames(vis);
   const by = {};
   st.picks.forEach(k => {
     const x = nodeOf(k);
@@ -40,6 +40,20 @@ export function render(st){
   if (st.busy) $("busy-t").textContent = st.busy;
 
   renderKey(st, vis);
+}
+
+/* What the structures on screen have to do with each other: all in one
+   frame, each in its own, or a mix. A frame is named after its structure
+   only while that structure is still in it. */
+function frames(vis){
+  const keys = [];
+  vis.forEach(e => { if (keys.indexOf(frameOf(e)) === -1) keys.push(frameOf(e)); });
+  if (keys.length === vis.length)
+    return vis.length + " structures, each in its own " + (vis.some(e => e.sup) ? "" : "deposited ") +
+           "frame — nothing is superposed";
+  if (keys.length > 1) return vis.length + " structures in " + keys.length + " frames";
+  const owner = entity(keys[0]);
+  return vis.length + " structures in " + (owner && frameOf(owner) === keys[0] ? owner.id + "'s frame" : "one frame");
 }
 
 /* Legend for what is drawn. Each pocket has its own colour, shared by the

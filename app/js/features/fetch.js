@@ -32,8 +32,9 @@ async function load(id){
   try{
     const entry = await fetchEntry(id);
     /* Fetching an entry that is already loaded shows it rather than adding a
-       copy -- unless parts of it were removed, when a fresh copy is wanted. */
-    const e = state.ents.find(x => x.id === id && !x.prepared && !x.edited);
+       copy -- unless parts of it were removed or it was moved, when a fresh
+       copy is wanted. */
+    const e = state.ents.find(x => x.id === id && !x.prepared && !x.edited && !x.sup);
     if (e) e.visible = true;
     else addEntity({id: freeId(id), data: entry.data, fmt: entry.fmt, title: entry.title,
                     sub: entry.sub}, ENT_COLORS.length);

@@ -63,6 +63,19 @@
       </div>
     </section>
 
+    <!-- Moves structures into one reference's frame; shown once two are loaded. -->
+    <section class="mod" id="mod-sup" hidden>
+      <div class="hd"><span class="eyebrow">Superpose</span><span class="eyebrow" id="sup-n"></span></div>
+      <div class="bd">
+        <label class="fld"><span class="eyebrow">Onto</span>
+          <select id="sup-ref" aria-label="Reference structure"></select></label>
+        <div class="sup-list" id="sup-list" role="group" aria-label="Structures to move"></div>
+        <div class="scope" id="sup-scope" aria-live="polite"></div>
+        <button class="btn solid wide" type="button" id="sup-run">Superpose</button>
+        <div class="pdbq-msg" id="sup-msg" aria-live="polite"></div>
+      </div>
+    </section>
+
     <!-- Runs on whichever receptor is selected above. -->
     <section class="mod">
       <div class="hd"><span class="eyebrow">Pockets</span>
