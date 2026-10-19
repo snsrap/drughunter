@@ -3,7 +3,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 
 import {snapshot, restore, isSessionText, SESSION_APP, SESSION_VERSION}
-  from "../../app/js/model/session.js";
+  from "../../proteinviewer/app/js/model/session.js";
 
 const PDB = "ATOM      1  N   GLY A   1       0.000   0.000   0.000  1.00  0.00           N\nEND\n";
 

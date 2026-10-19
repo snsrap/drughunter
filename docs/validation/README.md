@@ -7,7 +7,7 @@ pocket API. Background and the measured results are in
 The method: detect on the **apo** structure with the ligand never present,
 superpose the **holo** structure onto it, and score what came back against the
 holo ligand's 5 Å residue shell. The tooling is
-[pocketbench](../../../pocketbench)'s, which replaced the two scripts that
+[pocketbench](../pocketbench.md)'s, which replaced the two scripts that
 used to live here (`prep_and_truth.py`, `score.py`). On TEM-1 it gives the same
 lacuna input byte for byte, and the same overlaps and best ranks.
 
@@ -24,7 +24,7 @@ Two things it does that the scripts did not:
 ## Running a case
 
 ```sh
-PB=~/.pyenv/versions/pocketbench/bin/pocketbench
+PB=pocketbench                                 # in the drughunter environment
 L=~/.pyenv/versions/lacuna/bin                 # or ~/micromamba/envs/lacuna-gpu/bin
 W=/tmp/apoholo && mkdir -p $W/raw $W/work
 

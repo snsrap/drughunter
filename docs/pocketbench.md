@@ -8,22 +8,18 @@ the ligand never present. The **holo** structure is superposed onto it, so its
 ligand lands where the pocket should open. The detector's pockets are then
 scored against that site.
 
-ProteinViewer does its pocket detection and its superposition through this
-package. Its server runs `python -m pocketbench … --json` in this package's
-environment and never imports it (see *Driven by a program*).
+ProteinViewer, beside it in drughunter, does its pocket detection and its
+superposition through this package. Its server runs `python -m pocketbench …
+--json` and never imports it (see *Driven by a program*).
 
 Standard library only, Python 3.10+. The detectors are external: fpocket is a
 binary, lacuna lives in its own environment.
 
 ## Install
 
-```sh
-pyenv virtualenv 3.11.14 pocketbench
-~/.pyenv/versions/pocketbench/bin/pip install -e '.[test]'
-```
-
-That puts `pocketbench` in the environment's `bin/`; `python -m pocketbench`
-is the same thing.
+pocketbench is part of drughunter: installing drughunter (the
+[README](../README.md) says how) puts `pocketbench` in the environment's
+`bin/`; `python -m pocketbench` is the same thing.
 
 ## Running an apo/holo case
 
@@ -116,7 +112,7 @@ scores, centroid, residues as `sel: [{chain, resi}]`, and site points.
 
 ## Driven by a program
 
-ProteinViewer's server treats pocketbench as a tool in its own environment:
+ProteinViewer's server treats pocketbench as a tool it runs, not a library it imports:
 
 - `detectors --json`, asked once at startup, says what is installed and which
   options each detector takes (`{default, choices}` or `{default, integer,
@@ -207,7 +203,7 @@ for site in found:
 ## Layout
 
 ```
-src/pocketbench/
+pocketbench/
   structure.py   reading PDB and mmCIF: first model, one altloc, author numbering;
                    the receptor a detector sees
   pockets.py     the pocket model and the residue cut
@@ -220,12 +216,12 @@ src/pocketbench/
   reports.py     reading pocket files: lacuna reports, detect --json, ProteinViewer projects
   score.py       overlap, DCC, DCA, and the hit criteria
   cli.py         the commands
-tests/           pytest; synthetic structures, a stand-in fpocket, 1CRN as PDB and mmCIF
+tests/pocketbench/  pytest; synthetic structures, a stand-in fpocket, 1CRN as PDB and mmCIF
 ```
 
 ```sh
-~/.pyenv/versions/pocketbench/bin/python -m pytest                 # about a second
-PB_SLOW_TESTS=1 ~/.pyenv/versions/pocketbench/bin/python -m pytest  # also runs real lacuna
+python -m pytest tests/pocketbench                 # about a second
+PB_SLOW_TESTS=1 python -m pytest tests/pocketbench  # also runs real lacuna
 ```
 
 The real fpocket is exercised whenever it is on `PATH`.

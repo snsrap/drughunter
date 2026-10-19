@@ -1,10 +1,11 @@
-"""Pocket detection and superposition, by the separate pocketbench package
-(../pocketbench).
+"""Pocket detection and superposition, by the pocketbench package that ships
+beside this one in drughunter.
 
 pocketbench drives fpocket and lacuna, turns what they find into residues, and
-superposes structures. It is installed in its own environment and run there
-as ``python -m pocketbench``; this module only knows how to find that
-interpreter, how to call it, and how to read its answers back -- including
+superposes structures. It is run as a command, ``python -m pocketbench``, and
+never imported: in the server's own interpreter, unless POCKETBENCH_PYTHON
+names another. This module only knows which interpreter that is, how to call
+it, and how to read its answers back -- including
 whose problem a failure was, which pocketbench says with its exit code (2 a
 bad input, 3 a tool not installed, 4 a tool that ran and failed).
 
@@ -17,6 +18,7 @@ and a run's cache key holds every option, defaults included.
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -26,8 +28,6 @@ from .process import Once, first_executable, output_tail, probe, run
 
 __all__ = ["Pocketbench", "residue_spec"]
 
-DEFAULT_PYTHON = "~/.pyenv/versions/pocketbench/bin/python"
-
 
 class Pocketbench:
     """Runs the pocketbench package in the interpreter it is installed in."""
@@ -36,7 +36,9 @@ class Pocketbench:
 
     def __init__(self, python: str | None = None, *, fpocket_bin: str | None = None,
                  lacuna_bin: str | None = None, timeout: float = 3700.0):
-        self.python = first_executable(python, DEFAULT_PYTHON)
+        # drughunter installs pocketbench beside the server, so the
+        # interpreter running the server is the one that has it.
+        self.python = first_executable(python, sys.executable)
         # A binary the viewer's own settings name goes through to pocketbench,
         # so FPOCKET_BIN and LACUNA_BIN mean what they always meant.
         self.tool_flags = ((["--fpocket-bin", fpocket_bin] if fpocket_bin else [])
@@ -86,7 +88,8 @@ class Pocketbench:
     def status_lines(self) -> list[str]:
         if not self.available:
             return ["pocketbench: NOT FOUND - pocket detection and superposition disabled "
-                    "(install ../pocketbench into its env or set POCKETBENCH_PYTHON)"]
+                    "(%s cannot run it: start the server from the environment drughunter "
+                    "is installed in, or set POCKETBENCH_PYTHON)" % (self.python or "no python")]
         return (["pocketbench: %s  (%s)" % (self.version, self.python)]
                 + [d.get("status", name) for name, d in self.detectors().items()])
 
@@ -138,9 +141,9 @@ class Pocketbench:
     def _require(self) -> None:
         if not self.available:
             raise ToolUnavailable(
-                "the pocketbench package is not installed. Install it into its environment: "
-                "~/.pyenv/versions/pocketbench/bin/pip install -e ../pocketbench "
-                "(or set POCKETBENCH_PYTHON).", self.name)
+                "pocketbench does not run in %s. Start the server from the environment "
+                "drughunter is installed in, or set POCKETBENCH_PYTHON."
+                % (self.python or "this Python"), self.name)
 
     def _call(self, cmd: list[str]) -> dict:
         self._require()

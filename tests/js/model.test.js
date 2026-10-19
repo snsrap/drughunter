@@ -3,9 +3,9 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 
-import {buildTree, hider, polymerLike, ligandsIn} from "../../app/js/model/tree.js";
-import {pdbSubset, cifSubset, leftOut, leafSels, inModel} from "../../app/js/model/subset.js";
-import {scope, summarize, scopeStructure} from "../../app/js/model/scope.js";
+import {buildTree, hider, polymerLike, ligandsIn} from "../../proteinviewer/app/js/model/tree.js";
+import {pdbSubset, cifSubset, leftOut, leafSels, inModel} from "../../proteinviewer/app/js/model/subset.js";
+import {scope, summarize, scopeStructure} from "../../proteinviewer/app/js/model/scope.js";
 
 /* Atoms the way 3Dmol hands them over. */
 const atom = (chain, resi, resn, name, het = false, extra = {}) =>

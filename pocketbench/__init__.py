@@ -7,7 +7,7 @@ found against it. ProteinViewer runs its pocket detection and its
 superposition through this package (``python -m pocketbench``).
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .detectors import DetectorRegistry, Option, PocketDetector, default_detectors
 from .errors import BadInput, PocketbenchError, ToolFailed, ToolUnavailable

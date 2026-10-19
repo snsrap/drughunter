@@ -13,9 +13,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-__all__ = ["Settings", "REPO_DIR", "default_project_root"]
+__all__ = ["Settings", "APP_DIR", "default_project_root"]
 
-REPO_DIR = Path(__file__).resolve().parent.parent
+# The page ships inside the package, so an installed copy serves it too.
+APP_DIR = Path(__file__).resolve().parent / "app"
 
 
 def default_project_root(environ: Mapping[str, str] | None = None) -> Path:
@@ -35,7 +36,7 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8000
     open_browser: bool = True
-    app_dir: Path = REPO_DIR / "app"
+    app_dir: Path = APP_DIR
     # Where buffered structures and generation jobs live; a fresh temp
     # directory, removed on exit, when unset.
     work_root: Path | None = None

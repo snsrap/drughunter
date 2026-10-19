@@ -9,7 +9,7 @@ open tools: gemmi, PDBFixer, PDB2PQR + PROPKA and OpenMM.
 The same from the shell: ``quickprep 1HSG.pdb -o 1HSG_prep.pdb``.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 from .prep import ADDITIVES, PrepError, prepare, summary  # noqa: E402
 

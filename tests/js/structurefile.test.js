@@ -3,7 +3,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 
 import {formatOf, idFromName, titleOf, firstModel, hasAtoms, fileSub}
-  from "../../app/js/model/structurefile.js";
+  from "../../proteinviewer/app/js/model/structurefile.js";
 
 const PDB = [
   "HEADER    HYDROLASE",

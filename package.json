@@ -1,7 +1,7 @@
 {
   "name": "proteinviewer-app",
   "private": true,
-  "description": "The viewer's browser code (app/js) and its tests. The page needs no build and no install; this file marks the modules as ES modules for Node and names the test commands. Only the e2e walkthrough needs `npm install`.",
+  "description": "The viewer's browser code (proteinviewer/app/js) and its tests. The page needs no build and no install; this file marks the modules as ES modules for Node and names the test commands. Only the e2e walkthrough needs `npm install`.",
   "type": "module",
   "scripts": {
     "test": "node --test tests/js/",

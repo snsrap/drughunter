@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve the viewer in app/ over HTTP and open it in a browser.
+"""Serve the viewer's page (proteinviewer/app/) over HTTP and open it in a browser.
 
     ./serve.py            # port 8000, opens a browser
     ./serve.py 9000       # pick a port

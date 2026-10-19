@@ -1,22 +1,23 @@
-"""Structure preparation, by the separate quickprep package (../quickprep).
+"""Structure preparation, by the quickprep package that ships beside this one
+in drughunter.
 
-quickprep needs OpenMM, PDBFixer and PDB2PQR, so it is installed in its own
-environment and run there as ``python -m quickprep``; this module only knows
-how to find that interpreter and how to call it.
+quickprep needs OpenMM, PDBFixer and PDB2PQR, which the server does not, so it
+is run as a command, ``python -m quickprep``, and never imported: in the
+server's own interpreter, unless QUICKPREP_PYTHON names another. This module
+only knows which interpreter that is and how to call it.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
 from collections.abc import Iterable, Mapping
 
 from .errors import ToolFailed, ToolUnavailable
 from .process import Once, first_executable, output_tail, probe, run
 
 __all__ = ["QuickPrep", "residue_ranges"]
-
-DEFAULT_PYTHON = "~/.pyenv/versions/quickprep/bin/python"
 
 
 class QuickPrep:
@@ -25,7 +26,8 @@ class QuickPrep:
     name = "quickprep"
 
     def __init__(self, python: str | None = None, timeout: float = 1800.0):
-        self.python = first_executable(python, DEFAULT_PYTHON)
+        # drughunter installs quickprep beside the server.
+        self.python = first_executable(python, sys.executable)
         self.timeout = timeout
         self._version = Once(self._probe_version)
 
@@ -52,8 +54,10 @@ class QuickPrep:
     def status_line(self) -> str:
         return "quickprep: %s" % ("%s  (%s)" % (self.version, self.python)
                                   if self.available else
-                                  "NOT FOUND - Prepare disabled (install "
-                                  "../quickprep into its env or set QUICKPREP_PYTHON)")
+                                  "NOT FOUND - Prepare disabled (%s cannot import it: "
+                                  "start the server from the environment drughunter is "
+                                  "installed in, or set QUICKPREP_PYTHON)"
+                                  % (self.python or "no python"))
 
     def run(self, path: str, workdir: str, ph: float = 7.0,
             name: str | None = None,
@@ -62,9 +66,9 @@ class QuickPrep:
         quickprep's JSON report and its printed summary."""
         if not self.available:
             raise ToolUnavailable(
-                "the quickprep package is not installed. Install it into its "
-                "environment: ~/.pyenv/versions/quickprep/bin/pip install -e "
-                "../quickprep (or set QUICKPREP_PYTHON).", self.name)
+                "quickprep does not import in %s. Start the server from the "
+                "environment drughunter is installed in, or set QUICKPREP_PYTHON."
+                % (self.python or "this Python"), self.name)
         out = os.path.join(workdir, "prepared.pdb")
         report = os.path.join(workdir, "prepared.json")
         # Terminal tails are not rebuilt from the GUI: PDBFixer's tails are

@@ -1,22 +1,42 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "proteinviewer"
-description = "A browser-based protein structure viewer, and the server that runs pocket detection, preparation and generation for it."
+name = "drughunter"
+description = "Find pockets in protein structures, score them against experiment, and prepare structures for them, from a browser viewer or the command line."
 readme = "README.md"
 requires-python = ">=3.10"
-# The server runs on the standard library alone; every tool it drives lives in
-# its own environment and is run as a subprocess.
-dependencies = []
+# The viewer's server and pocketbench run on the standard library alone;
+# these are quickprep's. External tools (fpocket, lacuna, NEAT-POCKET) are
+# found at startup, not installed from here.
+dependencies = [
+    "openmm>=8.1",
+    "pdbfixer>=1.9",
+    "pdb2pqr>=3.6",
+    "propka>=3.5",
+    "gemmi>=0.6",
+    "numpy",
+]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest"]
 
 [project.scripts]
 proteinviewer = "proteinviewer.server:main"
+pocketbench = "pocketbench.cli:main"
+quickprep = "quickprep.prep:cli"
 
 [tool.setuptools.dynamic]
 version = { attr = "proteinviewer.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["proteinviewer*"]
+include = ["proteinviewer*", "pocketbench*", "quickprep*"]
+
+[tool.setuptools.package-data]
+# The page: no build step, served from inside the installed package.
+proteinviewer = ["app/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

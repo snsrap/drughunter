@@ -104,7 +104,7 @@ class PocketbenchTest(unittest.TestCase):
 
     def test_not_installed(self):
         pb = Pocketbench(os.path.join(self.tmp.name, "absent"))
-        pb.python = None    # the default location may hold a real one
+        pb.python = None    # the server's own interpreter may have the real one
         self.assertFalse(pb.available)
         self.assertIn("NOT FOUND", pb.status_lines()[0])
         with self.assertRaises(ToolUnavailable):

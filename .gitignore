@@ -1,3 +1,9 @@
 __pycache__/
 *.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
 node_modules/
+# pyenv local: which environment this checkout runs in is the machine's business
+.python-version

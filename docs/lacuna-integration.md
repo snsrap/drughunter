@@ -9,7 +9,7 @@ so.
 
 The files named below have since moved twice: into the `proteinviewer`
 package, and then, with pocket detection as a whole, into the separate
-[pocketbench](../../pocketbench) package, which the server runs as a command.
+[pocketbench](pocketbench.md) package, which the server runs as a command.
 `lacuna.py` is `pocketbench/detectors/lacuna.py`; `pockets.py` is split into
 pocketbench's `structure.py`, `pockets.py` and `detectors/fpocket.py`;
 `serve.py`'s endpoints are `service.py` and `web.py`, and `/api/status` still

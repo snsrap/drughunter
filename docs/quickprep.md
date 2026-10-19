@@ -6,12 +6,9 @@ finding, docking or electrostatics, and records everything it changed.
 
 ## Install
 
-```sh
-pyenv virtualenv 3.11.14 quickprep
-~/.pyenv/versions/quickprep/bin/pip install -e /home/sinas/projects/quickprep
-```
-
-That pulls in OpenMM, PDBFixer, PDB2PQR, PROPKA, gemmi and numpy.
+quickprep is part of drughunter: installing drughunter (the
+[README](../README.md) says how) pulls in OpenMM, PDBFixer, PDB2PQR, PROPKA,
+gemmi and numpy, and puts `quickprep` in the environment's `bin/`.
 
 ## Use
 
@@ -93,8 +90,7 @@ Known limits:
 ## Tests
 
 ```sh
-~/.pyenv/versions/quickprep/bin/pip install -e '/home/sinas/projects/quickprep[test]'
-~/.pyenv/versions/quickprep/bin/python -m pytest /home/sinas/projects/quickprep/tests
+python -m pytest tests/quickprep     # from a checkout, in the drughunter environment
 ```
 
 The test runs 1CA2 end to end: the zinc-site His tautomers, provenance in the
@@ -104,6 +100,6 @@ them unless they are passed as `no_rebuild`, when the gap is capped.
 
 ## Used by
 
-ProteinViewer's **Prepare** button runs `python -m quickprep` in this
-environment on what is selected in its Receptor panel, passing `--no-rebuild`
-for residues removed there or left out of the selection.
+ProteinViewer, beside it in drughunter, runs `python -m quickprep` for its
+**Prepare** button on what is selected in its Receptor panel, passing
+`--no-rebuild` for residues removed there or left out of the selection.
