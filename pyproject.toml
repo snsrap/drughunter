@@ -1,11 +1,21 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "drughunter"
 description = "Find pockets in protein structures, score them against experiment, and prepare structures for them, from a browser viewer or the command line."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "snsrap" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
 requires-python = ">=3.10"
 # The viewer's server and pocketbench run on the standard library alone;
 # these are quickprep's. External tools (fpocket, lacuna, NEAT-POCKET) are
@@ -27,6 +37,9 @@ test = ["pytest", "pytest-cov"]
 # (docs/lacuna-integration.md); fpocket and NEAT-POCKET cannot come from here.
 lacuna = ["lacuna-pockets[openmm]>=1.2"]
 
+[project.urls]
+Repository = "https://github.com/snsrap/drughunter"
+
 [project.scripts]
 proteinviewer = "proteinviewer.server:main"
 pocketbench = "pocketbench.cli:main"
@@ -42,10 +55,10 @@ include = ["proteinviewer*", "pocketbench*", "quickprep*", "pocketgen*"]
 # The page: no build step, served from inside the installed package.
 proteinviewer = ["app/**/*"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-
 [tool.coverage.run]
 source = ["pocketbench", "pocketgen", "proteinviewer", "quickprep"]
 # Entry points, and the code that needs hardware or tools CI does not have.
 omit = ["*/__main__.py", "pocketgen/neat_pocket.py", "proteinviewer/server.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

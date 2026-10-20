@@ -104,3 +104,17 @@ docs/              one page per part, the lacuna integration, apo/holo validatio
 
 pocketbench and quickprep were separate repositories until version 0.3.0;
 their histories are merged into this one.
+
+## Citation
+
+If you use DrugHunter in published work, please cite it:
+
+> snsrap. *DrugHunter* (version 0.3.0). https://github.com/snsrap/drughunter
+
+Please also cite the tools you used; they are listed in
+[THIRD_PARTY.md](THIRD_PARTY.md).
+
+## License
+
+Copyright 2026 snsrap. Licensed under the Apache License, Version 2.0; see
+[LICENSE](LICENSE).
