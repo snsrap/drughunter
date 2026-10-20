@@ -24,6 +24,7 @@ h1,h2,h3{margin:0; text-wrap:balance}
   font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif;
   font-size:19px; font-weight:700; letter-spacing:-.01em; line-height:1; white-space:nowrap;
 }
+.top h1 small{font-size:10px; font-weight:500; letter-spacing:0; color:var(--muted,inherit); opacity:.7; margin-left:3px}
 .tgrp{display:flex; align-items:center; gap:7px}
 .top .seg button{flex:none; padding:4px 10px}
 .top .end{margin-left:auto; display:flex; align-items:center; gap:8px}

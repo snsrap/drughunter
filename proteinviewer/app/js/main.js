@@ -27,6 +27,7 @@ async function probeServer(){
   const s = state.server;
   try{
     const j = await api.status();
+    if (j.version) $("version").textContent = "v" + j.version;
     const d = j.detectors || {};
     s.fpocket = !!(d.fpocket && d.fpocket.available);
     /* Only the backends lacuna can actually run: its MD backend needs OpenMM

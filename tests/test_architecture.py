@@ -37,7 +37,7 @@ ALLOWED = {
     # The service sees tools only through its own protocols.
     "service": STORES | {"errors", "schemas", "pockets"},
     "web": {"errors", "schemas", "service"},
-    "server": SHARED | ADAPTERS | STORES | {"service", "web"},
+    "server": SHARED | ADAPTERS | STORES | {"service", "web", "__init__"},
     "__main__": {"server"},
     "__init__": set(),
 }

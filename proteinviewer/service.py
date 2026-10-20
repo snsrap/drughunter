@@ -93,7 +93,9 @@ class ViewerService:
     def __init__(self, buffer: StructureBuffer, pockets: PocketTools,
                  prep: Preparer, generator: Generator,
                  projects: ProjectStore | None = None,
-                 work_root: os.PathLike | str | None = None):
+                 work_root: os.PathLike | str | None = None,
+                 version: str = ""):
+        self.version = version
         self.buffer = buffer
         self.pockets = pockets
         self.prep = prep
@@ -109,7 +111,7 @@ class ViewerService:
     def status(self) -> dict:
         """Which tools this server can run. Probing some of them starts an
         interpreter, so the first call can take a few seconds."""
-        return {"api": API_VERSION,
+        return {"api": API_VERSION, "version": self.version,
                 "detectors": self.pockets.detectors(),
                 # What every detector drops on its own: the page does not
                 # offer to delete these before a run.

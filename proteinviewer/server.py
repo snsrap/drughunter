@@ -24,6 +24,7 @@ import webbrowser
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from . import __version__
 from .buffer import StructureBuffer
 from .config import Settings, default_project_root
 from .generation import NeatPocket
@@ -52,6 +53,7 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
                               api=API_VERSION),
         # What a project may not be saved into: the tree the runs write in.
         work_root=work_root,
+        version=__version__,
     )
 
 
