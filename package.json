@@ -4,7 +4,7 @@
   "description": "The viewer's browser code (proteinviewer/app/js) and its tests. The page needs no build and no install; this file marks the modules as ES modules for Node and names the test commands. Only the e2e walkthrough needs `npm install`.",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/js/",
+    "test": "node --test tests/js/*.test.js",
     "e2e": "node tests/e2e/ui_snapshot.mjs"
   },
   "devDependencies": {
