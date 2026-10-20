@@ -33,7 +33,7 @@ def default_project_root(environ: Mapping[str, str] | None = None) -> Path:
 
 @dataclass(frozen=True)
 class Settings:
-    host: str = "127.0.0.1"
+    host: str = "127.0.0.1"  # PV_HOST; 0.0.0.0 inside a container
     port: int = 8000
     open_browser: bool = True
     app_dir: Path = APP_DIR
@@ -43,23 +43,23 @@ class Settings:
     # Where a session's output directory is collected: kept, not temporary.
     # PV_PROJECT_DIR, or --projects; default_project_root() when unset.
     project_root: Path | None = None
-    buffer_limit: int = 12      # structures kept on disk at once
-    job_limit: int = 32         # finished generation jobs kept
+    buffer_limit: int = 12  # structures kept on disk at once
+    job_limit: int = 32  # finished generation jobs kept
     max_body: int = 64 * 1024 * 1024  # deposited mmCIF entries get large
 
     pocketbench_python: str | None = None  # POCKETBENCH_PYTHON
-    fpocket_bin: str | None = None       # FPOCKET_BIN, passed on to pocketbench
-    lacuna_bin: str | None = None        # LACUNA_BIN, passed on to pocketbench
+    fpocket_bin: str | None = None  # FPOCKET_BIN, passed on to pocketbench
+    lacuna_bin: str | None = None  # LACUNA_BIN, passed on to pocketbench
     quickprep_python: str | None = None  # QUICKPREP_PYTHON
-    neat_dir: str | None = None          # NEAT_POCKET_DIR
-    neat_python: str | None = None       # NEAT_PYTHON
+    neat_dir: str | None = None  # NEAT_POCKET_DIR
+    neat_python: str | None = None  # NEAT_PYTHON
 
     @classmethod
-    def from_env(cls, environ: Mapping[str, str] | None = None,
-                 **overrides) -> "Settings":
+    def from_env(cls, environ: Mapping[str, str] | None = None, **overrides) -> Settings:
         env = os.environ if environ is None else environ
         root = env.get("PV_PROJECT_DIR") or None
         base = cls(
+            host=env.get("PV_HOST") or cls.host,
             project_root=Path(os.path.expanduser(root)) if root else None,
             pocketbench_python=env.get("POCKETBENCH_PYTHON") or None,
             fpocket_bin=env.get("FPOCKET_BIN") or None,

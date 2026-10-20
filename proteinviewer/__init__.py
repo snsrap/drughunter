@@ -20,4 +20,4 @@ Layers, each importing only from the ones above it in this list
 
 # drughunter's version: pyproject.toml reads it from here, and pocketbench and
 # quickprep carry the same one (tests/test_packaging.py).
-__version__ = "0.3.0"
+__version__ = "0.3.0"  # x-release-please-version
