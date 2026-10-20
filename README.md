@@ -47,9 +47,9 @@ is missing.
 | [lacuna](https://github.com/mooreneural/lacuna) | the ensemble detector (optional) | the `lacuna` extra, or an environment of its own; for MD on a GPU under WSL2 see [docs/lacuna-integration.md](docs/lacuna-integration.md) | `LACUNA_BIN` |
 | [NEAT-POCKET](https://github.com/molinfo-vienna/NEAT-POCKET) | **Generate binders** (optional) | its own environment with torch, per its README, plus its model weights | `NEAT_POCKET_DIR`, `NEAT_PYTHON` |
 
-Generation also needs `scripts/generate_from_pocket.py` in the NEAT-POCKET
-checkout, which takes pockets as residue selections rather than around a bound
-ligand. It is not part of upstream NEAT-POCKET.
+The checkout is stock upstream: drughunter's own `pocketgen/neat_pocket.py`
+does the generation (pockets as residue selections, no bound ligand needed)
+and is run by NEAT-POCKET's interpreter against that checkout.
 
 The page loads 3Dmol.js and its fonts from CDNs, so the first load needs
 network access.

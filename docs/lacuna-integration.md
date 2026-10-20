@@ -248,7 +248,7 @@ of the site, and α7 displacement is the actual binding event.
 
 This is why the panel's multi-select matters, and it is the one feature gap
 that follows directly from the data: ticking rank 3 and rank 6 should merge
-into one residue selection before it reaches `generate_from_pocket.py`.
+into one residue selection before it reaches `pocketgen/neat_pocket.py`.
 
 ### The MD backend does not replicate
 

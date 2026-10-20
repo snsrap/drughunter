@@ -2,7 +2,8 @@
 
 NEAT-POCKET needs torch and its own environment, so it cannot be imported
 here: the server runs on bare Python. It is invoked as a subprocess of
-``NEAT-POCKET/scripts/generate_from_pocket.py``, which takes pockets as residue
+``pocketgen/neat_pocket.py`` (drughunter's own, run by NEAT-POCKET's interpreter
+against a stock NEAT-POCKET checkout), which takes pockets as residue
 selections and needs no reference ligand.
 
 Generation is slow enough (tens of seconds per pocket) that a request cannot
@@ -33,7 +34,9 @@ __all__ = ["NeatPocket", "Job"]
 
 DEFAULT_NEAT_DIRS = ["../NEAT-POCKET", "~/projects/NEAT-POCKET"]
 PYENV_VERSIONS = "~/.pyenv/versions"
-SCRIPT = Path("scripts") / "generate_from_pocket.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "pocketgen" / "neat_pocket.py"
+# What marks a directory as a NEAT-POCKET checkout.
+MARKER = Path("scripts") / "generation_from_pdb.py"
 FINISHED = ("done", "error")
 
 
@@ -46,7 +49,7 @@ def find_neat_dir(override: str | None = None) -> str | None:
         if not c:
             continue
         p = Path(c).expanduser().resolve()
-        if (p / SCRIPT).is_file():
+        if (p / MARKER).is_file():
             return str(p)
     return None
 
@@ -228,7 +231,7 @@ class NeatPocket:
 
     def _run(self, job: Job) -> None:
         job.state = "running"
-        cmd = [self.python, str(Path(self.neat_dir) / SCRIPT),
+        cmd = [self.python, str(SCRIPT), "--neat-dir", self.neat_dir,
                "--job", str(job.out_dir / "job.json")]
         try:
             proc = run(cmd, tool="generation", timeout=self.timeout, cwd=self.neat_dir)

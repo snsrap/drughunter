@@ -378,7 +378,7 @@ drawn in that pocket's colour; each group can be shown or hidden, and a slider
 caps how many are drawn at once.
 
 NEAT-POCKET needs torch and its own environment, so `serve.py` does not import
-it — it runs `NEAT-POCKET/scripts/generate_from_pocket.py` as a subprocess.
+it — it runs `pocketgen/neat_pocket.py` in NEAT-POCKET's interpreter as a subprocess.
 Locations are discovered and can be overridden with `NEAT_POCKET_DIR` and
 `NEAT_PYTHON`; `serve.py` prints what it found at startup. A run takes tens of
 seconds per pocket, so it is a background job the page polls.
@@ -388,7 +388,7 @@ seconds per pocket, so it is a background job the page polls.
 `generation_from_pdb.py` requires a bound ligand: it cuts the pocket around it,
 and the ligand's centre of mass sets the model's input frame. That is the wrong
 shape for a pocket that was found rather than observed, so
-`generate_from_pocket.py` takes the residue selection directly and builds the
+`pocketgen/neat_pocket.py` takes the residue selection directly and builds the
 pocket tensors itself.
 
 No stand-in ligand is required, and none is fabricated. During sampling the
@@ -418,7 +418,7 @@ clicking a row selects that molecule, thickens it in the 3D view and centres on
 it. **Visible groups only** ties the table to the group toggles, and **CSV**
 downloads what is currently listed.
 
-Depictions and properties are RDKit's, computed by `generate_from_pocket.py`
+Depictions and properties are RDKit's, computed by `pocketgen/neat_pocket.py`
 while it still has the molecules in hand — that avoids a second subprocess and a
 second model load — and written to `molecules.json` beside the SDFs. `#000000`
 is rewritten to `currentColor` in each SVG so the drawings follow the page's

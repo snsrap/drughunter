@@ -3,6 +3,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from proteinviewer.errors import ToolUnavailable
 from proteinviewer.generation import Job, NeatPocket, _last_json_line
@@ -62,12 +63,19 @@ class RunnerTest(unittest.TestCase):
         # A NEAT-POCKET checkout whose script just reports success.
         neat = root / "NEAT-POCKET"
         (neat / "scripts").mkdir(parents=True)
-        fake_executable(neat / "scripts", "generate_from_pocket.py", r"""
+        (neat / "scripts" / "generation_from_pdb.py").write_text("")
+        script = root / "pocketgen"
+        script.mkdir()
+        self.script = fake_executable(script, "neat_pocket.py", r"""
             import json, sys
             spec = json.load(open(sys.argv[sys.argv.index("--job") + 1]))
+            assert sys.argv[sys.argv.index("--neat-dir") + 1]
             print("noise")
             print(json.dumps({"ok": True, "results": [{"rank": p["rank"]} for p in spec["pockets"]]}))
         """)
+        patcher = mock.patch("proteinviewer.generation.SCRIPT", Path(self.script))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.structure = root / "s.pdb"
         self.structure.write_text("ATOM\n")
         self.runner = NeatPocket(root / "jobs", neat_dir=str(neat),

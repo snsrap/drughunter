@@ -36,7 +36,7 @@ quickprep = "quickprep.prep:cli"
 version = { attr = "proteinviewer.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["proteinviewer*", "pocketbench*", "quickprep*"]
+include = ["proteinviewer*", "pocketbench*", "quickprep*", "pocketgen*"]
 
 [tool.setuptools.package-data]
 # The page: no build step, served from inside the installed package.
