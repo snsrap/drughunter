@@ -10,7 +10,9 @@ COPY pocketbench pocketbench
 COPY pocketgen pocketgen
 COPY quickprep quickprep
 COPY serve.py ./
-RUN pip install --no-cache-dir .
+# The image has no .git, so the release tag arrives as a build argument.
+ARG VERSION=0.0.0
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=$VERSION pip install --no-cache-dir .
 
 # Inside a container the server must listen on all interfaces; publish the
 # port on loopback only (-p 127.0.0.1:8000:8000) unless you mean to share it.

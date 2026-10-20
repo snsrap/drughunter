@@ -18,6 +18,12 @@ Layers, each importing only from the ones above it in this list
     the composition root: the one module that picks concrete tools.
 """
 
-# drughunter's version: pyproject.toml reads it from here, and pocketbench and
-# quickprep carry the same one (tests/test_packaging.py).
-__version__ = "0.3.0"  # x-release-please-version
+# drughunter's version is the installed distribution's, which is the git tag;
+# pocketbench and quickprep read the same one (tests/test_packaging.py).
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
+try:
+    __version__ = _dist_version("drughunter")
+except PackageNotFoundError:  # run from a checkout that was never installed
+    __version__ = "0+unknown"

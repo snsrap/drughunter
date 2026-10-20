@@ -27,7 +27,16 @@ command-line tool and Python library.
 
 ## Install
 
-One environment holds all three. With pyenv:
+From PyPI:
+
+```sh
+pip install drughunter
+```
+
+This installs the Python tools and the viewer. The external detectors (fpocket,
+lacuna, NEAT-POCKET) are separate; see below.
+
+From a checkout, one environment holds all three. With pyenv:
 
 ```sh
 pyenv virtualenv 3.11.14 drughunter
@@ -83,7 +92,9 @@ quickprep 1HSG.pdb -o 1HSG_prep.pdb
 ## Releases
 
 Feature branches start from `dev` and merge into `dev`. Every push to `dev`
-tags a minor release (`v1.2.0` -> `v1.3.0`). `dev` is merged into `main` by
+runs the tests and, if they pass, releases the next minor version
+(`v1.2.0` -> `v1.3.0`): the tag, a GitHub release, and the package on
+[PyPI](https://pypi.org/project/drughunter/). `dev` is merged into `main` by
 hand, then the merge commit is tagged by hand to release it, which builds and
 publishes the Docker image to `ghcr.io/snsrap/drughunter`:
 
@@ -118,8 +129,8 @@ Ruff lints and formats (`[tool.ruff]` in `pyproject.toml`). Install the hook onc
 ## Layout
 
 ```
-pyproject.toml     one distribution; its version is proteinviewer.__version__,
-                     which pocketbench and quickprep match (tests/test_packaging.py)
+pyproject.toml     one distribution; its version is the git tag, which proteinviewer,
+                     pocketbench and quickprep all report (tests/test_packaging.py)
 serve.py start.sh  run the viewer from a checkout
 proteinviewer/     the server, standard library only, and the page in app/
 pocketbench/       detection, superposition, scoring; standard library only

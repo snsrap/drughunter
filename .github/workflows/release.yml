@@ -1,14 +1,15 @@
 name: Release
 
-# Every push to dev tags the next minor release (v1.2.0 -> v1.3.0). Major
-# releases are tagged by hand on main and built by image.yml.
+# Every push to dev releases the next minor version (v1.2.0 -> v1.3.0): the
+# tests run, the tag is made, and the package goes to PyPI and to a GitHub
+# release. Major releases are tagged by hand on main and built by image.yml.
 
 on:
   push:
     branches: [dev]
 
 permissions:
-  contents: write
+  contents: read
 
 # Tags are computed from the existing ones, so runs must not overlap.
 concurrency:
@@ -16,16 +17,81 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  tag:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: |
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - run: pytest --ignore=tests/e2e
+
+  tag:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: next
+        run: |
           latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
-          latest=${latest:-v0.3.0}
+          latest=${latest:-v1.0.0}
           IFS=. read -r major minor _ <<< "${latest#v}"
           tag="v${major}.$((minor + 1)).0"
           git tag "$tag"
           git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install build && python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # PyPI trusted publishing; no token is stored
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: [tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.tag.outputs.tag }}
+        run: gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes --title "$TAG"

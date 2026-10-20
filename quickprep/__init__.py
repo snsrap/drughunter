@@ -9,7 +9,13 @@ open tools: gemmi, PDBFixer, PDB2PQR + PROPKA and OpenMM.
 The same from the shell: ``quickprep 1HSG.pdb -o 1HSG_prep.pdb``.
 """
 
-__version__ = "0.3.0"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
+try:
+    __version__ = _dist_version("drughunter")
+except PackageNotFoundError:  # run from a checkout that was never installed
+    __version__ = "0+unknown"
 
 from .prep import ADDITIVES, PrepError, prepare, summary  # noqa: E402
 
