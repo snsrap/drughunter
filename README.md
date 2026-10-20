@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/drughunter-logo.png" alt="drughunter logo" width="600">
+</p>
+
 # drughunter
 
 Find pockets in protein structures, score them against sites known from

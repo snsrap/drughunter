@@ -1,0 +1,6 @@
+Use case: logo-brand.
+Create a polished original logo for "drughunter", a scientific software repository for discovering protein pockets, preparing protein structures, and generating binders.
+One single horizontal logo lockup on a genuinely transparent background. Symbol on left, lowercase wordmark on right, generous clear space and balanced proportions.
+Symbol: compact deep-navy (#142D3B) protein silhouette with three or four broad smooth organic curves, a distinctive open cavity cut into its right edge. A small vivid-teal (#27D3B2) molecular fragment consisting of three connected round nodes nestles precisely into that cavity. A narrow transparent gap separates the fragment from the protein. Subtle lowercase d suggestion in the overall silhouette, but prioritize the clear pocket-and-binder relationship. Simple, memorable, robust silhouette that reads small.
+Typography: exact text "drughunter", all lowercase, clean contemporary sans serif, slightly rounded letterforms, medium weight, navy #142D3B. Carefully spaced and optically balanced beside the icon.
+Style: crisp flat vector-like graphic rendered as a high resolution PNG, precise clean edges, scientific and approachable. Only navy and teal solid fills. No gradients, shadows, textures, 3D, presentation mockups, extra words, taglines, border, or watermark. Deliver just the actual logo with transparency.
