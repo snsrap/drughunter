@@ -146,7 +146,7 @@ their histories are merged into this one.
 
 If you use DrugHunter in published work, please cite it:
 
-> snsrap. *DrugHunter* (version 0.3.0). https://github.com/snsrap/drughunter
+> snsrap. *DrugHunter* (version 1.0.0). https://github.com/snsrap/drughunter
 
 Please also cite the tools you used; they are listed in
 [THIRD_PARTY.md](THIRD_PARTY.md).
