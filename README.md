@@ -76,6 +76,18 @@ pocketbench score pockets.json apo.pdb holo.pdb LIG
 quickprep 1HSG.pdb -o 1HSG_prep.pdb
 ```
 
+## Releases
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
+`fix:` bumps the patch version, `feat:` the minor, and `feat!:` (or a
+`BREAKING CHANGE:` footer) the major; `docs:`, `ci:` and `test:` do not release.
+Merges to main keep a release PR up to date; merging it tags the release and
+publishes the Docker image to `ghcr.io/snsrap/drughunter`.
+
+```
+docker run --rm -p 127.0.0.1:8000:8000 -v drughunter-data:/data ghcr.io/snsrap/drughunter
+```
+
 ## Tests
 
 ```sh
@@ -88,6 +100,11 @@ The server's tests use fake tools and run on the standard library alone
 structures with OpenMM; real fpocket is exercised when it is on `PATH`, real
 lacuna with `PB_SLOW_TESTS=1`. The browser walkthrough is in
 [docs/proteinviewer.md](docs/proteinviewer.md#tests).
+
+## Style
+
+Ruff lints and formats (`[tool.ruff]` in `pyproject.toml`). Install the hook once with
+`pip install -e ".[dev]" && pre-commit install`; CI runs the same two checks.
 
 ## Layout
 

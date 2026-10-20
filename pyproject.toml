@@ -32,6 +32,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]
+dev = ["ruff", "pre-commit"]
 # The ensemble detector, in this environment. Under WSL2 its MD backend can
 # reach the GPU only through conda-forge's OpenMM, in an environment of its own
 # (docs/lacuna-integration.md); fpocket and NEAT-POCKET cannot come from here.
@@ -62,3 +63,41 @@ omit = ["*/__main__.py", "pocketgen/neat_pocket.py", "proteinviewer/server.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["build", "graphify-out"]
+
+[tool.ruff.lint]
+select = ["E", "W505", "F", "I", "B", "UP", "SIM", "D"]
+# The code base uses %-formatting throughout, zip() without strict=, and l/O
+# names for coordinates; those are conventions here, not defects.
+ignore = [
+    "UP031", "B905", "E741",
+    # Docstrings here open with a noun phrase and wrap their first sentence,
+    # and not every private-ish helper carries one; the form rules (D2, D3, D4)
+    # still apply.
+    "D1", "D205", "D401",
+    # Each pair is incompatible with its sibling; D211 and D212 are kept.
+    "D203", "D213",
+]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 100
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint.per-file-ignores]
+# Closures defined in a loop and called inside it, before the variable moves on.
+"pocketgen/neat_pocket.py" = ["B023", "E402"]
+"quickprep/prep.py" = ["B023", "E731", "E501"]
+# Long literal tables and messages.
+"pocketbench/structure.py" = ["E501"]
+# Imports after a sys.path change, and fixtures of long lines.
+"tests/**" = ["E402", "E501"]
+# Throwaway script.
+"docs/validation/*.py" = ["SIM115"]
+# A frozen dataclass default.
+"pocketbench/score.py" = ["B008"]
