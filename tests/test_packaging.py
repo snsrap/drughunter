@@ -4,17 +4,12 @@ that never reaches for the viewer.
 """
 
 import ast
-import re
+import importlib
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PARTS = ("proteinviewer", "pocketbench", "quickprep")
-
-
-def version(package):
-    text = (ROOT / package / "__init__.py").read_text()
-    return re.search(r'^__version__ = "([^"]+)"', text, re.M).group(1)
 
 
 def top_level_imports(path):
@@ -29,10 +24,9 @@ def top_level_imports(path):
 
 class PackagingTest(unittest.TestCase):
     def test_the_three_packages_carry_one_version(self):
-        # pyproject.toml reads drughunter's version from proteinviewer.
-        self.assertEqual(
-            {p: version(p) for p in PARTS}, {p: version("proteinviewer") for p in PARTS}
-        )
+        # All three read the installed distribution's version (the git tag).
+        versions = {p: importlib.import_module(p).__version__ for p in PARTS}
+        self.assertEqual(len(set(versions.values())), 1, versions)
 
     def test_science_never_imports_the_viewer(self):
         # The viewer runs pocketbench and quickprep as commands and imports

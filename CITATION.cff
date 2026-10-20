@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use DrugHunter in published work, please cite it."
 title: "DrugHunter"
-version: 0.3.0
+version: 1.0.0
 type: software
 license: Apache-2.0
 repository-code: "https://github.com/snsrap/drughunter"

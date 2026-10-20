@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=77", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -48,8 +48,10 @@ proteinviewer = "proteinviewer.server:main"
 pocketbench = "pocketbench.cli:main"
 quickprep = "quickprep.prep:cli"
 
-[tool.setuptools.dynamic]
-version = { attr = "proteinviewer.__version__" }
+# The version is the git tag (v1.2.0 -> 1.2.0), set by .github/workflows/release.yml.
+# Outside a git checkout (the Docker build) it comes from SETUPTOOLS_SCM_PRETEND_VERSION.
+[tool.setuptools_scm]
+fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]
 include = ["proteinviewer*", "pocketbench*", "quickprep*", "pocketgen*"]
