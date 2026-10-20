@@ -9,6 +9,12 @@ on:
   push:
     branches: [dev]
     tags: ["v[0-9]+.0.0"]
+  # Publish an existing tag again, for example after a failed PyPI step.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish (v1.0.0)
+        required: true
 
 permissions:
   contents: read
@@ -34,7 +40,7 @@ jobs:
 
   tag:
     needs: test
-    if: github.ref_type == 'branch'
+    if: github.event_name == 'push' && github.ref_type == 'branch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -61,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.tag.outputs.tag || github.ref_name }}
+          ref: ${{ needs.tag.outputs.tag || inputs.tag || github.ref_name }}
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
@@ -74,6 +80,7 @@ jobs:
 
   pypi:
     needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -98,5 +105,7 @@ jobs:
           path: dist/
       - env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.tag.outputs.tag || github.ref_name }}
-        run: gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes --title "$TAG"
+          TAG: ${{ needs.tag.outputs.tag || inputs.tag || github.ref_name }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes --title "$TAG"
