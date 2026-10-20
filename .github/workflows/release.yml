@@ -1,40 +1,62 @@
 name: Release
 
-# Merges to main keep a release PR up to date (version bump and changelog, from
-# feat:/fix: commit messages). Merging that PR tags the release and publishes
-# the image. The image is built here, not on the tag, because a tag pushed with
+# Branching: feature branches start from dev and merge into dev. dev is merged
+# into main by hand.
+#
+#   push to dev   tags a minor release   (v1.2.0 -> v1.3.0)
+#   push to main  tags a major release   (v1.3.0 -> v2.0.0) and builds and
+#                 publishes the Docker image
+#
+# This is the only place the image is built or pushed. The tag is created here
+# rather than by a tag-triggered workflow, because a tag pushed with
 # GITHUB_TOKEN does not start other workflows.
 
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
 
 permissions:
   contents: write
-  pull-requests: write
   packages: write
 
+# Tags are computed from the existing ones, so runs must not overlap.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  release-please:
+  tag:
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.rp.outputs.release_created }}
-      tag_name: ${{ steps.rp.outputs.tag_name }}
+      tag: ${{ steps.next.outputs.tag }}
+      version: ${{ steps.next.outputs.version }}
     steps:
-      - id: rp
-        uses: googleapis/release-please-action@v4
+      - uses: actions/checkout@v4
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          fetch-depth: 0
+      - id: next
+        run: |
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+          latest=${latest:-v0.3.0}
+          IFS=. read -r major minor _ <<< "${latest#v}"
+          if [ "$GITHUB_REF_NAME" = main ]; then
+            version="$((major + 1)).0.0"
+          else
+            version="${major}.$((minor + 1)).0"
+          fi
+          git tag "v${version}"
+          git push origin "v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
   image:
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: tag
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.tag.outputs.tag }}
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -46,8 +68,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag_name }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{version}},value=${{ needs.tag.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ needs.tag.outputs.tag }}
             type=raw,value=latest
       - uses: docker/build-push-action@v6
         with:

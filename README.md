@@ -78,11 +78,11 @@ quickprep 1HSG.pdb -o 1HSG_prep.pdb
 
 ## Releases
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
-`fix:` bumps the patch version, `feat:` the minor, and `feat!:` (or a
-`BREAKING CHANGE:` footer) the major; `docs:`, `ci:` and `test:` do not release.
-Merges to main keep a release PR up to date; merging it tags the release and
-publishes the Docker image to `ghcr.io/snsrap/drughunter`.
+Feature branches start from `dev` and merge into `dev`. Every push to `dev`
+tags a minor release (`v1.2.0` -> `v1.3.0`). `dev` is merged into `main` by
+hand; every push to `main` tags a major release (`v1.3.0` -> `v2.0.0`) and
+publishes the Docker image to `ghcr.io/snsrap/drughunter`. That is the only
+time the image is built.
 
 ```
 docker run --rm -p 127.0.0.1:8000:8000 -v drughunter-data:/data ghcr.io/snsrap/drughunter
