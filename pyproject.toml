@@ -21,7 +21,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "pytest-cov"]
 # The ensemble detector, in this environment. Under WSL2 its MD backend can
 # reach the GPU only through conda-forge's OpenMM, in an environment of its own
 # (docs/lacuna-integration.md); fpocket and NEAT-POCKET cannot come from here.
@@ -44,3 +44,8 @@ proteinviewer = ["app/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["pocketbench", "pocketgen", "proteinviewer", "quickprep"]
+# Entry points, and the code that needs hardware or tools CI does not have.
+omit = ["*/__main__.py", "pocketgen/neat_pocket.py", "proteinviewer/server.py"]
