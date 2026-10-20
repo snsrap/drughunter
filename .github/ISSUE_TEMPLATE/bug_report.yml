@@ -1,0 +1,87 @@
+name: Bug report
+description: Something in DrugHunter does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The more detail you give, the faster this can be reproduced.
+        Please search existing issues first.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - proteinviewer (viewer / server)
+        - pocketbench (pocket detection, superposition, scoring)
+        - quickprep (structure preparation)
+        - Installation / environment
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The exact command or clicks, and the input structure (PDB ID or a small file) if you can share it.
+      placeholder: |
+        1. quickprep 1abc.pdb ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: packages
+    attributes:
+      label: Installed packages and versions
+      description: |
+        Paste the output of `pip list` (or `pip freeze`) from the environment you ran DrugHunter in.
+        Include external tools you used, with versions (fpocket, lacuna, NEAT-POCKET, etc.).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: System
+      description: OS (and WSL2 if used), Python version, GPU and driver/CUDA version if relevant, how you installed DrugHunter, and its version.
+      placeholder: |
+        OS: Ubuntu 24.04 on WSL2
+        Python: 3.11.14
+        GPU: ...
+        drughunter: 0.3.0 (pip install -e .)
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error messages and logs
+      description: Full traceback and any relevant log output, not just the last line.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag and drop images here if they help, for example viewer rendering problems or UI errors.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Workarounds you tried, whether it worked in an earlier version, and so on.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed any private or proprietary structures and data from this report.
+          required: true

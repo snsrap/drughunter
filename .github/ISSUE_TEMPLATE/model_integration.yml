@@ -1,0 +1,40 @@
+name: Model integration request
+description: Ask for an AI / ML model or external tool to be integrated
+labels: ["model-integration"]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model or tool name
+      placeholder: e.g. a pocket predictor, docking model, or generative model
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Paper and code links
+      description: Publication, repository, and weights if available.
+    validations:
+      required: true
+  - type: dropdown
+    id: approach
+    attributes:
+      label: Approach
+      options:
+        - Structure-based
+        - Ligand-based
+        - Both
+    validations:
+      required: true
+  - type: textarea
+    id: usecase
+    attributes:
+      label: What would you use it for?
+      description: The task, inputs, and outputs you expect in DrugHunter.
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Known requirements
+      description: License, GPU or memory needs, dependencies, anything that might make integration hard.
