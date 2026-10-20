@@ -17,6 +17,7 @@ CLI
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shutil
@@ -48,20 +49,30 @@ class FpocketDetector(PocketDetector):
         return {"available": self.available, "binary": self.binary or ""}
 
     def status_line(self) -> str:
-        return "fpocket: %s" % (self.binary if self.available else
-                                "NOT FOUND - pocket detection disabled "
-                                "(put fpocket on PATH or set FPOCKET_BIN)")
+        return "fpocket: %s" % (
+            self.binary
+            if self.available
+            else "NOT FOUND - pocket detection disabled (put fpocket on PATH or set FPOCKET_BIN)"
+        )
 
-    def run(self, structure: Structure, workdir: str, *,
-            cutoff: float = DEFAULT_CUTOFF,
-            ligand_resnames: frozenset[str] = frozenset(),
-            **options) -> DetectionResult:
+    def run(
+        self,
+        structure: Structure,
+        workdir: str,
+        *,
+        cutoff: float = DEFAULT_CUTOFF,
+        ligand_resnames: frozenset[str] = frozenset(),
+        **options,
+    ) -> DetectionResult:
         if not self.available:
             raise ToolUnavailable(
                 "fpocket binary not found. Install it and put it on PATH, or "
-                "set FPOCKET_BIN to its location.", self.name)
-        receptor, pdb_path = self.write_receptor(structure, workdir,
-                                                 "receptor.pdb", ligand_resnames)
+                "set FPOCKET_BIN to its location.",
+                self.name,
+            )
+        receptor, pdb_path = self.write_receptor(
+            structure, workdir, "receptor.pdb", ligand_resnames
+        )
         out_dir = os.path.join(workdir, "receptor_out")
         # fpocket writes into an existing output directory without clearing
         # it: rerun on the same structure (another cutoff, a ligand removed)
@@ -77,12 +88,13 @@ class FpocketDetector(PocketDetector):
             raise ToolFailed(
                 "fpocket produced no output (exit %s): %s"
                 % (proc.returncode, (proc.stderr or proc.stdout or "").strip()[:400]),
-                self.name)
+                self.name,
+            )
 
         info = _parse_info(out_dir)
         pockets: list[Pocket] = []
         pocket_dir = os.path.join(out_dir, "pockets")
-        for fn in (os.listdir(pocket_dir) if os.path.isdir(pocket_dir) else ()):
+        for fn in os.listdir(pocket_dir) if os.path.isdir(pocket_dir) else ():
             m = re.match(r"pocket(\d+)_vert\.pqr$", fn)
             if not m:
                 continue
@@ -91,17 +103,19 @@ class FpocketDetector(PocketDetector):
             if not centers:
                 continue
             meta = info.get(rank, {})
-            p = Pocket(rank=rank,
-                       score=meta.get("Score", float("nan")),
-                       druggability=meta.get("Druggability Score", float("nan")),
-                       volume=meta.get("Volume", float("nan")),
-                       centers=centers, radii=radii)
+            p = Pocket(
+                rank=rank,
+                score=meta.get("Score", float("nan")),
+                druggability=meta.get("Druggability Score", float("nan")),
+                volume=meta.get("Volume", float("nan")),
+                centers=centers,
+                radii=radii,
+            )
             p.residues, p.n_atoms = select_residues(structure, centers, cutoff)
             pockets.append(p)
 
         pockets.sort(key=lambda p: p.rank)
-        return DetectionResult(self.name, pockets, cmd, elapsed,
-                               len(receptor), cutoff)
+        return DetectionResult(self.name, pockets, cmd, elapsed, len(receptor), cutoff)
 
 
 def _parse_vert(path: str) -> tuple[list[tuple[float, float, float]], list[float]]:
@@ -111,8 +125,7 @@ def _parse_vert(path: str) -> tuple[list[tuple[float, float, float]], list[float
             if not line.startswith(("ATOM", "HETATM")) or len(line) < 54:
                 continue
             try:
-                centers.append((float(line[30:38]), float(line[38:46]),
-                                float(line[46:54])))
+                centers.append((float(line[30:38]), float(line[38:46]), float(line[46:54])))
             except ValueError:
                 continue
             tail = line[54:].split()
@@ -121,8 +134,9 @@ def _parse_vert(path: str) -> tuple[list[tuple[float, float, float]], list[float
 
 
 def _parse_info(out_dir: str) -> dict[int, dict[str, float]]:
-    path = next((os.path.join(out_dir, fn) for fn in os.listdir(out_dir)
-                 if fn.endswith("_info.txt")), None)
+    path = next(
+        (os.path.join(out_dir, fn) for fn in os.listdir(out_dir) if fn.endswith("_info.txt")), None
+    )
     if not path:
         return {}
     info: dict[int, dict[str, float]] = {}
@@ -135,8 +149,6 @@ def _parse_info(out_dir: str) -> dict[int, dict[str, float]]:
                 info[cur] = {}
             elif cur is not None and ":" in line:
                 k, _, v = line.partition(":")
-                try:
+                with contextlib.suppress(ValueError):
                     info[cur][k.strip()] = float(v.strip())
-                except ValueError:
-                    pass
     return info

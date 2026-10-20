@@ -48,13 +48,21 @@ class PocketScore:
     hits: dict[str, bool] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
-        return {"rank": self.pocket.rank, "overlap": self.overlap,
-                "coverage": round(self.coverage, 4), "jaccard": round(self.jaccard, 4),
-                "dcc": round(self.dcc, 3), "dca": round(self.dca, 3), "hits": self.hits,
-                **self.pocket.info}
+        return {
+            "rank": self.pocket.rank,
+            "overlap": self.overlap,
+            "coverage": round(self.coverage, 4),
+            "jaccard": round(self.jaccard, 4),
+            "dcc": round(self.dcc, 3),
+            "dca": round(self.dca, 3),
+            "hits": self.hits,
+            **self.pocket.info,
+        }
 
 
-def score(pockets: list[ReportedPocket], site: Site, crit: Criteria = Criteria()) -> list[PocketScore]:
+def score(
+    pockets: list[ReportedPocket], site: Site, crit: Criteria = Criteria()
+) -> list[PocketScore]:
     centre = site.centroid
     out = []
     for p in pockets:
@@ -63,9 +71,17 @@ def score(pockets: list[ReportedPocket], site: Site, crit: Criteria = Criteria()
         cov = len(inter) / site.size if site.size else 0.0
         dcc = math.sqrt(d2(p.centroid, centre))
         dca = math.sqrt(min(d2(p.centroid, a) for a in site.atoms))
-        out.append(PocketScore(p, len(inter), cov, len(inter) / union if union else 0.0, dcc, dca,
-                               {"coverage": cov >= crit.coverage, "dcc": dcc <= crit.dcc,
-                                "dca": dca <= crit.dca}))
+        out.append(
+            PocketScore(
+                p,
+                len(inter),
+                cov,
+                len(inter) / union if union else 0.0,
+                dcc,
+                dca,
+                {"coverage": cov >= crit.coverage, "dcc": dcc <= crit.dcc, "dca": dca <= crit.dca},
+            )
+        )
     return out
 
 

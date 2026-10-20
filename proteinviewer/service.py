@@ -21,13 +21,19 @@ from typing import Any, Protocol
 from .buffer import BufferedStructure, PocketRun, StructureBuffer
 from .errors import BadRequest, Conflict, NotFound
 from .pockets import residue_list, spheres_pdb
-from .project import (Project, ProjectStore, csv_text, resolve_destination,
-                      safe_name)
-from .schemas import (BufferRequest, GenerateRequest, JobQuery, PocketRequest,
-                      PrepRequest, ProjectRequest, ProjectSaveRequest, SuperposeRequest)
+from .project import Project, ProjectStore, csv_text, resolve_destination, safe_name
+from .schemas import (
+    BufferRequest,
+    GenerateRequest,
+    JobQuery,
+    PocketRequest,
+    PrepRequest,
+    ProjectRequest,
+    ProjectSaveRequest,
+    SuperposeRequest,
+)
 
-__all__ = ["ViewerService", "API_VERSION", "PocketTools", "Preparer", "Generator",
-           "GenerationJob"]
+__all__ = ["ViewerService", "API_VERSION", "PocketTools", "Preparer", "Generator", "GenerationJob"]
 
 log = logging.getLogger("proteinviewer")
 
@@ -39,8 +45,20 @@ API_VERSION = 4
 
 #: The molecule-table columns written to a project's CSV, in table order. The
 #: depictions in the same rows are left out; they are in molecules.json.
-MOLECULE_COLUMNS = ("rank", "i", "name", "formula", "mw", "heavy", "logp",
-                    "tpsa", "qed", "rings", "rotb", "smiles")
+MOLECULE_COLUMNS = (
+    "rank",
+    "i",
+    "name",
+    "formula",
+    "mw",
+    "heavy",
+    "logp",
+    "tpsa",
+    "qed",
+    "rings",
+    "rotb",
+    "smiles",
+)
 
 
 class PocketTools(Protocol):
@@ -54,19 +72,39 @@ class PocketTools(Protocol):
 
     def options(self, method: str, raw: Mapping[str, Any]) -> dict[str, Any]: ...
 
-    def detect(self, method: str, path: str, workdir: str, *, cutoff: float,
-               ligands: Iterable[str] = (), options: Mapping[str, Any] | None = None) -> dict: ...
+    def detect(
+        self,
+        method: str,
+        path: str,
+        workdir: str,
+        *,
+        cutoff: float,
+        ligands: Iterable[str] = (),
+        options: Mapping[str, Any] | None = None,
+    ) -> dict: ...
 
-    def superpose(self, mobile: str, reference: str, out: str, *,
-                  on: Iterable[tuple[str, int, str]] = (),
-                  mobile_on: Iterable[tuple[str, int, str]] = ()) -> dict: ...
+    def superpose(
+        self,
+        mobile: str,
+        reference: str,
+        out: str,
+        *,
+        on: Iterable[tuple[str, int, str]] = (),
+        mobile_on: Iterable[tuple[str, int, str]] = (),
+    ) -> dict: ...
 
 
 class Preparer(Protocol):
     def describe(self) -> dict: ...
 
-    def run(self, path: str, workdir: str, ph: float = 7.0, name: str | None = None,
-            no_rebuild: Mapping[str, Iterable[int]] | None = None) -> dict: ...
+    def run(
+        self,
+        path: str,
+        workdir: str,
+        ph: float = 7.0,
+        name: str | None = None,
+        no_rebuild: Mapping[str, Iterable[int]] | None = None,
+    ) -> dict: ...
 
 
 class GenerationJob(Protocol):
@@ -83,18 +121,24 @@ class GenerationJob(Protocol):
 class Generator(Protocol):
     def describe(self) -> dict: ...
 
-    def start(self, structure_path: str, pockets: list[dict], *, n: int,
-              cfg: float, batch_size: int) -> GenerationJob: ...
+    def start(
+        self, structure_path: str, pockets: list[dict], *, n: int, cfg: float, batch_size: int
+    ) -> GenerationJob: ...
 
     def get(self, job_id: str) -> GenerationJob | None: ...
 
 
 class ViewerService:
-    def __init__(self, buffer: StructureBuffer, pockets: PocketTools,
-                 prep: Preparer, generator: Generator,
-                 projects: ProjectStore | None = None,
-                 work_root: os.PathLike | str | None = None,
-                 version: str = ""):
+    def __init__(
+        self,
+        buffer: StructureBuffer,
+        pockets: PocketTools,
+        prep: Preparer,
+        generator: Generator,
+        projects: ProjectStore | None = None,
+        work_root: os.PathLike | str | None = None,
+        version: str = "",
+    ):
         self.version = version
         self.buffer = buffer
         self.pockets = pockets
@@ -110,17 +154,23 @@ class ViewerService:
 
     def status(self) -> dict:
         """Which tools this server can run. Probing some of them starts an
-        interpreter, so the first call can take a few seconds."""
-        return {"api": API_VERSION, "version": self.version,
-                "detectors": self.pockets.detectors(),
-                # What every detector drops on its own: the page does not
-                # offer to delete these before a run.
-                "additives": self.pockets.additives(),
-                "superpose": self.pockets.describe(),
-                "prep": self.prep.describe(),
-                "neat": self.generator.describe(),
-                "projects": {"available": self.projects is not None,
-                             "root": str(self.projects.root) if self.projects else ""}}
+        interpreter, so the first call can take a few seconds.
+        """
+        return {
+            "api": API_VERSION,
+            "version": self.version,
+            "detectors": self.pockets.detectors(),
+            # What every detector drops on its own: the page does not
+            # offer to delete these before a run.
+            "additives": self.pockets.additives(),
+            "superpose": self.pockets.describe(),
+            "prep": self.prep.describe(),
+            "neat": self.generator.describe(),
+            "projects": {
+                "available": self.projects is not None,
+                "root": str(self.projects.root) if self.projects else "",
+            },
+        }
 
     def buffer_structure(self, req: BufferRequest) -> dict:
         try:
@@ -143,8 +193,12 @@ class ViewerService:
         options = self.pockets.options(req.method, req.raw)
         # The options are part of the identity of a result: the same
         # structure with another backend is a different run, not a cache hit.
-        key = (req.method, round(req.cutoff, 3), tuple(sorted(req.ligands)),
-               tuple(sorted(options.items())))
+        key = (
+            req.method,
+            round(req.cutoff, 3),
+            tuple(sorted(req.ligands)),
+            tuple(sorted(options.items())),
+        )
 
         cached = True
         with entry.lock("pockets"):
@@ -152,50 +206,68 @@ class ViewerService:
             if last is not None and last.key == key:
                 run = last
             else:
-                out = self.pockets.detect(req.method, entry.path, entry.workdir,
-                                          cutoff=req.cutoff, ligands=req.ligands,
-                                          options=options)
+                out = self.pockets.detect(
+                    req.method,
+                    entry.path,
+                    entry.workdir,
+                    cutoff=req.cutoff,
+                    ligands=req.ligands,
+                    options=options,
+                )
                 meta = dict(out.get("meta") or {})
                 meta.update(ligandRemoved=sorted(req.ligands), method=req.method)
                 entry.pockets = run = PocketRun(key, list(out.get("pockets") or []), meta)
                 cached = False
 
         if not cached:
-            log.info("%s %s: %d pockets in %ss", req.method, entry.token,
-                     len(run.pockets), run.meta.get("elapsed"))
+            log.info(
+                "%s %s: %d pockets in %ss",
+                req.method,
+                entry.token,
+                len(run.pockets),
+                run.meta.get("elapsed"),
+            )
         # Written for a cache hit too: the project a page names holds the
         # results of every run it asked for, however they were answered.
         if project is not None:
             self._write_pockets(project, entry, req.method, run)
-        return {"token": entry.token, "cached": cached,
-                "pockets": run.pockets, "meta": run.meta}
+        return {"token": entry.token, "cached": cached, "pockets": run.pockets, "meta": run.meta}
 
     def superpose(self, req: SuperposeRequest) -> dict:
         """Superpose one buffered structure onto another; returns the moved
         text, written in the structure's own format, and the fit it rests on.
         Nothing is kept: the page owns the moved structure from here, and
-        buffers it again under its own name when a run needs it."""
+        buffers it again under its own name when a run needs it.
+        """
         mobile = self.buffer.require(req.token)
         reference = self.buffer.require(req.reference)
         out = os.path.join(mobile.workdir, "superposed." + mobile.fmt)
         with mobile.lock("superpose"):
-            fit = self.pockets.superpose(mobile.path, reference.path, out,
-                                         on=req.on, mobile_on=req.mobile_on)
+            fit = self.pockets.superpose(
+                mobile.path, reference.path, out, on=req.on, mobile_on=req.mobile_on
+            )
             with open(out) as fh:
                 data = fh.read()
-        log.info("superposed %s onto %s: %.2f A over %s CA", mobile.token,
-                 reference.token, fit.get("rmsd", 0), fit.get("n"))
+        log.info(
+            "superposed %s onto %s: %.2f A over %s CA",
+            mobile.token,
+            reference.token,
+            fit.get("rmsd", 0),
+            fit.get("n"),
+        )
         keep = ("rmsd", "n", "aligned", "paired", "ident", "related", "chains")
         return {"data": data, "fit": {k: fit.get(k) for k in keep}}
 
     def prepare(self, req: PrepRequest) -> dict:
         """Prepare a buffered structure; returns the prepared PDB text, the
-        report and the summary quickprep printed."""
+        report and the summary quickprep printed.
+        """
         entry = self.buffer.require(req.token)
         project = self._project(req.project)
         with entry.lock("prep"):
-            out = self.prep.run(entry.path, entry.workdir, req.ph,
-                                name=entry.token, no_rebuild=req.no_rebuild)
+            out = self.prep.run(
+                entry.path, entry.workdir, req.ph, name=entry.token, no_rebuild=req.no_rebuild
+            )
         log.info("quickprep %s: %ss", entry.token, out["report"].get("seconds"))
         if project is not None:
             self._write_prepared(project, entry, req.ph, out)
@@ -203,22 +275,28 @@ class ViewerService:
 
     def start_generation(self, req: GenerateRequest) -> dict:
         """Start NEAT-POCKET on the requested pockets of the structure's last
-        pocket run. Returns at once; the viewer polls :meth:`job_status`."""
+        pocket run. Returns at once; the viewer polls :meth:`job_status`.
+        """
         entry = self.buffer.require(req.token)
         project = self._project(req.project)
         run = entry.pockets
         if run is None:
             raise Conflict("run pocket detection on this structure first")
-        chosen = [{"rank": p["rank"],
-                   "residues": [[g["chain"], int(r)] for g in p["sel"] for r in g["resi"]]}
-                  for p in run.pockets if p["rank"] in req.ranks]
+        chosen = [
+            {
+                "rank": p["rank"],
+                "residues": [[g["chain"], int(r)] for g in p["sel"] for r in g["resi"]],
+            }
+            for p in run.pockets
+            if p["rank"] in req.ranks
+        ]
         if not chosen:
             raise Conflict("selected pockets are not in the current results")
 
-        job = self.generator.start(entry.path, chosen, n=req.n, cfg=req.cfg,
-                                   batch_size=req.batch_size)
-        log.info("neat-pocket job %s: pockets %s, %d each",
-                 job.id, sorted(req.ranks), req.n)
+        job = self.generator.start(
+            entry.path, chosen, n=req.n, cfg=req.cfg, batch_size=req.batch_size
+        )
+        log.info("neat-pocket job %s: pockets %s, %d each", job.id, sorted(req.ranks), req.n)
         if project is not None:
             # The job writes its molecules whenever it finishes, so the
             # project it belongs to is remembered now and used then.
@@ -244,7 +322,8 @@ class ViewerService:
     def create_project(self, req: ProjectRequest) -> dict:
         """Start an output directory for this session. The page asks once,
         before the first run that produces a file, and names it after
-        whatever is loaded."""
+        whatever is loaded.
+        """
         if self.projects is None:
             raise Conflict("this server has no project directory")
         project = self.projects.create(req.name)
@@ -253,16 +332,24 @@ class ViewerService:
 
     def save_project(self, req: ProjectSaveRequest) -> dict:
         """Copy the project to a path the user gave, with the page's own
-        state written into it first."""
+        state written into it first.
+        """
         project = self._project(req.project)
-        if project is None:                       # parse() refuses an empty id
+        if project is None:  # parse() refuses an empty id
             raise NotFound("no such project")
         if req.session is not None:
-            project.put_text("session.json", json.dumps(dict(req.session), indent=1),
-                             kind="session", tool="viewer",
-                             note="the viewer's own state; open it in the viewer")
-        forbid = [p for p in (self.work_root, self.projects.root if self.projects else None)
-                  if p is not None]
+            project.put_text(
+                "session.json",
+                json.dumps(dict(req.session), indent=1),
+                kind="session",
+                tool="viewer",
+                note="the viewer's own state; open it in the viewer",
+            )
+        forbid = [
+            p
+            for p in (self.work_root, self.projects.root if self.projects else None)
+            if p is not None
+        ]
         dest = resolve_destination(req.path, forbid)
         out = project.copy_to(dest, overwrite=req.overwrite)
         log.info("project %s -> %s (%d files)", project.id, out["path"], len(out["files"]))
@@ -277,7 +364,8 @@ class ViewerService:
     def _project(self, project_id: str) -> Project | None:
         """The project a request names, or None when it names none. A page
         that comes back with an id from an earlier server run keeps that
-        project, since the store reopens the directory."""
+        project, since the store reopens the directory.
+        """
         if not project_id:
             return None
         if self.projects is None:
@@ -286,42 +374,60 @@ class ViewerService:
 
     def _write_structure(self, project: Project, entry: BufferedStructure) -> str:
         """The exact text a run ran on. Everything else in the project is
-        derived from one of these, so they go in beside the results."""
+        derived from one of these, so they go in beside the results.
+        """
         rel = "structures/%s.%s" % (safe_name(entry.token), entry.fmt)
         project.put_file(rel, entry.path, kind="structure", structure=entry.token)
         return rel
 
-    def _write_pockets(self, project: Project, entry: BufferedStructure,
-                       tool: str, run: PocketRun) -> None:
+    def _write_pockets(
+        self, project: Project, entry: BufferedStructure, tool: str, run: PocketRun
+    ) -> None:
         self._write_structure(project, entry)
         base = "pockets/%s.%s" % (safe_name(entry.token), safe_name(tool))
-        common = {"structure": entry.token, "tool": tool,
-                  "command": run.meta.get("command"), "pockets": len(run.pockets)}
-        project.put_text(base + ".json",
-                         json.dumps({"structure": entry.token, "meta": run.meta,
-                                     "pockets": run.pockets}, indent=1),
-                         kind="pockets", **common)
-        project.put_text(base + ".residues.txt", residue_list(run.pockets, tool),
-                         kind="pockets", **common)
-        project.put_text(base + ".spheres.pdb", spheres_pdb(run.pockets, tool),
-                         kind="pockets", **common)
+        common = {
+            "structure": entry.token,
+            "tool": tool,
+            "command": run.meta.get("command"),
+            "pockets": len(run.pockets),
+        }
+        project.put_text(
+            base + ".json",
+            json.dumps(
+                {"structure": entry.token, "meta": run.meta, "pockets": run.pockets}, indent=1
+            ),
+            kind="pockets",
+            **common,
+        )
+        project.put_text(
+            base + ".residues.txt", residue_list(run.pockets, tool), kind="pockets", **common
+        )
+        project.put_text(
+            base + ".spheres.pdb", spheres_pdb(run.pockets, tool), kind="pockets", **common
+        )
 
-    def _write_prepared(self, project: Project, entry: BufferedStructure,
-                        ph: float, out: dict) -> None:
+    def _write_prepared(
+        self, project: Project, entry: BufferedStructure, ph: float, out: dict
+    ) -> None:
         self._write_structure(project, entry)
         base = "structures/%s-prep" % safe_name(entry.token)
         report = out.get("report") or {}
-        common = {"structure": entry.token, "tool": "quickprep",
-                  "ph": ph, "seconds": report.get("seconds")}
+        common = {
+            "structure": entry.token,
+            "tool": "quickprep",
+            "ph": ph,
+            "seconds": report.get("seconds"),
+        }
         project.put_text(base + ".pdb", out.get("data") or "", kind="prepared", **common)
-        project.put_text(base + ".report.json", json.dumps(report, indent=1),
-                         kind="report", **common)
-        project.put_text(base + ".report.txt", out.get("summary") or "",
-                         kind="report", **common)
+        project.put_text(
+            base + ".report.json", json.dumps(report, indent=1), kind="report", **common
+        )
+        project.put_text(base + ".report.txt", out.get("summary") or "", kind="report", **common)
 
     def _write_molecules(self, job: GenerationJob) -> None:
         """A finished job's molecules, once. The page polls a done job again
-        whenever it reloads its results, and the files do not change."""
+        whenever it reloads its results, and the files do not change.
+        """
         with self._lock:
             project_id = self._job_projects.get(job.id)
             if project_id is None or job.id in self._job_written:
@@ -333,17 +439,29 @@ class ViewerService:
                 return
             base = "molecules/%s" % safe_name(job.id)
             for rank, sdf in sorted(job.molecules().items()):
-                project.put_text("%s/pocket-%s.sdf" % (base, safe_name(rank)), sdf,
-                                 kind="molecules", tool="NEAT-POCKET", pocket=rank,
-                                 molecules=sdf.count("$$$$"))
+                project.put_text(
+                    "%s/pocket-%s.sdf" % (base, safe_name(rank)),
+                    sdf,
+                    kind="molecules",
+                    tool="NEAT-POCKET",
+                    pocket=rank,
+                    molecules=sdf.count("$$$$"),
+                )
             rows = job.table()
             if rows:
-                project.put_text(base + "/molecules.json", json.dumps(rows, indent=1),
-                                 kind="properties", tool="NEAT-POCKET",
-                                 note="properties and 2D depictions, RDKit's")
-                project.put_text(base + "/molecules.csv",
-                                 csv_text(rows, MOLECULE_COLUMNS),
-                                 kind="properties", tool="NEAT-POCKET")
+                project.put_text(
+                    base + "/molecules.json",
+                    json.dumps(rows, indent=1),
+                    kind="properties",
+                    tool="NEAT-POCKET",
+                    note="properties and 2D depictions, RDKit's",
+                )
+                project.put_text(
+                    base + "/molecules.csv",
+                    csv_text(rows, MOLECULE_COLUMNS),
+                    kind="properties",
+                    tool="NEAT-POCKET",
+                )
         except Exception:
             # Artifacts are a side effect: a job's results still go to the
             # page even if writing them down fails (a full disk, say).

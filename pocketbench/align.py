@@ -10,7 +10,9 @@ from __future__ import annotations
 __all__ = ["BLOSUM62", "AA", "align", "self_align"]
 
 AA = "ARNDCQEGHILKMFPSTWYVX"
-BLOSUM62 = [[int(v) for v in row.split()] for row in """
+BLOSUM62 = [
+    [int(v) for v in row.split()]
+    for row in """
  4 -1 -2 -2  0 -1 -1  0 -2 -1 -1 -1 -1 -2 -1  1  0 -3 -2  0  0
 -1  5  0 -2 -3  1  0 -2  0 -3 -2  2 -1 -3 -2 -1 -1 -3 -2 -3 -1
 -2  0  6  1 -3  0  0  0  1 -3 -3  0 -2 -3 -2  1  0 -4 -2 -3 -1
@@ -32,7 +34,8 @@ BLOSUM62 = [[int(v) for v in row.split()] for row in """
 -2 -2 -2 -3 -2 -1 -2 -3  2 -1 -1 -2 -1  3 -3 -2 -2  2  7 -1 -1
  0 -3 -3 -3 -1 -2 -2 -3 -3  3  1 -2  1 -1 -2 -2  0 -3 -1  4 -1
  0 -1 -1 -1 -2 -1 -1 -1 -1 -1 -1 -1 -1 -1 -2  0  0 -2 -1 -1 -1
-""".strip().splitlines()]
+""".strip().splitlines()
+]
 
 OPEN, EXTEND = 10.0, 0.5
 _NEG = -1e9
@@ -45,7 +48,8 @@ def _codes(s: str) -> list[int]:
 
 def align(a: str, b: str) -> tuple[float, list[tuple[int, int]]]:
     """Global alignment with free end gaps. Returns (score, pairs): pairs are
-    (i, j), the positions in ``a`` and ``b`` that align, in order."""
+    (i, j), the positions in ``a`` and ``b`` that align, in order.
+    """
     n, m = len(a), len(b)
     if not n or not m:
         return 0.0, []
@@ -74,9 +78,9 @@ def align(a: str, b: str) -> tuple[float, list[tuple[int, int]]]:
                 F = fo
             Fc[j] = F
             h, src = Hp[j - 1] + row[cb[j - 1]], 0
-            if E > h:
+            if h < E:
                 h, src = E, 1
-            if F > h:
+            if h < F:
                 h, src = F, 2
             Hc[j] = h
             tb[base + j] = bits | src
@@ -113,6 +117,7 @@ def align(a: str, b: str) -> tuple[float, list[tuple[int, int]]]:
 def self_align(s: str) -> tuple[float, list[tuple[int, int]]]:
     """An identical sequence aligns with itself residue for residue and need
     not be aligned at all: the usual case of apo and holo forms of one
-    protein, or a structure and its own prepared copy."""
+    protein, or a structure and its own prepared copy.
+    """
     c = _codes(s)
     return float(sum(BLOSUM62[k][k] for k in c)), [(i, i) for i in range(len(s))]

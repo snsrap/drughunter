@@ -20,13 +20,20 @@ _MISSING = object()
 def _get(payload: Mapping[str, Any], key: str, default: Any) -> Any:
     """The value, or ``default`` when it is absent, null or empty. An empty
     value means "use the default" -- the viewer sends ``""`` for an unset
-    field."""
+    field.
+    """
     v = payload.get(key, _MISSING)
     return default if v is _MISSING or v is None or v == "" else v
 
 
-def number(payload: Mapping[str, Any], key: str, default: float, *,
-           lo: float | None = None, hi: float | None = None) -> float:
+def number(
+    payload: Mapping[str, Any],
+    key: str,
+    default: float,
+    *,
+    lo: float | None = None,
+    hi: float | None = None,
+) -> float:
     v = _get(payload, key, default)
     if isinstance(v, bool):
         raise BadRequest("%s must be a number" % key)
@@ -40,8 +47,14 @@ def number(payload: Mapping[str, Any], key: str, default: float, *,
     return v
 
 
-def integer(payload: Mapping[str, Any], key: str, default: int, *,
-            lo: int | None = None, hi: int | None = None) -> int:
+def integer(
+    payload: Mapping[str, Any],
+    key: str,
+    default: int,
+    *,
+    lo: int | None = None,
+    hi: int | None = None,
+) -> int:
     v = number(payload, key, default)
     if v != int(v):
         raise BadRequest("%s must be a whole number" % key)
@@ -52,23 +65,32 @@ def integer(payload: Mapping[str, Any], key: str, default: int, *,
 
 def _check_range(key: str, v: float, lo: float | None, hi: float | None) -> None:
     if lo is not None and v < lo:
-        raise BadRequest("%s must be at least %g" % (key, lo)
-                         if hi is None else
-                         "%s must be between %g and %g" % (key, lo, hi))
+        raise BadRequest(
+            "%s must be at least %g" % (key, lo)
+            if hi is None
+            else "%s must be between %g and %g" % (key, lo, hi)
+        )
     if hi is not None and v > hi:
-        raise BadRequest("%s must be at most %g" % (key, hi)
-                         if lo is None else
-                         "%s must be between %g and %g" % (key, lo, hi))
+        raise BadRequest(
+            "%s must be at most %g" % (key, hi)
+            if lo is None
+            else "%s must be between %g and %g" % (key, lo, hi)
+        )
 
 
-def choice(payload: Mapping[str, Any], key: str, options: Iterable[str],
-           default: str, *, what: str | None = None) -> str:
+def choice(
+    payload: Mapping[str, Any],
+    key: str,
+    options: Iterable[str],
+    default: str,
+    *,
+    what: str | None = None,
+) -> str:
     """A case-insensitive pick from ``options``."""
     options = tuple(options)
     v = str(_get(payload, key, default)).strip().lower()
     if v not in options:
-        raise BadRequest("unknown %s %r (want %s)"
-                         % (what or key, v, " or ".join(options)))
+        raise BadRequest("unknown %s %r (want %s)" % (what or key, v, " or ".join(options)))
     return v
 
 

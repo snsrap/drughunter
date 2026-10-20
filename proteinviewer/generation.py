@@ -96,8 +96,9 @@ class Job:
     def done(self) -> bool:
         return self.state in FINISHED
 
-    def _finish(self, state: str, *, error: str | None = None,
-                results: list[dict] | None = None) -> None:
+    def _finish(
+        self, state: str, *, error: str | None = None, results: list[dict] | None = None
+    ) -> None:
         with self._lock:
             self.results = results or []
             self.error = error
@@ -116,10 +117,13 @@ class Job:
         with self._lock:
             state, error, results = self.state, self.error, list(self.results)
             finished = self.finished
-        info = {"id": self.id, "state": state,
-                "elapsed": round((finished or time.time()) - self.started, 1),
-                "requested": self.spec.get("n"),
-                "ranks": [p["rank"] for p in self.spec.get("pockets", [])]}
+        info = {
+            "id": self.id,
+            "state": state,
+            "elapsed": round((finished or time.time()) - self.started, 1),
+            "requested": self.spec.get("n"),
+            "ranks": [p["rank"] for p in self.spec.get("pockets", [])],
+        }
         for k, v in _read_json(self.out_dir / "progress.json", {}).items():
             if k != "state":
                 info[k] = v
@@ -160,9 +164,15 @@ class NeatPocket:
 
     name = "NEAT-POCKET"
 
-    def __init__(self, jobs_root: str | os.PathLike, *,
-                 neat_dir: str | None = None, python: str | None = None,
-                 limit: int = 32, timeout: float = 3600.0):
+    def __init__(
+        self,
+        jobs_root: str | os.PathLike,
+        *,
+        neat_dir: str | None = None,
+        python: str | None = None,
+        limit: int = 32,
+        timeout: float = 3600.0,
+    ):
         self.neat_dir = find_neat_dir(neat_dir)
         self.python = find_python(self.neat_dir, python)
         self.jobs_root = Path(jobs_root)
@@ -176,25 +186,38 @@ class NeatPocket:
         return bool(self.neat_dir and self.python)
 
     def describe(self) -> dict:
-        return {"available": self.available, "neatDir": self.neat_dir or "",
-                "python": self.python or ""}
+        return {
+            "available": self.available,
+            "neatDir": self.neat_dir or "",
+            "python": self.python or "",
+        }
 
     def status_line(self) -> str:
-        return "NEAT-POCKET: %s" % (self.neat_dir + "  (" + self.python + ")"
-                                    if self.available else
-                                    "NOT FOUND - generation disabled "
-                                    "(set NEAT_POCKET_DIR and NEAT_PYTHON)")
+        return "NEAT-POCKET: %s" % (
+            self.neat_dir + "  (" + self.python + ")"
+            if self.available
+            else "NOT FOUND - generation disabled (set NEAT_POCKET_DIR and NEAT_PYTHON)"
+        )
 
-    def start(self, structure_path: str, pockets: list[dict], *,
-              n: int = 50, cfg: float = 0.5, batch_size: int = 50,
-              max_atoms: int = 100) -> Job:
+    def start(
+        self,
+        structure_path: str,
+        pockets: list[dict],
+        *,
+        n: int = 50,
+        cfg: float = 0.5,
+        batch_size: int = 50,
+        max_atoms: int = 100,
+    ) -> Job:
         """Start a job for ``pockets`` (``[{"rank", "residues"}]``) and return
-        at once; poll :meth:`get` for progress."""
+        at once; poll :meth:`get` for progress.
+        """
         if not self.available:
             raise ToolUnavailable(
                 "NEAT-POCKET not found. Set NEAT_POCKET_DIR to the repository and "
                 "NEAT_PYTHON to an interpreter that can import torch and neat.",
-                self.name)
+                self.name,
+            )
 
         job_id = uuid.uuid4().hex[:12]
         out_dir = self.jobs_root / ("gen_" + job_id)
@@ -204,8 +227,11 @@ class NeatPocket:
         spec = {
             "structure": str(source),
             "pockets": [{"rank": p["rank"], "residues": p["residues"]} for p in pockets],
-            "n": int(n), "batch_size": int(batch_size), "cfg": float(cfg),
-            "max_atoms": int(max_atoms), "out_dir": str(out_dir),
+            "n": int(n),
+            "batch_size": int(batch_size),
+            "cfg": float(cfg),
+            "max_atoms": int(max_atoms),
+            "out_dir": str(out_dir),
         }
         (out_dir / "job.json").write_text(json.dumps(spec, indent=1))
 
@@ -213,8 +239,7 @@ class NeatPocket:
         with self._lock:
             self._jobs[job_id] = job
             self._prune()
-        threading.Thread(target=self._run, args=(job,), daemon=True,
-                         name="neat-" + job_id).start()
+        threading.Thread(target=self._run, args=(job,), daemon=True, name="neat-" + job_id).start()
         return job
 
     def get(self, job_id: str) -> Job | None:
@@ -223,16 +248,23 @@ class NeatPocket:
 
     def _prune(self) -> None:
         """Forget the oldest finished jobs past the limit, and their files.
-        A running job is never dropped."""
+        A running job is never dropped.
+        """
         finished = [j for j in self._jobs.values() if j.done]
-        for job in finished[:max(0, len(self._jobs) - self.limit)]:
+        for job in finished[: max(0, len(self._jobs) - self.limit)]:
             del self._jobs[job.id]
             shutil.rmtree(job.out_dir, ignore_errors=True)
 
     def _run(self, job: Job) -> None:
         job.state = "running"
-        cmd = [self.python, str(SCRIPT), "--neat-dir", self.neat_dir,
-               "--job", str(job.out_dir / "job.json")]
+        cmd = [
+            self.python,
+            str(SCRIPT),
+            "--neat-dir",
+            self.neat_dir,
+            "--job",
+            str(job.out_dir / "job.json"),
+        ]
         try:
             proc = run(cmd, tool="generation", timeout=self.timeout, cwd=self.neat_dir)
         except ToolFailed as exc:
@@ -245,8 +277,11 @@ class NeatPocket:
         job.stderr_tail = "\n".join((proc.stderr or "").strip().splitlines()[-12:])
         payload = _last_json_line(proc.stdout or "")
         if payload is None:
-            job._finish("error", error="generation produced no result (exit %s). %s"
-                        % (proc.returncode, job.stderr_tail[-300:]))
+            job._finish(
+                "error",
+                error="generation produced no result (exit %s). %s"
+                % (proc.returncode, job.stderr_tail[-300:]),
+            )
         elif not payload.get("ok"):
             job._finish("error", error=payload.get("error") or "generation failed")
         else:

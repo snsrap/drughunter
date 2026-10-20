@@ -26,7 +26,8 @@ Point = tuple[float, float, float]
 def _num(v: float, digits: int = 3):
     """A JSON-safe number. ``json.dumps`` writes NaN as a bare ``NaN``, which
     ``JSON.parse`` rejects, so a field the detector did not report goes out as
-    null and a reader can show it as absent rather than as zero."""
+    null and a reader can show it as absent rather than as zero.
+    """
     return None if v != v else round(v, digits)
 
 
@@ -54,7 +55,8 @@ class Pocket:
     def centroid(self) -> Point:
         """Stand-in for the ligand centroid. NEAT-POCKET centres its input
         frame on the ligand's centre of mass, so this is the value that plays
-        that role when there is no ligand."""
+        that role when there is no ligand.
+        """
         n = len(self.centers) or 1
         return tuple(sum(c[i] for c in self.centers) / n for i in range(3))
 
@@ -72,18 +74,25 @@ class Pocket:
     def as_dict(self, max_spheres: int = 400) -> dict:
         """JSON form: what ProteinViewer shows and keeps. ``spheres`` is
         included so a viewer can draw what the detector actually found, rather
-        than only the residues derived from it."""
+        than only the residues derived from it.
+        """
         return {
-            "rank": self.rank, "score": _num(self.score),
-            "drug": _num(self.druggability), "volume": _num(self.volume, 1),
+            "rank": self.rank,
+            "score": _num(self.score),
+            "drug": _num(self.druggability),
+            "volume": _num(self.volume, 1),
             "persistence": _num(self.persistence),
-            "crypticity": _num(self.crypticity), "cryptic": self.cryptic,
-            "nSpheres": self.n_spheres, "nResidues": len(self.residues),
+            "crypticity": _num(self.crypticity),
+            "cryptic": self.cryptic,
+            "nSpheres": self.n_spheres,
+            "nResidues": len(self.residues),
             "nAtoms": self.n_atoms,
             "centroid": [round(v, 3) for v in self.centroid],
             "sel": self.selection(),
-            "spheres": [[round(c[0], 2), round(c[1], 2), round(c[2], 2), round(r, 2)]
-                        for c, r in zip(self.centers[:max_spheres], self.radii[:max_spheres])],
+            "spheres": [
+                [round(c[0], 2), round(c[1], 2), round(c[2], 2), round(r, 2)]
+                for c, r in zip(self.centers[:max_spheres], self.radii[:max_spheres])
+            ],
         }
 
 
@@ -115,17 +124,24 @@ class DetectionResult:
         return self.pockets[i]
 
     def meta(self) -> dict:
-        out = {"tool": self.tool, "command": " ".join(self.command),
-               "elapsed": round(self.elapsed, 2),
-               "receptorAtoms": self.receptor_atoms, "cutoff": self.cutoff,
-               "nPockets": len(self.pockets)}
+        out = {
+            "tool": self.tool,
+            "command": " ".join(self.command),
+            "elapsed": round(self.elapsed, 2),
+            "receptorAtoms": self.receptor_atoms,
+            "cutoff": self.cutoff,
+            "nPockets": len(self.pockets),
+        }
         out.update(self.extra)
         return out
 
 
-def select_residues(structure: Structure, centers: list[Point],
-                    cutoff: float = DEFAULT_CUTOFF,
-                    standard_only: bool = True) -> tuple[list[Key], int]:
+def select_residues(
+    structure: Structure,
+    centers: list[Point],
+    cutoff: float = DEFAULT_CUTOFF,
+    standard_only: bool = True,
+) -> tuple[list[Key], int]:
     """Whole residues with any atom within ``cutoff`` of any site point.
 
     Returns (residue keys, atom count). Uses a cell grid so the cost stays
@@ -149,8 +165,14 @@ def select_residues(structure: Structure, centers: list[Point],
     return sorted(hit), sum(1 for a in structure.atoms if a.key in hit)
 
 
-def _near(x: float, y: float, z: float, grid: dict[tuple[int, int, int], list[Point]],
-          cell: float, cut2: float) -> bool:
+def _near(
+    x: float,
+    y: float,
+    z: float,
+    grid: dict[tuple[int, int, int], list[Point]],
+    cell: float,
+    cut2: float,
+) -> bool:
     """Whether any point in the 27 cells around (x, y, z) is within reach."""
     gx, gy, gz = int(x // cell), int(y // cell), int(z // cell)
     for dx in (-1, 0, 1):

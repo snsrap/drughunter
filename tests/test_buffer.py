@@ -40,7 +40,7 @@ class BufferTest(unittest.TestCase):
     def test_least_recently_used_is_evicted_with_its_files(self):
         a = self.buf.put("a", read("1CRN.pdb"))
         self.buf.put("b", read("1CRN.pdb"))
-        self.buf.get("a")                      # a is now the most recent
+        self.buf.get("a")  # a is now the most recent
         self.buf.put("c", read("1CRN.pdb"))
         self.assertIsNone(self.buf.get("b"))
         self.assertIs(self.buf.get("a"), a)

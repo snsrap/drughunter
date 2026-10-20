@@ -23,11 +23,11 @@ __all__ = ["Site", "shell", "sites"]
 
 @dataclass
 class Site:
-    ligand: str                    # residue name, e.g. "CBT"
-    copy: Key                      # which copy, in the holo structure's numbering
-    atoms: list[Point]             # its heavy atoms, in the apo frame
-    shell: frozenset[Key]          # the residues lining it, in apo numbering
-    missing: frozenset[Key]        # shell residues the apo structure lacks (holo numbering)
+    ligand: str  # residue name, e.g. "CBT"
+    copy: Key  # which copy, in the holo structure's numbering
+    atoms: list[Point]  # its heavy atoms, in the apo frame
+    shell: frozenset[Key]  # the residues lining it, in apo numbering
+    missing: frozenset[Key]  # shell residues the apo structure lacks (holo numbering)
     holo_shell: frozenset[Key]
 
     @property
@@ -41,15 +41,20 @@ class Site:
         return len(self.shell) + len(self.missing)
 
     def as_dict(self) -> dict:
-        return {"ligand": self.ligand, "copy": list(self.copy), "atoms": len(self.atoms),
-                "centroid": [round(v, 3) for v in self.centroid],
-                "shell": [list(k) for k in sorted(self.shell)],
-                "missing": [list(k) for k in sorted(self.missing)]}
+        return {
+            "ligand": self.ligand,
+            "copy": list(self.copy),
+            "atoms": len(self.atoms),
+            "centroid": [round(v, 3) for v in self.centroid],
+            "shell": [list(k) for k in sorted(self.shell)],
+            "missing": [list(k) for k in sorted(self.missing)],
+        }
 
 
 def shell(structure: Structure, ligand: list[Atom], cutoff: float) -> set[Key]:
     """Standard amino-acid residues with a heavy atom within ``cutoff`` of any
-    ligand atom."""
+    ligand atom.
+    """
     c2, out = cutoff * cutoff, set()
     pts = [a.xyz for a in ligand]
     for a in structure.atoms:
@@ -60,11 +65,18 @@ def shell(structure: Structure, ligand: list[Atom], cutoff: float) -> set[Key]:
     return out
 
 
-def sites(apo: Structure, holo: Structure, ligand: str, *, cutoff: float = 5.0,
-          apo_on: set[Key] | None = None) -> tuple[Superposition, list[Site]]:
+def sites(
+    apo: Structure,
+    holo: Structure,
+    ligand: str,
+    *,
+    cutoff: float = 5.0,
+    apo_on: set[Key] | None = None,
+) -> tuple[Superposition, list[Site]]:
     """Every copy of ``ligand`` in ``holo``, as a site in ``apo``'s frame and
     numbering, with the superposition that put it there. ``apo_on`` restricts
-    the fit to those apo residues."""
+    the fit to those apo residues.
+    """
     copies = holo.residue(ligand)
     if not copies:
         raise ValueError("the holo structure has no residue named %s" % ligand)
@@ -73,7 +85,14 @@ def sites(apo: Structure, holo: Structure, ligand: str, *, cutoff: float = 5.0,
     for key, atoms in sorted(copies.items()):
         heavy = [a for a in atoms if a.element != "H"] or atoms
         hs = shell(holo, heavy, cutoff)
-        out.append(Site(ligand, key, [sup.transform.apply(a.xyz) for a in heavy],
-                        frozenset(sup.mapping[k] for k in hs if k in sup.mapping),
-                        frozenset(k for k in hs if k not in sup.mapping), frozenset(hs)))
+        out.append(
+            Site(
+                ligand,
+                key,
+                [sup.transform.apply(a.xyz) for a in heavy],
+                frozenset(sup.mapping[k] for k in hs if k in sup.mapping),
+                frozenset(k for k in hs if k not in sup.mapping),
+                frozenset(hs),
+            )
+        )
     return sup, out

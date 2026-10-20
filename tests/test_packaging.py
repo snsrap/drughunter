@@ -1,6 +1,7 @@
 """drughunter is one distribution holding three packages: one thing on the
 outside, three on the inside. One version for all of them, and science code
-that never reaches for the viewer."""
+that never reaches for the viewer.
+"""
 
 import ast
 import re
@@ -29,8 +30,9 @@ def top_level_imports(path):
 class PackagingTest(unittest.TestCase):
     def test_the_three_packages_carry_one_version(self):
         # pyproject.toml reads drughunter's version from proteinviewer.
-        self.assertEqual({p: version(p) for p in PARTS},
-                         {p: version("proteinviewer") for p in PARTS})
+        self.assertEqual(
+            {p: version(p) for p in PARTS}, {p: version("proteinviewer") for p in PARTS}
+        )
 
     def test_science_never_imports_the_viewer(self):
         # The viewer runs pocketbench and quickprep as commands and imports
@@ -38,8 +40,9 @@ class PackagingTest(unittest.TestCase):
         # is the other direction.
         for package in ("pocketbench", "quickprep"):
             for path in sorted((ROOT / package).rglob("*.py")):
-                self.assertNotIn("proteinviewer", top_level_imports(path),
-                                 str(path.relative_to(ROOT)))
+                self.assertNotIn(
+                    "proteinviewer", top_level_imports(path), str(path.relative_to(ROOT))
+                )
 
 
 if __name__ == "__main__":

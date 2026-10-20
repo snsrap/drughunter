@@ -66,20 +66,25 @@ class RunnerTest(unittest.TestCase):
         (neat / "scripts" / "generation_from_pdb.py").write_text("")
         script = root / "pocketgen"
         script.mkdir()
-        self.script = fake_executable(script, "neat_pocket.py", r"""
+        self.script = fake_executable(
+            script,
+            "neat_pocket.py",
+            r"""
             import json, sys
             spec = json.load(open(sys.argv[sys.argv.index("--job") + 1]))
             assert sys.argv[sys.argv.index("--neat-dir") + 1]
             print("noise")
             print(json.dumps({"ok": True, "results": [{"rank": p["rank"]} for p in spec["pockets"]]}))
-        """)
+        """,
+        )
         patcher = mock.patch("proteinviewer.generation.SCRIPT", Path(self.script))
         patcher.start()
         self.addCleanup(patcher.stop)
         self.structure = root / "s.pdb"
         self.structure.write_text("ATOM\n")
-        self.runner = NeatPocket(root / "jobs", neat_dir=str(neat),
-                                 python=__import__("sys").executable, limit=1)
+        self.runner = NeatPocket(
+            root / "jobs", neat_dir=str(neat), python=__import__("sys").executable, limit=1
+        )
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -95,8 +100,10 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(job.state, "done", job.error)
         self.assertEqual(job.results, [{"rank": 2}])
         self.assertTrue((job.out_dir / "source.pdb").is_file())
-        self.assertEqual(json.loads((job.out_dir / "job.json").read_text())["structure"],
-                         str(job.out_dir / "source.pdb"))
+        self.assertEqual(
+            json.loads((job.out_dir / "job.json").read_text())["structure"],
+            str(job.out_dir / "source.pdb"),
+        )
 
     def test_finished_jobs_past_the_limit_are_forgotten(self):
         first = self.wait(self.runner.start(str(self.structure), [{"rank": 1, "residues": []}]))

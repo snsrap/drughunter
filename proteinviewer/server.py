@@ -41,16 +41,23 @@ log = logging.getLogger("proteinviewer")
 
 def build_service(settings: Settings, work_root: Path) -> ViewerService:
     """Every tool the viewer drives, found and wired. The detectors themselves
-    are pocketbench's: one added there is listed here with no change."""
+    are pocketbench's: one added there is listed here with no change.
+    """
     return ViewerService(
         buffer=StructureBuffer(work_root / "structures", settings.buffer_limit),
-        pockets=Pocketbench(settings.pocketbench_python, fpocket_bin=settings.fpocket_bin,
-                            lacuna_bin=settings.lacuna_bin),
+        pockets=Pocketbench(
+            settings.pocketbench_python,
+            fpocket_bin=settings.fpocket_bin,
+            lacuna_bin=settings.lacuna_bin,
+        ),
         prep=QuickPrep(settings.quickprep_python),
-        generator=NeatPocket(work_root / "jobs", neat_dir=settings.neat_dir,
-                             python=settings.neat_python, limit=settings.job_limit),
-        projects=ProjectStore(settings.project_root or default_project_root(),
-                              api=API_VERSION),
+        generator=NeatPocket(
+            work_root / "jobs",
+            neat_dir=settings.neat_dir,
+            python=settings.neat_python,
+            limit=settings.job_limit,
+        ),
+        projects=ProjectStore(settings.project_root or default_project_root(), api=API_VERSION),
         # What a project may not be saved into: the tree the runs write in.
         work_root=work_root,
         version=__version__,
@@ -59,16 +66,23 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
 
 def make_server(settings: Settings, service: ViewerService) -> ThreadingHTTPServer:
     """A threaded server, so one long run does not hold up every other
-    request."""
+    request.
+    """
     handler = functools.partial(
-        Handler, directory=str(settings.app_dir), api=Api(service),
-        max_body=settings.max_body, allowed_hosts=LOOPBACK | {settings.host})
+        Handler,
+        directory=str(settings.app_dir),
+        api=Api(service),
+        max_body=settings.max_body,
+        allowed_hosts=LOOPBACK | {settings.host},
+    )
     return ThreadingHTTPServer((settings.host, settings.port), handler)
 
 
 def tool_status_lines(service: ViewerService) -> list[str]:
-    return (service.pockets.status_lines()
-            + [service.generator.status_line(), service.prep.status_line()])
+    return service.pockets.status_lines() + [
+        service.generator.status_line(),
+        service.prep.status_line(),
+    ]
 
 
 def _print_tool_status(service: ViewerService) -> None:
@@ -77,14 +91,18 @@ def _print_tool_status(service: ViewerService) -> None:
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
-    ap = argparse.ArgumentParser(prog="serve.py", description="Serve the "
-                                 "protein viewer and open it in a browser.")
+    ap = argparse.ArgumentParser(
+        prog="serve.py", description="Serve the protein viewer and open it in a browser."
+    )
     ap.add_argument("port", nargs="?", type=int, default=8000)
-    ap.add_argument("--no-open", action="store_true",
-                    help="serve without opening a browser")
-    ap.add_argument("--projects", metavar="DIR", default=None,
-                    help="where session output directories are collected "
-                         "(default: ~/.local/share/proteinviewer/projects)")
+    ap.add_argument("--no-open", action="store_true", help="serve without opening a browser")
+    ap.add_argument(
+        "--projects",
+        metavar="DIR",
+        default=None,
+        help="where session output directories are collected "
+        "(default: ~/.local/share/proteinviewer/projects)",
+    )
     return ap.parse_args(argv)
 
 
@@ -105,8 +123,11 @@ def main(argv: list[str] | None = None) -> int:
         print("no app/ directory at %s" % settings.app_dir, file=sys.stderr)
         return 1
 
-    work_root = (Path(settings.work_root) if settings.work_root
-                 else Path(tempfile.mkdtemp(prefix="proteinviewer-")))
+    work_root = (
+        Path(settings.work_root)
+        if settings.work_root
+        else Path(tempfile.mkdtemp(prefix="proteinviewer-"))
+    )
     signal.signal(signal.SIGTERM, _stop)
     try:
         service = build_service(settings, work_root)
@@ -114,9 +135,11 @@ def main(argv: list[str] | None = None) -> int:
             httpd = make_server(settings, service)
         except OSError as exc:
             if exc.errno == errno.EADDRINUSE:
-                print("port %d is taken -- stop whatever is on it (./start.sh "
-                      "does that for a viewer) or pick another" % settings.port,
-                      file=sys.stderr)
+                print(
+                    "port %d is taken -- stop whatever is on it (./start.sh "
+                    "does that for a viewer) or pick another" % settings.port,
+                    file=sys.stderr,
+                )
                 return 1
             raise
         with httpd:
@@ -126,8 +149,9 @@ def main(argv: list[str] | None = None) -> int:
             print("projects: %s" % service.projects.root, flush=True)
             # Probing the tools starts their interpreters (OpenMM takes a few
             # seconds to import), so it happens beside serving, not before.
-            threading.Thread(target=_print_tool_status, args=(service,),
-                             daemon=True, name="tool-probe").start()
+            threading.Thread(
+                target=_print_tool_status, args=(service,), daemon=True, name="tool-probe"
+            ).start()
             if settings.open_browser:
                 threading.Timer(0.4, webbrowser.open, [url]).start()
             httpd.serve_forever()

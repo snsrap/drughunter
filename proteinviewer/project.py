@@ -31,8 +31,15 @@ from typing import Any
 
 from .errors import BadRequest, NotFound
 
-__all__ = ["Project", "ProjectStore", "safe_name", "safe_relpath",
-           "resolve_destination", "free_dir", "csv_text"]
+__all__ = [
+    "Project",
+    "ProjectStore",
+    "safe_name",
+    "safe_relpath",
+    "resolve_destination",
+    "free_dir",
+    "csv_text",
+]
 
 _ALLOWED = re.compile(r"[^A-Za-z0-9._-]")
 
@@ -56,8 +63,7 @@ def safe_relpath(relpath: str) -> Path:
     """
     text = str(relpath).replace("\\", "/")
     parts = [p for p in text.split("/") if p and p != "."]
-    if (not parts or text.startswith("/")
-            or any(p == ".." or p != safe_name(p, "") for p in parts)):
+    if not parts or text.startswith("/") or any(p == ".." or p != safe_name(p, "") for p in parts):
         raise BadRequest("bad artifact path %r" % relpath)
     return Path(*parts)
 
@@ -82,7 +88,8 @@ def _csv_value(value: Any) -> str:
 
 def free_dir(dest: Path) -> Path:
     """``dest``, or ``dest-2``, ``-3`` ... when it is there with something in
-    it. A directory someone else's work is in is never written into."""
+    it. A directory someone else's work is in is never written into.
+    """
     out, n = dest, 1
     while out.is_dir() and any(out.iterdir()):
         n += 1
@@ -114,8 +121,9 @@ def resolve_destination(path: str, forbid: Iterable[os.PathLike] = ()) -> Path:
     for root in forbid:
         r = Path(os.path.realpath(root))
         if r == real or r in real.parents:
-            raise BadRequest("%s is inside the server's own working tree -- "
-                             "pick somewhere else" % dest)
+            raise BadRequest(
+                "%s is inside the server's own working tree -- pick somewhere else" % dest
+            )
     return dest
 
 
@@ -128,8 +136,9 @@ class Project:
         self._lock = threading.Lock()
         self.path.mkdir(parents=True, exist_ok=True)
         if not self.manifest_path.is_file():
-            self._write_manifest({"project": self.id, "api": api,
-                                  "created": _now(), "artifacts": []})
+            self._write_manifest(
+                {"project": self.id, "api": api, "created": _now(), "artifacts": []}
+            )
 
     def __repr__(self) -> str:
         return "Project(%r, %r)" % (self.id, str(self.path))
@@ -157,14 +166,13 @@ class Project:
 
     def note(self, relpath: str, **fields) -> None:
         """Add one artifact to the manifest. Requests run in parallel, so the
-        manifest is read, extended and rewritten under the project's lock."""
-        entry = {"path": str(safe_relpath(relpath)).replace(os.sep, "/"),
-                 "when": _now()}
+        manifest is read, extended and rewritten under the project's lock.
+        """
+        entry = {"path": str(safe_relpath(relpath)).replace(os.sep, "/"), "when": _now()}
         entry.update({k: v for k, v in fields.items() if v is not None})
         with self._lock:
             manifest = self.manifest()
-            artifacts = [a for a in manifest.get("artifacts", [])
-                         if a.get("path") != entry["path"]]
+            artifacts = [a for a in manifest.get("artifacts", []) if a.get("path") != entry["path"]]
             artifacts.append(entry)
             manifest["artifacts"] = artifacts
             self._write_manifest(manifest)
@@ -189,19 +197,27 @@ class Project:
     # -- reading and copying ------------------------------------------------
     def files(self) -> list[Path]:
         """Every artifact, relative to the project, in path order."""
-        return sorted(p.relative_to(self.path) for p in self.path.rglob("*")
-                      if p.is_file() and p.suffix != ".tmp")
+        return sorted(
+            p.relative_to(self.path)
+            for p in self.path.rglob("*")
+            if p.is_file() and p.suffix != ".tmp"
+        )
 
     def describe(self) -> dict:
         files = self.files()
-        return {"id": self.id, "path": str(self.path), "files": len(files),
-                "bytes": sum((self.path / f).stat().st_size for f in files)}
+        return {
+            "id": self.id,
+            "path": str(self.path),
+            "files": len(files),
+            "bytes": sum((self.path / f).stat().st_size for f in files),
+        }
 
     def copy_to(self, dest: Path, overwrite: bool = False) -> dict:
         """Copy the whole project to ``dest``, or to ``dest-2`` if something
         is there already and ``overwrite`` is not set. Nothing is deleted:
         with ``overwrite`` the files are written over whatever is in the way,
-        and the rest of that directory is left alone."""
+        and the rest of that directory is left alone.
+        """
         with self._lock:
             target = dest if overwrite else free_dir(dest)
             target.mkdir(parents=True, exist_ok=True)
@@ -232,7 +248,8 @@ class ProjectStore:
 
     def create(self, name: str | None = None) -> Project:
         """A new project, named for the day and for whatever the page called
-        it: ``2026-10-18-1HSG``."""
+        it: ``2026-10-18-1HSG``.
+        """
         stem = time.strftime("%Y-%m-%d") + "-" + safe_name(name or "session")
         with self._lock:
             self.root.mkdir(parents=True, exist_ok=True)

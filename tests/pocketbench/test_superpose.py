@@ -1,11 +1,10 @@
 """Alignment, fitting and superposition -- the same cases the viewer's
-tests/js/superpose.test.js checks, so the two implementations agree."""
-
-import math
+tests/js/superpose.test.js checks, so the two implementations agree.
+"""
 
 import pytest
-
 from helpers import SEQ, T0, chain_lines, pdb, rotation, trace
+
 from pocketbench.align import BLOSUM62, align
 from pocketbench.structure import Atom
 from pocketbench.superpose import Transform, fit, protein_chains, related, superpose
@@ -16,14 +15,39 @@ def close(a, b, eps=1e-6):
 
 
 def det(R):
-    return (R[0] * (R[4] * R[8] - R[5] * R[7]) - R[1] * (R[3] * R[8] - R[5] * R[6])
-            + R[2] * (R[3] * R[7] - R[4] * R[6]))
+    return (
+        R[0] * (R[4] * R[8] - R[5] * R[7])
+        - R[1] * (R[3] * R[8] - R[5] * R[6])
+        + R[2] * (R[3] * R[7] - R[4] * R[6])
+    )
 
 
 def test_blosum62_is_symmetric_with_its_known_diagonal():
     n = len(BLOSUM62)
     assert all(BLOSUM62[i][j] == BLOSUM62[j][i] for i in range(n) for j in range(n))
-    assert [BLOSUM62[i][i] for i in range(n)] == [4, 5, 6, 6, 9, 5, 5, 6, 8, 4, 4, 5, 5, 6, 7, 4, 5, 11, 7, 4, -1]
+    assert [BLOSUM62[i][i] for i in range(n)] == [
+        4,
+        5,
+        6,
+        6,
+        9,
+        5,
+        5,
+        6,
+        8,
+        4,
+        4,
+        5,
+        5,
+        6,
+        7,
+        4,
+        5,
+        11,
+        7,
+        4,
+        -1,
+    ]
 
 
 def test_align_end_gaps_are_free_and_an_insertion_opens_one_gap():
@@ -44,9 +68,11 @@ def test_fit_recovers_a_rotation_and_never_reflects():
 
 def test_protein_chains_skip_a_calcium_ion_and_water():
     st = pdb(chain_lines("A", "GS", trace(2, 1)))
-    atoms = st.atoms + [Atom("CA", "CA", "A", 900, "", 0, 0, 0, "Ca", True),
-                        Atom("O", "HOH", "A", 901, "", 0, 0, 0, "O", True),
-                        Atom("CA", "MSE", "B", 1, "", 0, 0, 0, "C", True)]
+    atoms = st.atoms + [
+        Atom("CA", "CA", "A", 900, "", 0, 0, 0, "Ca", True),
+        Atom("O", "HOH", "A", 901, "", 0, 0, 0, "O", True),
+        Atom("CA", "MSE", "B", 1, "", 0, 0, 0, "C", True),
+    ]
     assert [(c.chain, c.seq) for c in protein_chains(atoms)] == [("A", "GS"), ("B", "M")]
 
 
@@ -55,7 +81,7 @@ def test_a_moved_and_renumbered_copy_goes_back_where_it_was():
     ref = pdb(chain_lines("A", SEQ, cas))
     mob = pdb(chain_lines("A", SEQ, cas, first=101, T=T0))
     s = superpose(mob.atoms, ref.atoms)
-    assert s.rmsd < 2e-3                         # PDB text keeps 3 decimals
+    assert s.rmsd < 2e-3  # PDB text keeps 3 decimals
     assert (s.n, s.aligned, s.ident, s.related) == (len(SEQ), len(SEQ), 1.0, True)
     assert s.mapping[("A", 101, "")] == ("A", 1, "")
 
@@ -63,7 +89,7 @@ def test_a_moved_and_renumbered_copy_goes_back_where_it_was():
 def test_a_loop_that_moved_is_left_out_of_the_fit():
     cas = trace(len(SEQ), 5)
     bent = [(p[0] + 8, p[1], p[2]) if 20 <= i < 23 else p for i, p in enumerate(cas)]
-    seq = SEQ[:30] + "W" + SEQ[31:]               # a point mutation
+    seq = SEQ[:30] + "W" + SEQ[31:]  # a point mutation
     tail = [(p[0] + 99, p[1], p[2]) for p in trace(3, 9)]
     ref = pdb(chain_lines("A", SEQ, cas))
     mob = pdb(chain_lines("B", seq + "GGG", bent + tail, T=T0))
@@ -95,7 +121,7 @@ def test_a_selection_narrows_the_fit_but_not_the_pairing():
 
 
 def test_related_asks_more_identity_of_a_shorter_alignment():
-    assert not related(0.23, 13)        # crambin onto HIV protease, as it happens
+    assert not related(0.23, 13)  # crambin onto HIV protease, as it happens
     assert related(0.98, 99) and related(0.35, 100) and not related(0.25, 100)
     assert related(0.22, 300) and related(0.21, 5000) and not related(1, 0)
 

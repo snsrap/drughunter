@@ -26,14 +26,14 @@ class ReportedPocket:
     rank: int
     centroid: Point
     residues: frozenset[Key]
-    info: dict = field(default_factory=dict)   # what the detector says beside
+    info: dict = field(default_factory=dict)  # what the detector says beside
 
 
 _LINING = re.compile(r"^\s*([A-Za-z]+?)?(-?\d+)([A-Za-z]?):(\S+)\s*$")
 
 
 def _lining(s: str) -> Key | None:
-    """lacuna's ``SER70:A`` (residue name, number, insertion code, chain)."""
+    """Lacuna's ``SER70:A`` (residue name, number, insertion code, chain)."""
     m = _LINING.match(str(s))
     return (m.group(4), int(m.group(2)), m.group(3)) if m else None
 
@@ -63,10 +63,20 @@ def parse_pockets(data) -> tuple[str, list[ReportedPocket]]:
             info = {k: _num(p.get(k)) for k in ("persistence", "crypticity", "druggability")}
         else:
             res = frozenset((g["chain"], int(r), "") for g in p.get("sel", []) for r in g["resi"])
-            info = {"persistence": _num(p.get("persistence")), "crypticity": _num(p.get("crypticity")),
-                    "druggability": _num(p.get("drug")), "score": _num(p.get("score"))}
-        out.append(ReportedPocket(rank, (float(c[0]), float(c[1]), float(c[2])), res,
-                          {k: v for k, v in info.items() if v is not None}))
+            info = {
+                "persistence": _num(p.get("persistence")),
+                "crypticity": _num(p.get("crypticity")),
+                "druggability": _num(p.get("drug")),
+                "score": _num(p.get("score")),
+            }
+        out.append(
+            ReportedPocket(
+                rank,
+                (float(c[0]), float(c[1]), float(c[2])),
+                res,
+                {k: v for k, v in info.items() if v is not None},
+            )
+        )
     return source, sorted(out, key=lambda p: p.rank)
 
 

@@ -34,16 +34,23 @@ class Pocketbench:
 
     name = "pocketbench"
 
-    def __init__(self, python: str | None = None, *, fpocket_bin: str | None = None,
-                 lacuna_bin: str | None = None, timeout: float = 3700.0):
+    def __init__(
+        self,
+        python: str | None = None,
+        *,
+        fpocket_bin: str | None = None,
+        lacuna_bin: str | None = None,
+        timeout: float = 3700.0,
+    ):
         # drughunter installs pocketbench beside the server, so the
         # interpreter running the server is the one that has it.
         self.python = first_executable(python, sys.executable)
         # A binary the viewer's own settings name goes through to pocketbench,
         # so FPOCKET_BIN and LACUNA_BIN mean what they always meant.
-        self.tool_flags = ((["--fpocket-bin", fpocket_bin] if fpocket_bin else [])
-                           + (["--lacuna-bin", lacuna_bin] if lacuna_bin else []))
-        self.timeout = timeout       # lacuna's MD backend is allowed an hour
+        self.tool_flags = (["--fpocket-bin", fpocket_bin] if fpocket_bin else []) + (
+            ["--lacuna-bin", lacuna_bin] if lacuna_bin else []
+        )
+        self.timeout = timeout  # lacuna's MD backend is allowed an hour
         self._info = Once(self._probe)
 
     def _cmd(self, *args: str) -> list[str]:
@@ -51,7 +58,8 @@ class Pocketbench:
 
     def _probe(self) -> dict:
         """What pocketbench and its detectors can do. Probing lacuna imports
-        OpenMM in its environment, which takes seconds, so this is asked once."""
+        OpenMM in its environment, which takes seconds, so this is asked once.
+        """
         if not self.python:
             return {}
         out = probe(self._cmd("detectors", "--json", *self.tool_flags), 600)
@@ -82,40 +90,67 @@ class Pocketbench:
 
     def additives(self) -> list[str]:
         """Residues every detector drops on its own, so the page does not
-        offer to delete them."""
+        offer to delete them.
+        """
         return self.info.get("additives", [])
 
     def status_lines(self) -> list[str]:
         if not self.available:
-            return ["pocketbench: NOT FOUND - pocket detection and superposition disabled "
-                    "(%s cannot run it: start the server from the environment drughunter "
-                    "is installed in, or set POCKETBENCH_PYTHON)" % (self.python or "no python")]
-        return (["pocketbench: %s  (%s)" % (self.version, self.python)]
-                + [d.get("status", name) for name, d in self.detectors().items()])
+            return [
+                "pocketbench: NOT FOUND - pocket detection and superposition disabled "
+                "(%s cannot run it: start the server from the environment drughunter "
+                "is installed in, or set POCKETBENCH_PYTHON)" % (self.python or "no python")
+            ]
+        return ["pocketbench: %s  (%s)" % (self.version, self.python)] + [
+            d.get("status", name) for name, d in self.detectors().items()
+        ]
 
     # -- detection ---------------------------------------------------------
     def options(self, method: str, raw: Mapping[str, Any]) -> dict[str, Any]:
         """``method``'s own options from a request, checked against what
-        pocketbench says it takes, every default filled in."""
+        pocketbench says it takes, every default filled in.
+        """
         self._require()
         spec = self.detectors().get(method)
         if spec is None:
-            raise BadRequest("unknown method %r (want %s)" % (method, " or ".join(self.detectors())))
+            raise BadRequest(
+                "unknown method %r (want %s)" % (method, " or ".join(self.detectors()))
+            )
         out = {}
         for name, o in spec.get("options", {}).items():
             if "choices" in o:
                 out[name] = validate.choice(raw, name, o["choices"], o["default"])
             else:
-                out[name] = validate.integer(raw, name, o["default"], lo=o.get("min"), hi=o.get("max"))
+                out[name] = validate.integer(
+                    raw, name, o["default"], lo=o.get("min"), hi=o.get("max")
+                )
         return out
 
-    def detect(self, method: str, path: str, workdir: str, *, cutoff: float,
-               ligands: Iterable[str] = (), options: Mapping[str, Any] | None = None) -> dict:
+    def detect(
+        self,
+        method: str,
+        path: str,
+        workdir: str,
+        *,
+        cutoff: float,
+        ligands: Iterable[str] = (),
+        options: Mapping[str, Any] | None = None,
+    ) -> dict:
         """Detect pockets in the file at ``path``, the tool's files kept in
         ``workdir``. Returns ``{tool, pockets, meta}``, the pockets in the JSON
-        form the page draws."""
-        cmd = self._cmd("detect", method, path, "--workdir", workdir, "--cutoff", "%g" % cutoff,
-                        "--json", *self.tool_flags)
+        form the page draws.
+        """
+        cmd = self._cmd(
+            "detect",
+            method,
+            path,
+            "--workdir",
+            workdir,
+            "--cutoff",
+            "%g" % cutoff,
+            "--json",
+            *self.tool_flags,
+        )
         if ligands:
             cmd += ["--ligand", ",".join(sorted(ligands))]
         for k, v in sorted((options or {}).items()):
@@ -123,13 +158,20 @@ class Pocketbench:
         return self._call(cmd)
 
     # -- superposition -----------------------------------------------------
-    def superpose(self, mobile: str, reference: str, out: str, *,
-                  on: Iterable[tuple[str, int, str]] = (),
-                  mobile_on: Iterable[tuple[str, int, str]] = ()) -> dict:
+    def superpose(
+        self,
+        mobile: str,
+        reference: str,
+        out: str,
+        *,
+        on: Iterable[tuple[str, int, str]] = (),
+        mobile_on: Iterable[tuple[str, int, str]] = (),
+    ) -> dict:
         """Superpose the file at ``mobile`` onto the one at ``reference`` and
         write the moved text to ``out``. ``on`` and ``mobile_on`` restrict the
         fit to those residues, (chain, number, insertion code), of either
-        side. Returns the fit."""
+        side. Returns the fit.
+        """
         cmd = self._cmd("superpose", mobile, reference, "-o", out, "--json")
         for flag, keys in (("--on", on), ("--mobile-on", mobile_on)):
             spec = residue_spec(keys)
@@ -143,7 +185,9 @@ class Pocketbench:
             raise ToolUnavailable(
                 "pocketbench does not run in %s. Start the server from the environment "
                 "drughunter is installed in, or set POCKETBENCH_PYTHON."
-                % (self.python or "this Python"), self.name)
+                % (self.python or "this Python"),
+                self.name,
+            )
 
     def _call(self, cmd: list[str]) -> dict:
         self._require()
@@ -151,8 +195,9 @@ class Pocketbench:
         try:
             out = json.loads(proc.stdout)
         except ValueError:
-            raise ToolFailed("pocketbench failed (exit %s): %s"
-                             % (proc.returncode, output_tail(proc)), self.name) from None
+            raise ToolFailed(
+                "pocketbench failed (exit %s): %s" % (proc.returncode, output_tail(proc)), self.name
+            ) from None
         if proc.returncode == 0:
             return out
         message = out.get("error") or output_tail(proc)
@@ -184,7 +229,10 @@ def residue_spec(keys: Iterable[tuple[str, int, str]]) -> str:
             j = i
             while j + 1 < len(nums_sorted) and nums_sorted[j + 1] == nums_sorted[j] + 1:
                 j += 1
-            parts.append("%s:%d" % (chain, nums_sorted[i]) if i == j
-                         else "%s:%d-%d" % (chain, nums_sorted[i], nums_sorted[j]))
+            parts.append(
+                "%s:%d" % (chain, nums_sorted[i])
+                if i == j
+                else "%s:%d-%d" % (chain, nums_sorted[i], nums_sorted[j])
+            )
             i = j + 1
     return ",".join(parts + sorted(inserted))

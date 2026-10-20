@@ -25,13 +25,20 @@ from dataclasses import dataclass, field
 
 from .errors import BadRequest, NotFound
 
-__all__ = ["StructureBuffer", "BufferedStructure", "PocketRun", "safe_token",
-           "detect_format", "check_structure"]
+__all__ = [
+    "StructureBuffer",
+    "BufferedStructure",
+    "PocketRun",
+    "safe_token",
+    "detect_format",
+    "check_structure",
+]
 
 
 def detect_format(text: str, fmt: str | None = None) -> str:
     """``"cif"`` or ``"pdb"``: the declared format if there is one, else
-    sniffed -- mmCIF always carries a ``data_`` block."""
+    sniffed -- mmCIF always carries a ``data_`` block.
+    """
     fmt = (fmt or "").lower()
     if fmt in ("cif", "mmcif"):
         return "cif"
@@ -55,7 +62,9 @@ def check_structure(text: str, fmt: str) -> None:
 @dataclass(frozen=True)
 class PocketRun:
     """The last pocket run on a structure. ``key`` is everything that makes
-    two runs the same run; a request with the same key is a cache hit."""
+    two runs the same run; a request with the same key is a cache hit.
+    """
+
     key: tuple
     pockets: list[dict]
     meta: dict
@@ -64,10 +73,10 @@ class PocketRun:
 @dataclass(eq=False)
 class BufferedStructure:
     token: str
-    fmt: str            # "pdb" or "cif"
-    path: str           # the posted text, as written
-    workdir: str        # scratch space for every tool run on it
-    digest: str         # of the posted text: same digest, same structure
+    fmt: str  # "pdb" or "cif"
+    path: str  # the posted text, as written
+    workdir: str  # scratch space for every tool run on it
+    digest: str  # of the posted text: same digest, same structure
     pockets: PocketRun | None = None
     _locks: dict[str, threading.Lock] = field(default_factory=dict, repr=False)
     _guard: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -76,7 +85,8 @@ class BufferedStructure:
         """One lock per kind of work on this structure. Two pocket runs share
         an output directory, so they take turns; a pocket run and a
         preparation write different files and need not wait for each other,
-        and nothing waits on work on a different structure."""
+        and nothing waits on work on a different structure.
+        """
         with self._guard:
             return self._locks.setdefault(purpose, threading.Lock())
 

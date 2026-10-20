@@ -34,13 +34,13 @@ class QuickPrep:
     def _probe_version(self) -> str:
         if not self.python:
             return ""
-        return probe([self.python, "-c",
-                      "import quickprep; print(quickprep.__version__)"]) or ""
+        return probe([self.python, "-c", "import quickprep; print(quickprep.__version__)"]) or ""
 
     @property
     def version(self) -> str:
-        """quickprep's version in that interpreter, or "" if it does not
-        import. Asked once; importing OpenMM takes a moment."""
+        """Quickprep's version in that interpreter, or "" if it does not
+        import. Asked once; importing OpenMM takes a moment.
+        """
         return self._version.get()
 
     @property
@@ -48,33 +48,55 @@ class QuickPrep:
         return bool(self.version)
 
     def describe(self) -> dict:
-        return {"available": self.available, "version": self.version,
-                "python": self.python or ""}
+        return {"available": self.available, "version": self.version, "python": self.python or ""}
 
     def status_line(self) -> str:
-        return "quickprep: %s" % ("%s  (%s)" % (self.version, self.python)
-                                  if self.available else
-                                  "NOT FOUND - Prepare disabled (%s cannot import it: "
-                                  "start the server from the environment drughunter is "
-                                  "installed in, or set QUICKPREP_PYTHON)"
-                                  % (self.python or "no python"))
+        return "quickprep: %s" % (
+            "%s  (%s)" % (self.version, self.python)
+            if self.available
+            else "NOT FOUND - Prepare disabled (%s cannot import it: "
+            "start the server from the environment drughunter is "
+            "installed in, or set QUICKPREP_PYTHON)" % (self.python or "no python")
+        )
 
-    def run(self, path: str, workdir: str, ph: float = 7.0,
-            name: str | None = None,
-            no_rebuild: Mapping[str, Iterable[int]] | None = None) -> dict:
+    def run(
+        self,
+        path: str,
+        workdir: str,
+        ph: float = 7.0,
+        name: str | None = None,
+        no_rebuild: Mapping[str, Iterable[int]] | None = None,
+    ) -> dict:
         """Prepare the structure at ``path``; returns the prepared PDB text,
-        quickprep's JSON report and its printed summary."""
+        quickprep's JSON report and its printed summary.
+        """
         if not self.available:
             raise ToolUnavailable(
                 "quickprep does not import in %s. Start the server from the "
                 "environment drughunter is installed in, or set QUICKPREP_PYTHON."
-                % (self.python or "this Python"), self.name)
+                % (self.python or "this Python"),
+                self.name,
+            )
         out = os.path.join(workdir, "prepared.pdb")
         report = os.path.join(workdir, "prepared.json")
         # Terminal tails are not rebuilt from the GUI: PDBFixer's tails are
         # the one part of the build that comes out distorted at times.
-        cmd = [self.python, "-m", "quickprep", path, "-o", out, "--report", report,
-               "--ph", "%g" % ph, "--max-tail", "0", "--name", name or "structure"]
+        cmd = [
+            self.python,
+            "-m",
+            "quickprep",
+            path,
+            "-o",
+            out,
+            "--report",
+            report,
+            "--ph",
+            "%g" % ph,
+            "--max-tail",
+            "0",
+            "--name",
+            name or "structure",
+        ]
         # Residues the viewer removed or left out of the selection: SEQRES
         # still lists them, and they must not come back as built loops.
         for chain, nums in sorted((no_rebuild or {}).items()):
@@ -83,8 +105,7 @@ class QuickPrep:
         if proc.returncode != 0 or not os.path.exists(out):
             raise ToolFailed("preparation failed: " + output_tail(proc), self.name)
         with open(out) as fh, open(report) as rh:
-            return {"data": fh.read(), "report": json.load(rh),
-                    "summary": proc.stdout}
+            return {"data": fh.read(), "report": json.load(rh), "summary": proc.stdout}
 
 
 def residue_ranges(nums: Iterable[int]) -> str:

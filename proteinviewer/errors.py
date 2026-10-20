@@ -8,8 +8,13 @@ that is not one of these is a bug, and the web layer reports it as one.
 from __future__ import annotations
 
 __all__ = [
-    "ViewerError", "BadRequest", "PayloadTooLarge", "NotFound", "Conflict",
-    "ToolUnavailable", "ToolFailed",
+    "ViewerError",
+    "BadRequest",
+    "PayloadTooLarge",
+    "NotFound",
+    "Conflict",
+    "ToolUnavailable",
+    "ToolFailed",
 ]
 
 
@@ -31,7 +36,8 @@ class NotFound(ViewerError):
 
 class Conflict(ViewerError):
     """The request is valid, but not in the current state -- e.g. generation
-    asked for before any pocket run on that structure."""
+    asked for before any pocket run on that structure.
+    """
 
 
 class ToolError(ViewerError):

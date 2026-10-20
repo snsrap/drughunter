@@ -1,5 +1,6 @@
 """Session output directories: what goes in them, and where they may be
-copied."""
+copied.
+"""
 
 import json
 import os
@@ -9,8 +10,15 @@ import unittest
 from pathlib import Path
 
 from proteinviewer.errors import BadRequest, NotFound
-from proteinviewer.project import (Project, ProjectStore, csv_text, free_dir,
-                                   resolve_destination, safe_name, safe_relpath)
+from proteinviewer.project import (
+    Project,
+    ProjectStore,
+    csv_text,
+    free_dir,
+    resolve_destination,
+    safe_name,
+    safe_relpath,
+)
 
 
 class NamesTest(unittest.TestCase):
@@ -26,17 +34,22 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(len(safe_name("x" * 90)), 48)
 
     def test_safe_relpath_refuses_anything_outside_the_project(self):
-        self.assertEqual(safe_relpath("pockets/1HSG.fake.json"),
-                         Path("pockets") / "1HSG.fake.json")
-        for bad in ["../outside", "pockets/../../x", "/etc/passwd",
-                    "pockets/../x", "", "   ", "a/../b"]:
+        self.assertEqual(safe_relpath("pockets/1HSG.fake.json"), Path("pockets") / "1HSG.fake.json")
+        for bad in [
+            "../outside",
+            "pockets/../../x",
+            "/etc/passwd",
+            "pockets/../x",
+            "",
+            "   ",
+            "a/../b",
+        ]:
             with self.assertRaises(BadRequest, msg=bad):
                 safe_relpath(bad)
 
     def test_csv_text_quotes_what_needs_it_and_leaves_gaps_empty(self):
         rows = [{"a": 1, "b": "x,y"}, {"a": None, "b": 'say "hi"'}]
-        self.assertEqual(csv_text(rows, ["a", "b", "c"]),
-                         'a,b,c\n1,"x,y",\n,"say ""hi""",\n')
+        self.assertEqual(csv_text(rows, ["a", "b", "c"]), 'a,b,c\n1,"x,y",\n,"say ""hi""",\n')
 
 
 class ProjectTest(unittest.TestCase):
@@ -49,11 +62,13 @@ class ProjectTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_an_artifact_is_written_and_recorded(self):
-        self.project.put_text("pockets/1HSG.fake.json", "{}", kind="pockets",
-                              tool="fake", command="fake -f x.pdb")
+        self.project.put_text(
+            "pockets/1HSG.fake.json", "{}", kind="pockets", tool="fake", command="fake -f x.pdb"
+        )
         self.assertEqual((self.project.path / "pockets" / "1HSG.fake.json").read_text(), "{}")
-        ((entry,)) = [a for a in self.project.manifest()["artifacts"]
-                      if a["path"] == "pockets/1HSG.fake.json"]
+        ((entry,)) = [
+            a for a in self.project.manifest()["artifacts"] if a["path"] == "pockets/1HSG.fake.json"
+        ]
         self.assertEqual(entry["kind"], "pockets")
         self.assertEqual(entry["command"], "fake -f x.pdb")
         self.assertIn("when", entry)
@@ -84,8 +99,10 @@ class ProjectTest(unittest.TestCase):
         self.project.put_text("molecules/j1/pocket-1.sdf", "mol\n$$$$\n", kind="molecules")
         out = self.project.copy_to(self.root / "out")
         self.assertEqual(out["path"], str(self.root / "out"))
-        self.assertEqual(sorted(out["files"]),
-                         ["manifest.json", "molecules/j1/pocket-1.sdf", "structures/1HSG.pdb"])
+        self.assertEqual(
+            sorted(out["files"]),
+            ["manifest.json", "molecules/j1/pocket-1.sdf", "structures/1HSG.pdb"],
+        )
         self.assertEqual((self.root / "out" / "structures" / "1HSG.pdb").read_text(), "ATOM\n")
 
     def test_a_directory_with_work_in_it_is_never_written_into(self):
@@ -129,8 +146,13 @@ class DestinationTest(unittest.TestCase):
     def test_what_is_refused(self):
         file_path = self.root / "a.pdb"
         file_path.write_text("ATOM\n")
-        for bad in ["", "   ", "relative/path", str(self.root / "no" / "such" / "parent"),
-                    str(file_path)]:
+        for bad in [
+            "",
+            "   ",
+            "relative/path",
+            str(self.root / "no" / "such" / "parent"),
+            str(file_path),
+        ]:
             with self.assertRaises(BadRequest, msg=bad):
                 resolve_destination(bad)
 
@@ -141,8 +163,9 @@ class DestinationTest(unittest.TestCase):
             with self.assertRaises(BadRequest, msg=str(bad)):
                 resolve_destination(str(bad), forbid=[work])
         # Beside it is fine.
-        self.assertEqual(resolve_destination(str(self.root / "out"), forbid=[work]),
-                         self.root / "out")
+        self.assertEqual(
+            resolve_destination(str(self.root / "out"), forbid=[work]), self.root / "out"
+        )
 
 
 class StoreTest(unittest.TestCase):
@@ -165,11 +188,11 @@ class StoreTest(unittest.TestCase):
     def test_a_project_is_found_again_after_a_restart(self):
         project = self.store.create("1HSG")
         project.put_text("a.txt", "x", kind="x")
-        later = ProjectStore(self.store.root, api=3)       # a new server run
+        later = ProjectStore(self.store.root, api=3)  # a new server run
         found = later.require(project.id)
         self.assertEqual(found.path, project.path)
         self.assertEqual((found.path / "a.txt").read_text(), "x")
-        self.assertIs(later.get(project.id), found)        # and kept open
+        self.assertIs(later.get(project.id), found)  # and kept open
 
     def test_an_id_that_is_not_a_project_is_not_found(self):
         self.store.create("1HSG")

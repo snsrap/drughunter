@@ -29,10 +29,15 @@ stock NEAT-POCKET checkout: its ``neat`` package, ``scripts/`` and
 
 ``job.json``::
 
-    {"structure": "…/source.cif",
-     "pockets": [{"rank": 1, "residues": [["A", 52], ["A", 54]]}],
-     "n": 50, "batch_size": 25, "cfg": 0.5, "max_atoms": 100,
-     "out_dir": "…/gen"}
+    {
+        "structure": "…/source.cif",
+        "pockets": [{"rank": 1, "residues": [["A", 52], ["A", 54]]}],
+        "n": 50,
+        "batch_size": 25,
+        "cfg": 0.5,
+        "max_atoms": 100,
+        "out_dir": "…/gen",
+    }
 
 Writes ``pocket_<rank>.sdf`` per pocket into ``out_dir``, keeps ``progress.json``
 updated while running, and prints a JSON summary on stdout.
@@ -59,18 +64,19 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
+from generation_from_pdb import load_protein_structure  # noqa: E402
+from neat.dataset.dataset_utils import (
+    AA_VOCABULARY,
+    AA_VOCABULARY_UNK,  # noqa: E402
+    ATOM_VOCABULARY,
+)
+from neat.model import NEAT  # noqa: E402
+from neat.model.bond_predictor import BondPredictor  # noqa: E402
+from neat.model.molecule_builder import MoleculeBuilder  # noqa: E402
 from rdkit import Chem, RDLogger  # noqa: E402
 from rdkit.Chem import QED, AllChem, Crippen, Descriptors, rdMolDescriptors  # noqa: E402
 from rdkit.Chem.Draw import rdMolDraw2D  # noqa: E402
 from torch_geometric.data import Data  # noqa: E402
-
-from neat.dataset.dataset_utils import (AA_VOCABULARY, AA_VOCABULARY_UNK,  # noqa: E402
-                                        ATOM_VOCABULARY)
-from neat.model import NEAT  # noqa: E402
-from neat.model.bond_predictor import BondPredictor  # noqa: E402
-from neat.model.molecule_builder import MoleculeBuilder  # noqa: E402
-
-from generation_from_pdb import load_protein_structure  # noqa: E402
 
 RDLogger.DisableLog("rdApp.*")
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -84,15 +90,13 @@ def load_structure(path: str):
     except Exception as exc:
         # Entries with deposited hydrogens make hydride refuse; they are already
         # protonated, so carry on.
-        print("note: add_hs failed (%s); using the structure as deposited" % exc,
-              file=sys.stderr)
+        print("note: add_hs failed (%s); using the structure as deposited" % exc, file=sys.stderr)
         return load_protein_structure(path, add_bonds=True, add_hs=False)
 
 
 def select_residues(structure, residues: list[tuple[str, int]]):
     want = {"%s|%s" % (c, r) for c, r in residues}
-    keys = np.array(["%s|%s" % (c, r)
-                     for c, r in zip(structure.chain_id, structure.res_id)])
+    keys = np.array(["%s|%s" % (c, r) for c, r in zip(structure.chain_id, structure.res_id)])
     return structure[np.isin(keys, list(want))]
 
 
@@ -102,14 +106,15 @@ def pocket_data(pocket) -> tuple[Data, torch.Tensor]:
     x, restype, rid = [], [], []
     seen: dict[str, int] = {}
     for element, res_name, chain, res_seq in zip(
-            pocket.element, pocket.res_name, pocket.chain_id, pocket.res_id):
+        pocket.element, pocket.res_name, pocket.chain_id, pocket.res_id
+    ):
         try:
             z = pt.GetAtomicNumber(str(element).capitalize())
         except Exception:
             z = 0
         x.append(ATOM_VOCABULARY.get(z, 0))
         restype.append(AA_VOCABULARY.get(str(res_name), AA_VOCABULARY_UNK))
-        key = "%s|%s" % (chain, res_seq)          # composite, see module docstring
+        key = "%s|%s" % (chain, res_seq)  # composite, see module docstring
         if key not in seen:
             seen[key] = len(seen)
         rid.append(seen[key])
@@ -143,8 +148,11 @@ def collate(data: Data, samples: int, device) -> dict:
 def load_models(checkpoints: str, bond_predictor_dir: str | None):
     ckpt_dir = ROOT / checkpoints / "checkpoints"
     files = sorted(f for f in os.listdir(ckpt_dir) if f.endswith(".ckpt"))
-    pick = ([f for f in files if f.startswith("periodic-epoch")]
-            or [f for f in files if "best-val-loss" in f] or files)
+    pick = (
+        [f for f in files if f.startswith("periodic-epoch")]
+        or [f for f in files if "best-val-loss" in f]
+        or files
+    )
     if not pick:
         raise SystemExit("no .ckpt in %s" % ckpt_dir)
     model = NEAT.load_from_checkpoint(str(ckpt_dir / pick[0]), map_location=DEVICE)
@@ -155,15 +163,24 @@ def load_models(checkpoints: str, bond_predictor_dir: str | None):
         bp_dir = ROOT / bond_predictor_dir / "checkpoints"
         bp_files = [f for f in os.listdir(bp_dir) if f.endswith(".ckpt")]
         if bp_files:
-            bp = BondPredictor.load_from_checkpoint(str(bp_dir / bp_files[0]),
-                                                    map_location=DEVICE)
+            bp = BondPredictor.load_from_checkpoint(str(bp_dir / bp_files[0]), map_location=DEVICE)
             bp.eval()
     return model, bp
 
 
-def generate_for_pocket(model, bp, builder, data: Data, centroid: torch.Tensor,
-                        n: int, batch_size: int, cfg: float, max_atoms: int,
-                        steps: int, on_batch=None) -> list[Chem.Mol]:
+def generate_for_pocket(
+    model,
+    bp,
+    builder,
+    data: Data,
+    centroid: torch.Tensor,
+    n: int,
+    batch_size: int,
+    cfg: float,
+    max_atoms: int,
+    steps: int,
+    on_batch=None,
+) -> list[Chem.Mol]:
     mols: list[Chem.Mol] = []
     done = 0
     while done < n:
@@ -171,19 +188,26 @@ def generate_for_pocket(model, bp, builder, data: Data, centroid: torch.Tensor,
         info = collate(data, take, DEVICE)
         with torch.no_grad():
             out = model.generate(
-                batch_size=take, max_atoms=max_atoms, num_time_steps=steps,
-                time_step_spacing="linear", integration_method="euler_maruyama",
-                pocket_info=info, cfg_factor=cfg, device=DEVICE,
+                batch_size=take,
+                max_atoms=max_atoms,
+                num_time_steps=steps,
+                time_step_spacing="linear",
+                integration_method="euler_maruyama",
+                pocket_info=info,
+                cfg_factor=cfg,
+                device=DEVICE,
             )
         out.batch = out.batch - out.batch.min()
         # generate() returns positions relative to the pocket COM
         pos = out.pos + centroid.to(out.pos.device, out.pos.dtype)
         if bp is not None:
             batch_mols = builder.generate_rdkit_molecules_via_bond_predictor(
-                out.x, pos, out.batch, bond_predictor=bp, progress_bar=False)
+                out.x, pos, out.batch, bond_predictor=bp, progress_bar=False
+            )
         else:
             batch_mols = builder.generate_rdkit_molecules_via_xyz2mol(
-                out.x, pos, out.batch, progress_bar=False)
+                out.x, pos, out.batch, progress_bar=False
+            )
         mols.extend(m for m in batch_mols if m is not None)
         done += take
         if on_batch:
@@ -220,11 +244,13 @@ def describe(mol: Chem.Mol, rank, idx: int) -> dict:
         flat = Chem.RemoveHs(Chem.Mol(mol))
     except Exception:
         flat = mol
+
     def safe(fn, default=None):
         try:
             return fn()
         except Exception:
             return default
+
     rec["smiles"] = safe(lambda: Chem.MolToSmiles(flat), "") or ""
     rec["formula"] = safe(lambda: rdMolDescriptors.CalcMolFormula(flat), "") or ""
     rec["mw"] = safe(lambda: round(Descriptors.MolWt(flat), 1))
@@ -248,8 +274,12 @@ def main() -> int:
     out_dir = Path(job["out_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
     prog_path = out_dir / "progress.json"
-    state = {"state": "starting", "pockets": [], "done": 0,
-             "total": len(job["pockets"]) * int(job.get("n", 50))}
+    state = {
+        "state": "starting",
+        "pockets": [],
+        "done": 0,
+        "total": len(job["pockets"]) * int(job.get("n", 50)),
+    }
 
     def flush(**kw):
         state.update(kw)
@@ -257,8 +287,10 @@ def main() -> int:
 
     flush(state="loading model")
     try:
-        model, bp = load_models(job.get("checkpoints", "trained_models/neat_spindr"),
-                                job.get("bond_predictor", "trained_models/bond_predictor/bp_spindr"))
+        model, bp = load_models(
+            job.get("checkpoints", "trained_models/neat_spindr"),
+            job.get("bond_predictor", "trained_models/bond_predictor/bp_spindr"),
+        )
         builder = MoleculeBuilder(vocab=job.get("dataset", "SPINDR"))
 
         flush(state="reading structure")
@@ -267,7 +299,7 @@ def main() -> int:
         n = int(job.get("n", 50))
         batch_size = int(job.get("batch_size", 25))
         results = []
-        table: list[dict] = []          # one row per written molecule
+        table: list[dict] = []  # one row per written molecule
         produced = 0
 
         for spec in job["pockets"]:
@@ -282,13 +314,21 @@ def main() -> int:
             started = time.monotonic()
 
             def on_batch(done_in_pocket, kept, _rank=rank):
-                flush(state="generating", current=_rank,
-                      done=produced + done_in_pocket, kept=kept)
+                flush(state="generating", current=_rank, done=produced + done_in_pocket, kept=kept)
 
             mols = generate_for_pocket(
-                model, bp, builder, data, centroid, n, batch_size,
-                float(job.get("cfg", 0.5)), int(job.get("max_atoms", 100)),
-                int(job.get("steps", 60)), on_batch=on_batch)
+                model,
+                bp,
+                builder,
+                data,
+                centroid,
+                n,
+                batch_size,
+                float(job.get("cfg", 0.5)),
+                int(job.get("max_atoms", 100)),
+                int(job.get("steps", 60)),
+                on_batch=on_batch,
+            )
 
             sdf = out_dir / ("pocket_%s.sdf" % rank)
             w = Chem.SDWriter(str(sdf))
@@ -305,13 +345,17 @@ def main() -> int:
             w.close()
             (out_dir / "molecules.json").write_text(json.dumps(table))
             produced += n
-            results.append({
-                "rank": rank, "requested": n, "written": written,
-                "pocketAtoms": int(len(pocket)),
-                "pocketResidues": len(residues),
-                "seconds": round(time.monotonic() - started, 1),
-                "sdf": sdf.name,
-            })
+            results.append(
+                {
+                    "rank": rank,
+                    "requested": n,
+                    "written": written,
+                    "pocketAtoms": int(len(pocket)),
+                    "pocketResidues": len(residues),
+                    "seconds": round(time.monotonic() - started, 1),
+                    "sdf": sdf.name,
+                }
+            )
             flush(state="generating", done=produced, results=results)
 
         flush(state="done", results=results, done=produced)

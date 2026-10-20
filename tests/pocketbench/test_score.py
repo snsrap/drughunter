@@ -1,9 +1,11 @@
 """Carrying a holo ligand's site into the apo structure, scoring pockets
-against it, and the command line around both."""
+against it, and the command line around both.
+"""
 
 import json
 
 from helpers import SEQ, T0, chain_lines, ligand_lines, pdb, trace
+
 from pocketbench.cli import main
 from pocketbench.reports import parse_pockets
 from pocketbench.score import Criteria, best_rank, score
@@ -17,9 +19,12 @@ LIG = [(CAS[10][0] + dx, CAS[10][1] + 2.5, CAS[10][2]) for dx in (-1.0, 0.0, 1.0
 def apo_holo():
     """The apo entry as deposited; the holo one in another frame, on chain B
     and renumbered from 101 -- neither of which may change where its site
-    lands. Also an apo entry lacking residue 11 (disordered, say)."""
+    lands. Also an apo entry lacking residue 11 (disordered, say).
+    """
     apo = pdb(chain_lines("A", SEQ, CAS))
-    holo = pdb(chain_lines("B", SEQ, CAS, first=101, T=T0), ligand_lines("LIG", "B", 900, LIG, T=T0))
+    holo = pdb(
+        chain_lines("B", SEQ, CAS, first=101, T=T0), ligand_lines("LIG", "B", 900, LIG, T=T0)
+    )
     apo_missing = pdb([l for l in chain_lines("A", SEQ, CAS) if " A  11 " not in l])
     return apo, holo, apo_missing
 
@@ -38,7 +43,7 @@ def test_a_site_lands_in_the_apo_frame_and_numbering():
 def test_a_shell_residue_the_apo_lacks_still_counts():
     _, holo, apo = apo_holo()
     _, [s] = sites(apo, holo, "LIG", cutoff=5.0)
-    assert s.missing == {("B", 111, "")}          # residue 11 of the apo, as numbered in the holo
+    assert s.missing == {("B", 111, "")}  # residue 11 of the apo, as numbered in the holo
     assert ("A", 11, "") not in s.shell
     assert s.size == len(s.shell) + len(s.missing)
 
@@ -46,12 +51,27 @@ def test_a_shell_residue_the_apo_lacks_still_counts():
 def lacuna_report(apo_site):
     shell = sorted(apo_site.shell)
     c = apo_site.centroid
-    return {"n_pockets_found": 2, "pockets": [
-        {"rank": 1, "centroid": [c[0] + 30, c[1], c[2]], "lining_residues": ["GLY50:A"],
-         "persistence": 0.9, "crypticity": 0.1, "druggability": 0.4},
-        {"rank": 2, "centroid": [c[0] + 1, c[1], c[2]],
-         "lining_residues": ["%s%d:%s" % ("ALA", k[1], k[0]) for k in shell],
-         "persistence": 0.6, "crypticity": 0.7, "druggability": 0.8}]}
+    return {
+        "n_pockets_found": 2,
+        "pockets": [
+            {
+                "rank": 1,
+                "centroid": [c[0] + 30, c[1], c[2]],
+                "lining_residues": ["GLY50:A"],
+                "persistence": 0.9,
+                "crypticity": 0.1,
+                "druggability": 0.4,
+            },
+            {
+                "rank": 2,
+                "centroid": [c[0] + 1, c[1], c[2]],
+                "lining_residues": ["%s%d:%s" % ("ALA", k[1], k[0]) for k in shell],
+                "persistence": 0.6,
+                "crypticity": 0.7,
+                "druggability": 0.8,
+            },
+        ],
+    }
 
 
 def test_pockets_are_scored_on_every_criterion_separately():
@@ -67,9 +87,22 @@ def test_pockets_are_scored_on_every_criterion_separately():
 
 
 def test_viewer_pocket_files_read_too():
-    source, [p] = parse_pockets({"structure": "1BTL", "meta": {}, "pockets": [
-        {"rank": 3, "centroid": [1, 2, 3], "sel": [{"chain": "A", "resi": [70, 73]}], "drug": 0.5,
-         "persistence": None, "score": 12.5}]})
+    source, [p] = parse_pockets(
+        {
+            "structure": "1BTL",
+            "meta": {},
+            "pockets": [
+                {
+                    "rank": 3,
+                    "centroid": [1, 2, 3],
+                    "sel": [{"chain": "A", "resi": [70, 73]}],
+                    "drug": 0.5,
+                    "persistence": None,
+                    "score": 12.5,
+                }
+            ],
+        }
+    )
     assert source == "viewer" and p.rank == 3
     assert p.residues == {("A", 70, ""), ("A", 73, "")}
     assert p.info == {"druggability": 0.5, "score": 12.5}

@@ -60,7 +60,6 @@ import os
 import shutil
 import sys
 import time
-from typing import Any
 
 from ..errors import ToolFailed, ToolUnavailable
 from ..pockets import DEFAULT_CUTOFF, DetectionResult, Pocket, select_residues
@@ -80,8 +79,7 @@ DEFAULT_TOP = 10
 
 # The MD-capable environment first: it carries OpenMM as well, so one binary
 # serves both backends.
-SEARCH_PATHS = ("~/micromamba/envs/lacuna-gpu/bin/lacuna",
-                "~/.pyenv/versions/lacuna/bin/lacuna")
+SEARCH_PATHS = ("~/micromamba/envs/lacuna-gpu/bin/lacuna", "~/.pyenv/versions/lacuna/bin/lacuna")
 
 
 class LacunaDetector(PocketDetector):
@@ -93,9 +91,11 @@ class LacunaDetector(PocketDetector):
     """
 
     name = "lacuna"
-    OPTIONS = (Option("backend", "nma", choices=BACKENDS),
-               Option("detector", "alpha", choices=DETECTORS),
-               Option("conformers", DEFAULT_CONFORMERS, lo=1, hi=500))
+    OPTIONS = (
+        Option("backend", "nma", choices=BACKENDS),
+        Option("detector", "alpha", choices=DETECTORS),
+        Option("conformers", DEFAULT_CONFORMERS, lo=1, hi=500),
+    )
 
     def __init__(self, binary: str | None = None, timeout: float = 3600.0):
         # After the environments made for it: the one pocketbench runs in,
@@ -115,7 +115,7 @@ class LacunaDetector(PocketDetector):
 
     @property
     def version(self) -> str:
-        """lacuna's version, or "" if the CLI does not run."""
+        """Lacuna's version, or "" if the CLI does not run."""
         return self._version.get()
 
     @property
@@ -147,65 +147,111 @@ class LacunaDetector(PocketDetector):
         return out.split()[-1] if out else ""
 
     def _probe_backends(self) -> tuple[str, ...]:
-        if self.available and os.access(self.python, os.X_OK):
-            if probe([self.python, "-c", "import openmm, pdbfixer"], 300) is not None:
-                return ("nma", "openmm")
+        if (
+            self.available
+            and os.access(self.python, os.X_OK)
+            and probe([self.python, "-c", "import openmm, pdbfixer"], 300) is not None
+        ):
+            return ("nma", "openmm")
         return ("nma",)
 
     def _probe_platform(self) -> str:
         if "openmm" not in self.backends:
             return ""
-        return probe([self.python, "-c",
-                      "import openmm as mm;"
-                      "from lacuna.ensemble.openmm_backend import _select_platform;"
-                      "print(_select_platform(mm).getName())"], 300) or "unknown"
+        return (
+            probe(
+                [
+                    self.python,
+                    "-c",
+                    "import openmm as mm;"
+                    "from lacuna.ensemble.openmm_backend import _select_platform;"
+                    "print(_select_platform(mm).getName())",
+                ],
+                300,
+            )
+            or "unknown"
+        )
 
     def describe(self) -> dict:
-        return {"available": self.available, "version": self.version,
-                "binary": self.binary or "", "backends": list(self.backends)}
+        return {
+            "available": self.available,
+            "version": self.version,
+            "binary": self.binary or "",
+            "backends": list(self.backends),
+        }
 
     def status_line(self) -> str:
         if not self.available:
-            return ("lacuna: NOT FOUND - ensemble pocket detection disabled "
-                    "(pip install lacuna-pockets in its own env, or set LACUNA_BIN)")
+            return (
+                "lacuna: NOT FOUND - ensemble pocket detection disabled "
+                "(pip install lacuna-pockets in its own env, or set LACUNA_BIN)"
+            )
         # The MD backend runs on whatever platform OpenMM finds, and a pip
         # install of OpenMM has no CUDA plugin at all -- worth knowing before
         # waiting on a run that silently went to the CPU.
         platform = self.platform()
-        return ("lacuna: %s  (%s)  backends: %s%s"
-                % (self.version, self.binary, "/".join(self.backends),
-                   "  openmm platform: " + platform if platform else ""))
+        return "lacuna: %s  (%s)  backends: %s%s" % (
+            self.version,
+            self.binary,
+            "/".join(self.backends),
+            "  openmm platform: " + platform if platform else "",
+        )
 
     # -- running -----------------------------------------------------------
-    def run(self, structure: Structure, workdir: str, *,
-            cutoff: float = DEFAULT_CUTOFF,
-            ligand_resnames: frozenset[str] = frozenset(),
-            backend: str = "nma", detector: str = "alpha",
-            conformers: int = DEFAULT_CONFORMERS, top: int = DEFAULT_TOP,
-            no_sequence: bool = True, **options) -> DetectionResult:
+    def run(
+        self,
+        structure: Structure,
+        workdir: str,
+        *,
+        cutoff: float = DEFAULT_CUTOFF,
+        ligand_resnames: frozenset[str] = frozenset(),
+        backend: str = "nma",
+        detector: str = "alpha",
+        conformers: int = DEFAULT_CONFORMERS,
+        top: int = DEFAULT_TOP,
+        no_sequence: bool = True,
+        **options,
+    ) -> DetectionResult:
         """Detect pockets over an ensemble and resolve each to whole residues."""
         if not self.available:
             raise ToolUnavailable(
                 "lacuna not found. Install it into its own environment "
-                "(pip install lacuna-pockets) or set LACUNA_BIN.", self.name)
+                "(pip install lacuna-pockets) or set LACUNA_BIN.",
+                self.name,
+            )
         if backend not in self.backends:
             raise ToolUnavailable(
                 "the %s backend needs openmm and pdbfixer in lacuna's "
-                "environment (%s)." % (backend, self.python), self.name)
+                "environment (%s)." % (backend, self.python),
+                self.name,
+            )
 
-        receptor, pdb_path = self.write_receptor(structure, workdir,
-                                                 "lacuna_receptor.pdb",
-                                                 ligand_resnames)
+        receptor, pdb_path = self.write_receptor(
+            structure, workdir, "lacuna_receptor.pdb", ligand_resnames
+        )
         out_dir = os.path.join(workdir, "lacuna_out")
         # lacuna keeps per-pocket files by index; a stale set from a previous
         # run with more pockets would be read back as this run's.
         shutil.rmtree(out_dir, ignore_errors=True)
 
-        cmd = [self.binary, "discover", pdb_path,
-               "--backend", backend, "--detector", detector,
-               "--conformers", str(int(conformers)), "--top", str(int(top)),
-               "--emit-pocket-pdbs", "--emit-conformers",
-               "-o", out_dir, "--quiet"]
+        cmd = [
+            self.binary,
+            "discover",
+            pdb_path,
+            "--backend",
+            backend,
+            "--detector",
+            detector,
+            "--conformers",
+            str(int(conformers)),
+            "--top",
+            str(int(top)),
+            "--emit-pocket-pdbs",
+            "--emit-conformers",
+            "-o",
+            out_dir,
+            "--quiet",
+        ]
         # The surface detectors use ESM-2 unless told not to; without the
         # 'plm' extra installed that is what they do anyway.
         if detector != "alpha" and no_sequence:
@@ -217,8 +263,9 @@ class LacunaDetector(PocketDetector):
 
         report_path = os.path.join(out_dir, "pocket_report.json")
         if proc.returncode != 0 or not os.path.exists(report_path):
-            raise ToolFailed("lacuna failed (exit %s): %s"
-                             % (proc.returncode, output_tail(proc)), self.name)
+            raise ToolFailed(
+                "lacuna failed (exit %s): %s" % (proc.returncode, output_tail(proc)), self.name
+            )
         with open(report_path) as fh:
             report = json.load(fh)
 
@@ -227,8 +274,7 @@ class LacunaDetector(PocketDetector):
             # pocket_<i>_site.pdb holds pseudoatoms for pockets[i]; their mean
             # is the centroid in the report, which is how the pairing is
             # checked rather than assumed.
-            centers = _read_pseudoatoms(
-                os.path.join(out_dir, "pocket_%d_site.pdb" % i))
+            centers = _read_pseudoatoms(os.path.join(out_dir, "pocket_%d_site.pdb" % i))
             if not centers:
                 centers = [tuple(entry["centroid"])]
             p = Pocket(
@@ -249,19 +295,26 @@ class LacunaDetector(PocketDetector):
 
         pockets.sort(key=lambda p: p.rank)
         ensemble = os.path.join(
-            out_dir, os.path.splitext(os.path.basename(pdb_path))[0]
-            + "_ensemble.pdb")
+            out_dir, os.path.splitext(os.path.basename(pdb_path))[0] + "_ensemble.pdb"
+        )
         ensemble = ensemble if os.path.exists(ensemble) else ""
-        return DetectionResult(self.name, pockets, cmd, elapsed, len(receptor),
-                               cutoff, extra={
-            "backend": backend,
-            "detector": detector,
-            "conformers": int(report.get("n_conformers") or conformers),
-            "nCryptic": int(report.get("n_cryptic_pockets") or 0),
-            # A multi-model PDB: model 1 is the input, the rest are generated.
-            "ensemble": os.path.basename(ensemble),
-            "ensemblePath": ensemble,
-        })
+        return DetectionResult(
+            self.name,
+            pockets,
+            cmd,
+            elapsed,
+            len(receptor),
+            cutoff,
+            extra={
+                "backend": backend,
+                "detector": detector,
+                "conformers": int(report.get("n_conformers") or conformers),
+                "nCryptic": int(report.get("n_cryptic_pockets") or 0),
+                # A multi-model PDB: model 1 is the input, the rest are generated.
+                "ensemble": os.path.basename(ensemble),
+                "ensemblePath": ensemble,
+            },
+        )
 
 
 def _f(v) -> float:
@@ -281,8 +334,7 @@ def _read_pseudoatoms(path: str) -> list[tuple[float, float, float]]:
         for line in fh:
             if line[:6] in ("ATOM  ", "HETATM"):
                 try:
-                    out.append((float(line[30:38]), float(line[38:46]),
-                                float(line[46:54])))
+                    out.append((float(line[30:38]), float(line[38:46]), float(line[46:54])))
                 except ValueError:
                     continue
     return out

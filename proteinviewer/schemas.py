@@ -15,9 +15,17 @@ from typing import Any
 from . import validate
 from .errors import BadRequest
 
-__all__ = ["BufferRequest", "PocketRequest", "SuperposeRequest", "PrepRequest",
-           "GenerateRequest", "JobQuery", "ProjectRequest", "ProjectSaveRequest",
-           "DEFAULT_CUTOFF"]
+__all__ = [
+    "BufferRequest",
+    "PocketRequest",
+    "SuperposeRequest",
+    "PrepRequest",
+    "GenerateRequest",
+    "JobQuery",
+    "ProjectRequest",
+    "ProjectSaveRequest",
+    "DEFAULT_CUTOFF",
+]
 
 #: Residues within this of a site point make the pocket, Å. pocketbench's
 #: default too; sent with every run, so the two never have to agree silently.
@@ -27,12 +35,13 @@ DEFAULT_CUTOFF = 6.0
 @dataclass(frozen=True)
 class BufferRequest:
     """``POST /api/structure``: hold this structure for later runs."""
+
     token: str
     data: str
     fmt: str | None
 
     @classmethod
-    def parse(cls, p: Mapping[str, Any]) -> "BufferRequest":
+    def parse(cls, p: Mapping[str, Any]) -> BufferRequest:
         data = validate.text(p, "data")
         if not data.strip():
             raise BadRequest("no structure data supplied")
@@ -47,6 +56,7 @@ class PocketRequest:
     ``raw`` is the whole payload, read-only: the chosen detector takes its
     own options from it (see ``PocketDetector.options``).
     """
+
     token: str
     method: str
     cutoff: float
@@ -57,7 +67,7 @@ class PocketRequest:
     project: str = ""
 
     @classmethod
-    def parse(cls, p: Mapping[str, Any]) -> "PocketRequest":
+    def parse(cls, p: Mapping[str, Any]) -> PocketRequest:
         return cls(
             token=validate.text(p, "token"),
             method=validate.text(p, "method", "fpocket").strip().lower(),
@@ -86,8 +96,13 @@ def _residues(p: Mapping[str, Any], key: str) -> tuple[tuple[str, int, str], ...
             raise BadRequest("%s residue numbers must be integers" % key) from None
         # These end up in a residue spec on pocketbench's command line:
         # nothing that would end or change one may get through.
-        if not chain or len(chain) > 4 or not chain.isalnum() or not (icode == "" or icode.isalpha()) \
-                or len(icode) > 1:
+        if (
+            not chain
+            or len(chain) > 4
+            or not chain.isalnum()
+            or not (icode == "" or icode.isalpha())
+            or len(icode) > 1
+        ):
             raise BadRequest("%s has an invalid residue %r" % (key, list(r)))
         out.append((chain, num, icode))
     return tuple(out)
@@ -99,14 +114,16 @@ class SuperposeRequest:
 
     ``on`` and ``mobileOn`` restrict the fit to residues of the reference and
     of the structure being moved, as ``[chain, number, insertion code]``;
-    empty means the whole structure."""
+    empty means the whole structure.
+    """
+
     token: str
     reference: str
     on: tuple[tuple[str, int, str], ...]
     mobile_on: tuple[tuple[str, int, str], ...]
 
     @classmethod
-    def parse(cls, p: Mapping[str, Any]) -> "SuperposeRequest":
+    def parse(cls, p: Mapping[str, Any]) -> SuperposeRequest:
         token, reference = validate.text(p, "token"), validate.text(p, "reference")
         if not token or not reference:
             raise BadRequest("name the structure to move and the reference")
@@ -116,6 +133,7 @@ class SuperposeRequest:
 @dataclass(frozen=True)
 class PrepRequest:
     """``POST /api/prep``: prepare a buffered structure with quickprep."""
+
     token: str
     ph: float
     # Residues per chain that must not be rebuilt as loops -- see prep.py.
@@ -123,7 +141,7 @@ class PrepRequest:
     project: str = ""
 
     @classmethod
-    def parse(cls, p: Mapping[str, Any]) -> "PrepRequest":
+    def parse(cls, p: Mapping[str, Any]) -> PrepRequest:
         raw = p.get("noRebuild") or {}
         if not isinstance(raw, Mapping):
             raise BadRequest("noRebuild must map chain ids to residue numbers")
@@ -135,15 +153,18 @@ class PrepRequest:
                 no_rebuild[str(chain)] = tuple(int(n) for n in nums)
             except (TypeError, ValueError):
                 raise BadRequest("noRebuild residue numbers must be integers") from None
-        return cls(validate.text(p, "token"),
-                   validate.number(p, "ph", 7.0, lo=0.0, hi=14.0),
-                   MappingProxyType(no_rebuild),
-                   validate.text(p, "project"))
+        return cls(
+            validate.text(p, "token"),
+            validate.number(p, "ph", 7.0, lo=0.0, hi=14.0),
+            MappingProxyType(no_rebuild),
+            validate.text(p, "project"),
+        )
 
 
 @dataclass(frozen=True)
 class GenerateRequest:
     """``POST /api/generate``: start NEAT-POCKET on pockets of the last run."""
+
     token: str
     ranks: frozenset[int]
     n: int
@@ -152,7 +173,7 @@ class GenerateRequest:
     project: str = ""
 
     @classmethod
-    def parse(cls, p: Mapping[str, Any]) -> "GenerateRequest":
+    def parse(cls, p: Mapping[str, Any]) -> GenerateRequest:
         raw = p.get("ranks") or []
         if not isinstance(raw, (list, tuple)):
             raise BadRequest("ranks must be a list of pocket ranks")
@@ -162,32 +183,37 @@ class GenerateRequest:
             raise BadRequest("ranks must be a list of pocket ranks") from None
         if not ranks:
             raise BadRequest("no pockets selected")
-        return cls(validate.text(p, "token"), ranks,
-                   validate.integer(p, "n", 50, lo=1, hi=500),
-                   validate.number(p, "cfg", 0.5),
-                   validate.integer(p, "batch_size", 50, lo=1, hi=500),
-                   validate.text(p, "project"))
+        return cls(
+            validate.text(p, "token"),
+            ranks,
+            validate.integer(p, "n", 50, lo=1, hi=500),
+            validate.number(p, "cfg", 0.5),
+            validate.integer(p, "batch_size", 50, lo=1, hi=500),
+            validate.text(p, "project"),
+        )
 
 
 @dataclass(frozen=True)
 class JobQuery:
     """``GET /api/job?id=…[&mols=1][&table=1]``."""
+
     job_id: str
     molecules: bool
     table: bool
 
     @classmethod
-    def parse(cls, q: Mapping[str, str]) -> "JobQuery":
+    def parse(cls, q: Mapping[str, str]) -> JobQuery:
         return cls(q.get("id", ""), q.get("mols") == "1", q.get("table") == "1")
 
 
 @dataclass(frozen=True)
 class ProjectRequest:
     """``POST /api/project``: start an output directory for this session."""
+
     name: str
 
     @classmethod
-    def parse(cls, p: Mapping[str, Any]) -> "ProjectRequest":
+    def parse(cls, p: Mapping[str, Any]) -> ProjectRequest:
         return cls(validate.text(p, "name"))
 
 
@@ -199,19 +225,23 @@ class ProjectSaveRequest:
     has; it is written into the project before the copy, so what lands on
     disk includes it.
     """
+
     project: str
     path: str
     session: Mapping[str, Any] | None
     overwrite: bool
 
     @classmethod
-    def parse(cls, p: Mapping[str, Any]) -> "ProjectSaveRequest":
+    def parse(cls, p: Mapping[str, Any]) -> ProjectSaveRequest:
         project = validate.text(p, "project")
         if not project:
             raise BadRequest("no project to save")
         session = p.get("session")
         if session is not None and not isinstance(session, Mapping):
             raise BadRequest("session must be the viewer's state object")
-        return cls(project, validate.text(p, "path"),
-                   MappingProxyType(dict(session)) if session is not None else None,
-                   bool(p.get("overwrite")))
+        return cls(
+            project,
+            validate.text(p, "path"),
+            MappingProxyType(dict(session)) if session is not None else None,
+            bool(p.get("overwrite")),
+        )

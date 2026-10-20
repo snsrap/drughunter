@@ -75,7 +75,7 @@ def imports(path: Path) -> tuple[set[str], set[str]]:
                 else:
                     external.add(top)
         elif isinstance(node, ast.ImportFrom) and node.level:
-            base = package[:len(package) - (node.level - 1)]
+            base = package[: len(package) - (node.level - 1)]
             if node.module:
                 internal.add(name(base + node.module.split(".")))
             else:

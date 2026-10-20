@@ -37,7 +37,9 @@ from .structure import ADDITIVES, STANDARD_AA, Key, Structure
 from .superpose import Superposition, superpose
 
 # Every detector option, so `detect` takes each as a flag of the same name.
-OPTION_NAMES = tuple(dict.fromkeys(o.name for d in (FpocketDetector, LacunaDetector) for o in d.OPTIONS))
+OPTION_NAMES = tuple(
+    dict.fromkeys(o.name for d in (FpocketDetector, LacunaDetector) for o in d.OPTIONS)
+)
 
 _SPEC = re.compile(r"^([^:,\s]+)(?::(-?\d+)([A-Za-z]?)(?:-(-?\d+))?)?$")
 
@@ -45,7 +47,8 @@ _SPEC = re.compile(r"^([^:,\s]+)(?::(-?\d+)([A-Za-z]?)(?:-(-?\d+))?)?$")
 def residues(structure: Structure, spec: str | None) -> set[Key] | None:
     """The residues a spec names, comma-separated: ``A`` (a chain), ``A:52``
     or ``A:52A`` (one residue, insertion code and all), ``A:10-50`` (a range,
-    inserted residues included)."""
+    inserted residues included).
+    """
     if not spec:
         return None
     keys: set[Key] = set()
@@ -68,11 +71,20 @@ def residues(structure: Structure, spec: str | None) -> set[Key] | None:
 
 def _fit_line(sup: Superposition, mobile: str, ref: str) -> str:
     chains = ", ".join("%s→%s" % c for c in sup.chains)
-    line = ("superposed %s onto %s: RMSD %.2f Å over %d of %d Cα, %.0f %% identical (chains %s)"
-            % (mobile, ref, sup.rmsd, sup.n, sup.aligned, sup.ident * 100, chains))
+    line = "superposed %s onto %s: RMSD %.2f Å over %d of %d Cα, %.0f %% identical (chains %s)" % (
+        mobile,
+        ref,
+        sup.rmsd,
+        sup.n,
+        sup.aligned,
+        sup.ident * 100,
+        chains,
+    )
     if not sup.related:
-        line += ("\n  identity too low to show the two related over %d residues — "
-                 "the residue pairing may be chance" % sup.paired)
+        line += (
+            "\n  identity too low to show the two related over %d residues — "
+            "the residue pairing may be chance" % sup.paired
+        )
     return line
 
 
@@ -90,8 +102,14 @@ def cmd_detectors(a) -> int:
     if a.json:
         # The additives are what every detector drops on its own, so a caller
         # offering to delete a structure's ligands knows not to offer them.
-        _json({"version": __version__, "detectors": reg.describe(),
-               "cutoff": DEFAULT_CUTOFF, "additives": sorted(ADDITIVES)})
+        _json(
+            {
+                "version": __version__,
+                "detectors": reg.describe(),
+                "cutoff": DEFAULT_CUTOFF,
+                "additives": sorted(ADDITIVES),
+            }
+        )
     else:
         print("pocketbench %s" % __version__)
         for d in reg:
@@ -118,27 +136,49 @@ def cmd_detect(a) -> int:
     if a.json:
         _json({"tool": result.tool, "pockets": [p.as_dict() for p in result], "meta": meta})
         return 0
-    print("%s: %d pockets in %.2f s · %d receptor atoms of %d, chains %s"
-          % (det.name, len(result), result.elapsed, result.receptor_atoms, len(st), ",".join(st.chains())))
+    print(
+        "%s: %d pockets in %.2f s · %d receptor atoms of %d, chains %s"
+        % (
+            det.name,
+            len(result),
+            result.elapsed,
+            result.receptor_atoms,
+            len(st),
+            ",".join(st.chains()),
+        )
+    )
     print("$ " + meta["command"])
-    print("%4s %8s %6s %8s %8s %6s %6s  %s" % ("rank", "score", "drug", "volume", "persist",
-                                              "crypt", "resid", "centroid"))
+    print(
+        "%4s %8s %6s %8s %8s %6s %6s  %s"
+        % ("rank", "score", "drug", "volume", "persist", "crypt", "resid", "centroid")
+    )
 
     def num(v, f):
         return f % v if v == v else "-"
-    for p in list(result)[:a.top]:
-        print("%4d %8s %6s %8s %8s %6s %6d  %s"
-              % (p.rank, num(p.score, "%.3f"), num(p.druggability, "%.2f"), num(p.volume, "%.1f"),
-                 num(p.persistence * 100, "%.0f%%"), num(p.crypticity, "%.2f"), len(p.residues),
-                 " ".join("%.2f" % v for v in p.centroid)))
+
+    for p in list(result)[: a.top]:
+        print(
+            "%4d %8s %6s %8s %8s %6s %6d  %s"
+            % (
+                p.rank,
+                num(p.score, "%.3f"),
+                num(p.druggability, "%.2f"),
+                num(p.volume, "%.1f"),
+                num(p.persistence * 100, "%.0f%%"),
+                num(p.crypticity, "%.2f"),
+                len(p.residues),
+                " ".join("%.2f" % v for v in p.centroid),
+            )
+        )
     return 0
 
 
 # ---------------------------------------------------------------- superposition
 def cmd_superpose(a) -> int:
     mob, ref = Structure.read(a.mobile), Structure.read(a.reference)
-    sup = superpose(mob.atoms, ref.atoms, mobile_on=residues(mob, a.mobile_on),
-                    reference_on=residues(ref, a.on))
+    sup = superpose(
+        mob.atoms, ref.atoms, mobile_on=residues(mob, a.mobile_on), reference_on=residues(ref, a.on)
+    )
     if a.output:
         Path(a.output).write_text(move_text(mob.text, sup.transform, mob.fmt))
     if a.json:
@@ -155,27 +195,52 @@ def cmd_apo(a) -> int:
     """Protein only -- standard amino acids, no hydrogens, chosen chains -- so
     a detector sees no ligand, solvent or additive. From a PDB file the lines
     are copied as they are, so B-factors and occupancies stay; an mmCIF one is
-    written out as PDB records."""
+    written out as PDB records.
+    """
     st = Structure.read(a.apo)
     chains = set(a.chain.split(",")) if a.chain else None
-    keep = [x for x in st.atoms if x.resn in STANDARD_AA and x.element != "H"
-            and (chains is None or x.chain in chains)]
+    keep = [
+        x
+        for x in st.atoms
+        if x.resn in STANDARD_AA and x.element != "H" and (chains is None or x.chain in chains)
+    ]
     if not keep:
-        raise BadInput("nothing left: no standard amino acids%s" % (" in chain " + a.chain if a.chain else ""))
+        raise BadInput(
+            "nothing left: no standard amino acids%s" % (" in chain " + a.chain if a.chain else "")
+        )
     out, lines = [], st.text.splitlines()
     for i, x in enumerate(keep, 1):
         if st.fmt == "pdb":
             out.append(lines[x.line])
             continue
         name = x.name if len(x.name) >= 4 else " " + x.name.ljust(3)
-        out.append("ATOM  %5d %-4s %-3s %1s%4d%1s   %8.3f%8.3f%8.3f  1.00  0.00          %2s"
-                   % (i % 100000, name[:4], x.resn, x.chain[:1], x.resi % 10000, x.icode[:1],
-                      x.x, x.y, x.z, x.element.upper()[:2]))
+        out.append(
+            "ATOM  %5d %-4s %-3s %1s%4d%1s   %8.3f%8.3f%8.3f  1.00  0.00          %2s"
+            % (
+                i % 100000,
+                name[:4],
+                x.resn,
+                x.chain[:1],
+                x.resi % 10000,
+                x.icode[:1],
+                x.x,
+                x.y,
+                x.z,
+                x.element.upper()[:2],
+            )
+        )
     Path(a.output).write_text("\n".join(out + ["END"]) + "\n")
     dropped = sorted({x.resn for x in st.atoms if x.resn not in STANDARD_AA})
-    print("wrote %s: %d heavy atoms, %d residues%s; dropped %s"
-          % (a.output, len(keep), len({x.key for x in keep}),
-             ", chain " + a.chain if a.chain else "", " ".join(dropped) or "nothing"))
+    print(
+        "wrote %s: %d heavy atoms, %d residues%s; dropped %s"
+        % (
+            a.output,
+            len(keep),
+            len({x.key for x in keep}),
+            ", chain " + a.chain if a.chain else "",
+            " ".join(dropped) or "nothing",
+        )
+    )
     return 0
 
 
@@ -193,10 +258,18 @@ def cmd_site(a) -> int:
     print(_fit_line(sup, Path(a.holo).name, Path(a.apo).name))
     for s in found:
         c = s.centroid
-        print("\n%s %s: %d heavy atoms, centroid %.2f %.2f %.2f (apo frame)"
-              % (a.ligand, _key(s.copy), len(s.atoms), c[0], c[1], c[2]))
-        print("  %d residues within %.1f Å%s" % (s.size, a.cutoff,
-              ", %d of them missing from the apo structure" % len(s.missing) if s.missing else ""))
+        print(
+            "\n%s %s: %d heavy atoms, centroid %.2f %.2f %.2f (apo frame)"
+            % (a.ligand, _key(s.copy), len(s.atoms), c[0], c[1], c[2])
+        )
+        print(
+            "  %d residues within %.1f Å%s"
+            % (
+                s.size,
+                a.cutoff,
+                ", %d of them missing from the apo structure" % len(s.missing) if s.missing else "",
+            )
+        )
         print("  " + " ".join(_key(k) for k in sorted(s.shell)))
         if s.missing:
             print("  missing: " + " ".join(_key(k) for k in sorted(s.missing)))
@@ -204,8 +277,12 @@ def cmd_site(a) -> int:
 
 
 # What a detector reports beside each pocket: column heading and format.
-_INFO = {"persistence": ("persist", "%.0f%%"), "crypticity": ("crypt", "%.2f"),
-         "druggability": ("drug", "%.2f"), "score": ("score", "%.1f")}
+_INFO = {
+    "persistence": ("persist", "%.0f%%"),
+    "crypticity": ("crypt", "%.2f"),
+    "druggability": ("drug", "%.2f"),
+    "score": ("score", "%.1f"),
+}
 
 
 def cmd_score(a) -> int:
@@ -216,36 +293,79 @@ def cmd_score(a) -> int:
     crit = Criteria(a.coverage, a.dcc, a.dca)
     results = [(s, score(pockets, s, crit)) for s in found]
     if a.json:
-        _json({"source": source, "superposition": sup.as_dict(), "criteria": vars(crit), "sites": [
-            {**s.as_dict(), "best": {c: best_rank(sc, c) for c in CRITERIA},
-             "pockets": [x.as_dict() for x in sc]} for s, sc in results]})
+        _json(
+            {
+                "source": source,
+                "superposition": sup.as_dict(),
+                "criteria": vars(crit),
+                "sites": [
+                    {
+                        **s.as_dict(),
+                        "best": {c: best_rank(sc, c) for c in CRITERIA},
+                        "pockets": [x.as_dict() for x in sc],
+                    }
+                    for s, sc in results
+                ],
+            }
+        )
         return 0
     print(_fit_line(sup, Path(a.holo).name, Path(a.apo).name))
     print("%d pockets from %s (%s)" % (len(pockets), Path(a.pockets).name, source))
     extra = [k for k in _INFO if any(k in p.info for p in pockets)]
     for s, sc in results:
-        print("\n%s %s: %d shell residues within %.1f Å%s"
-              % (a.ligand, _key(s.copy), s.size, a.cutoff,
-                 " (%d missing from the apo structure)" % len(s.missing) if s.missing else ""))
-        print("%4s %5s %6s %5s %6s %6s" % ("rank", "ovlp", "cover", "jacc", "DCC", "DCA")
-              + "".join(" %7s" % _INFO[k][0] for k in extra) + "  meets")
+        print(
+            "\n%s %s: %d shell residues within %.1f Å%s"
+            % (
+                a.ligand,
+                _key(s.copy),
+                s.size,
+                a.cutoff,
+                " (%d missing from the apo structure)" % len(s.missing) if s.missing else "",
+            )
+        )
+        print(
+            "%4s %5s %6s %5s %6s %6s" % ("rank", "ovlp", "cover", "jacc", "DCC", "DCA")
+            + "".join(" %7s" % _INFO[k][0] for k in extra)
+            + "  meets"
+        )
         for x in sc:
             info = x.pocket.info
-            print("%4d %5d %5.0f%% %5.2f %6.1f %6.1f" % (x.pocket.rank, x.overlap, x.coverage * 100,
-                                                       x.jaccard, x.dcc, x.dca)
-                  + "".join(" %7s" % (_INFO[k][1] % (info[k] * (100 if k == "persistence" else 1))
-                                      if k in info else "-") for k in extra)
-                  + "  " + " ".join(c for c in CRITERIA if x.hits[c]))
-        print("  best rank — coverage ≥ %.0f %%: %s · DCC ≤ %.1f Å: %s · DCA ≤ %.1f Å: %s"
-              % (crit.coverage * 100, best_rank(sc, "coverage") or "none",
-                 crit.dcc, best_rank(sc, "dcc") or "none", crit.dca, best_rank(sc, "dca") or "none"))
+            print(
+                "%4d %5d %5.0f%% %5.2f %6.1f %6.1f"
+                % (x.pocket.rank, x.overlap, x.coverage * 100, x.jaccard, x.dcc, x.dca)
+                + "".join(
+                    " %7s"
+                    % (
+                        _INFO[k][1] % (info[k] * (100 if k == "persistence" else 1))
+                        if k in info
+                        else "-"
+                    )
+                    for k in extra
+                )
+                + "  "
+                + " ".join(c for c in CRITERIA if x.hits[c])
+            )
+        print(
+            "  best rank — coverage ≥ %.0f %%: %s · DCC ≤ %.1f Å: %s · DCA ≤ %.1f Å: %s"
+            % (
+                crit.coverage * 100,
+                best_rank(sc, "coverage") or "none",
+                crit.dcc,
+                best_rank(sc, "dcc") or "none",
+                crit.dca,
+                best_rank(sc, "dca") or "none",
+            )
+        )
     return 0
 
 
 # ---------------------------------------------------------------- the parser
 def parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="pocketbench", description="Superpose structures, detect "
-                                 "pockets, and score detectors against sites known from apo/holo pairs.")
+    ap = argparse.ArgumentParser(
+        prog="pocketbench",
+        description="Superpose structures, detect "
+        "pockets, and score detectors against sites known from apo/holo pairs.",
+    )
     ap.add_argument("--version", action="version", version="pocketbench " + __version__)
     sub = ap.add_subparsers(dest="command", required=True)
 
@@ -254,11 +374,14 @@ def parser() -> argparse.ArgumentParser:
 
     def tools(p):
         p.add_argument("--fpocket-bin", help="the fpocket binary (default: FPOCKET_BIN, then PATH)")
-        p.add_argument("--lacuna-bin", help="the lacuna CLI (default: LACUNA_BIN, then its usual envs)")
+        p.add_argument(
+            "--lacuna-bin", help="the lacuna CLI (default: LACUNA_BIN, then its usual envs)"
+        )
 
     def fit_on(p):
-        p.add_argument("--on", metavar="SPEC",
-                       help="fit only on these reference residues, e.g. A:1-29,A:39-58")
+        p.add_argument(
+            "--on", metavar="SPEC", help="fit only on these reference residues, e.g. A:1-29,A:39-58"
+        )
 
     p = sub.add_parser("detectors", help="what this installation can run")
     tools(p), json_flag(p)
@@ -267,8 +390,12 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser("detect", help="find pockets")
     p.add_argument("method", help="fpocket or lacuna")
     p.add_argument("structure", help="PDB or mmCIF, gzipped or not")
-    p.add_argument("--cutoff", type=float, default=DEFAULT_CUTOFF,
-                   help="residues within this of a site point, Å (default %g)" % DEFAULT_CUTOFF)
+    p.add_argument(
+        "--cutoff",
+        type=float,
+        default=DEFAULT_CUTOFF,
+        help="residues within this of a site point, Å (default %g)" % DEFAULT_CUTOFF,
+    )
     p.add_argument("--ligand", help="residue names to delete first, comma-separated")
     p.add_argument("--workdir", help="keep the tool's files here (default: a temp dir, removed)")
     p.add_argument("--top", type=int, default=10, help="pockets to list (text output)")
@@ -281,7 +408,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("mobile"), p.add_argument("reference")
     p.add_argument("-o", "--output", help="write the moved structure here (its own format)")
     fit_on(p)
-    p.add_argument("--mobile-on", metavar="SPEC", help="fit only on these residues of the mobile structure")
+    p.add_argument(
+        "--mobile-on", metavar="SPEC", help="fit only on these residues of the mobile structure"
+    )
     json_flag(p)
     p.set_defaults(run=cmd_superpose)
 
@@ -291,26 +420,47 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--chain", help="keep only these chains, e.g. A or A,B")
     p.set_defaults(run=cmd_apo, json=False)
 
-    for name, helptext in (("site", "a holo ligand's site in the apo structure"),
-                           ("score", "score a detector's pockets against a holo ligand")):
+    for name, helptext in (
+        ("site", "a holo ligand's site in the apo structure"),
+        ("score", "score a detector's pockets against a holo ligand"),
+    ):
         p = sub.add_parser(name, help=helptext)
         if name == "score":
-            p.add_argument("pockets", help="lacuna pocket_report.json, or a pockets file from "
-                                           "`detect --json` or a ProteinViewer project")
-        p.add_argument("apo"), p.add_argument("holo"), p.add_argument("ligand", help="residue name, e.g. CBT")
+            p.add_argument(
+                "pockets",
+                help="lacuna pocket_report.json, or a pockets file from "
+                "`detect --json` or a ProteinViewer project",
+            )
+        (
+            p.add_argument("apo"),
+            p.add_argument("holo"),
+            p.add_argument("ligand", help="residue name, e.g. CBT"),
+        )
         p.add_argument("--cutoff", type=float, default=5.0, help="shell radius, Å (default 5)")
         if name == "score":
-            p.add_argument("--coverage", type=float, default=0.5, help="hit: shell coverage (default 0.5)")
-            p.add_argument("--dcc", type=float, default=5.0, help="hit: centre to ligand centre, Å (default 5)")
-            p.add_argument("--dca", type=float, default=4.0, help="hit: centre to nearest ligand atom, Å (default 4)")
+            p.add_argument(
+                "--coverage", type=float, default=0.5, help="hit: shell coverage (default 0.5)"
+            )
+            p.add_argument(
+                "--dcc", type=float, default=5.0, help="hit: centre to ligand centre, Å (default 5)"
+            )
+            p.add_argument(
+                "--dca",
+                type=float,
+                default=4.0,
+                help="hit: centre to nearest ligand atom, Å (default 4)",
+            )
         fit_on(p), json_flag(p)
         p.set_defaults(run=cmd_site if name == "site" else cmd_score)
     return ap
 
 
 # Most specific first: BadInput is a ValueError.
-EXITS = ((ToolUnavailable, 3, "unavailable"), (ToolFailed, 4, "failed"),
-         ((ValueError, OSError), 2, "bad-input"))
+EXITS = (
+    (ToolUnavailable, 3, "unavailable"),
+    (ToolFailed, 4, "failed"),
+    ((ValueError, OSError), 2, "bad-input"),
+)
 
 
 def main(argv: list[str] | None = None) -> int:

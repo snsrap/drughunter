@@ -1,6 +1,7 @@
 """The pocketbench adapter, against a stand-in for ``python -m pocketbench``
 that answers the way the real one does: JSON on stdout, and an exit code
-saying whose problem a failure was."""
+saying whose problem a failure was.
+"""
 
 import json
 import os
@@ -49,8 +50,9 @@ class PocketbenchTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.log = Path(self.tmp.name) / "calls.log"
         os.environ["FAKE_PB_LOG"] = str(self.log)
-        self.pb = Pocketbench(fake_executable(self.tmp.name, "python", FAKE_PYTHON),
-                              fpocket_bin="/opt/fpocket")
+        self.pb = Pocketbench(
+            fake_executable(self.tmp.name, "python", FAKE_PYTHON), fpocket_bin="/opt/fpocket"
+        )
 
     def tearDown(self):
         os.environ.pop("FAKE_PB_LOG", None)
@@ -69,8 +71,9 @@ class PocketbenchTest(unittest.TestCase):
         self.assertEqual(self.calls(), [["detectors", "--json", "--fpocket-bin", "/opt/fpocket"]])
 
     def test_options_are_checked_against_what_pocketbench_publishes(self):
-        self.assertEqual(self.pb.options("lacuna", {"backend": "NMA"}),
-                         {"backend": "nma", "conformers": 20})
+        self.assertEqual(
+            self.pb.options("lacuna", {"backend": "NMA"}), {"backend": "nma", "conformers": 20}
+        )
         self.assertEqual(self.pb.options("fpocket", {"backend": "whatever"}), {})
         for bad in ({"backend": "xx"}, {"conformers": 0}, {"conformers": "many"}):
             with self.assertRaises(BadRequest, msg=bad):
@@ -79,17 +82,44 @@ class PocketbenchTest(unittest.TestCase):
             self.pb.options("nope", {})
 
     def test_a_run_is_one_command_and_its_json(self):
-        out = self.pb.detect("lacuna", "/w/source.pdb", "/w", cutoff=6.0, ligands={"MK1", "HEM"},
-                             options={"backend": "nma", "conformers": 20})
+        out = self.pb.detect(
+            "lacuna",
+            "/w/source.pdb",
+            "/w",
+            cutoff=6.0,
+            ligands={"MK1", "HEM"},
+            options={"backend": "nma", "conformers": 20},
+        )
         self.assertEqual(out["pockets"], [{"rank": 1}])
-        self.assertEqual(self.calls()[-1], [
-            "detect", "lacuna", "/w/source.pdb", "--workdir", "/w", "--cutoff", "6", "--json",
-            "--fpocket-bin", "/opt/fpocket", "--ligand", "HEM,MK1",
-            "--backend", "nma", "--conformers", "20"])
+        self.assertEqual(
+            self.calls()[-1],
+            [
+                "detect",
+                "lacuna",
+                "/w/source.pdb",
+                "--workdir",
+                "/w",
+                "--cutoff",
+                "6",
+                "--json",
+                "--fpocket-bin",
+                "/opt/fpocket",
+                "--ligand",
+                "HEM,MK1",
+                "--backend",
+                "nma",
+                "--conformers",
+                "20",
+            ],
+        )
 
     def test_exit_codes_become_the_viewers_errors(self):
-        for method, err in (("bad", BadRequest), ("missing", ToolUnavailable), ("broken", ToolFailed),
-                            ("garbage", ToolFailed)):
+        for method, err in (
+            ("bad", BadRequest),
+            ("missing", ToolUnavailable),
+            ("broken", ToolFailed),
+            ("garbage", ToolFailed),
+        ):
             with self.assertRaises(err, msg=method) as ctx:
                 self.pb.detect(method, "/w/s.pdb", "/w", cutoff=6.0)
             if method != "garbage":
@@ -99,12 +129,14 @@ class PocketbenchTest(unittest.TestCase):
         out_path = Path(self.tmp.name) / "moved.pdb"
         fit = self.pb.superpose("/m.pdb", "/r.pdb", str(out_path), on=[("A", 1, ""), ("A", 2, "")])
         self.assertEqual((fit["rmsd"], out_path.read_text()), (0.4, "MOVED\n"))
-        self.assertEqual(self.calls()[-1],
-                         ["superpose", "/m.pdb", "/r.pdb", "-o", str(out_path), "--json", "--on", "A:1-2"])
+        self.assertEqual(
+            self.calls()[-1],
+            ["superpose", "/m.pdb", "/r.pdb", "-o", str(out_path), "--json", "--on", "A:1-2"],
+        )
 
     def test_not_installed(self):
         pb = Pocketbench(os.path.join(self.tmp.name, "absent"))
-        pb.python = None    # the server's own interpreter may have the real one
+        pb.python = None  # the server's own interpreter may have the real one
         self.assertFalse(pb.available)
         self.assertIn("NOT FOUND", pb.status_lines()[0])
         with self.assertRaises(ToolUnavailable):

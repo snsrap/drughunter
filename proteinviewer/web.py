@@ -25,10 +25,25 @@ from http.server import SimpleHTTPRequestHandler
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from .errors import (BadRequest, Conflict, NotFound, PayloadTooLarge,
-                     ToolFailed, ToolUnavailable, ViewerError)
-from .schemas import (BufferRequest, GenerateRequest, JobQuery, PocketRequest,
-                      PrepRequest, ProjectRequest, ProjectSaveRequest, SuperposeRequest)
+from .errors import (
+    BadRequest,
+    Conflict,
+    NotFound,
+    PayloadTooLarge,
+    ToolFailed,
+    ToolUnavailable,
+    ViewerError,
+)
+from .schemas import (
+    BufferRequest,
+    GenerateRequest,
+    JobQuery,
+    PocketRequest,
+    PrepRequest,
+    ProjectRequest,
+    ProjectSaveRequest,
+    SuperposeRequest,
+)
 from .service import ViewerService
 
 __all__ = ["Api", "ApiRequest", "Handler", "status_for"]
@@ -79,7 +94,9 @@ class Api:
             ("POST", "/api/generate"): lambda r: s.start_generation(GenerateRequest.parse(r.body)),
             ("GET", "/api/project"): lambda r: s.project_status(r.query.get("id", "")),
             ("POST", "/api/project"): lambda r: s.create_project(ProjectRequest.parse(r.body)),
-            ("POST", "/api/project/save"): lambda r: s.save_project(ProjectSaveRequest.parse(r.body)),
+            ("POST", "/api/project/save"): lambda r: s.save_project(
+                ProjectSaveRequest.parse(r.body)
+            ),
         }
 
     def handle(self, method: str, path: str, req: ApiRequest) -> tuple[int, dict]:
@@ -100,12 +117,17 @@ class Handler(SimpleHTTPRequestHandler):
 
     # Module scripts are refused unless served with a JavaScript type, so do
     # not leave it to whatever the system's mime.types says.
-    extensions_map = {**SimpleHTTPRequestHandler.extensions_map,
-                      ".js": "text/javascript", ".mjs": "text/javascript",
-                      ".css": "text/css", ".json": "application/json"}
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".js": "text/javascript",
+        ".mjs": "text/javascript",
+        ".css": "text/css",
+        ".json": "application/json",
+    }
 
-    def __init__(self, *args, api: Api, max_body: int,
-                 allowed_hosts: frozenset[str] = LOOPBACK, **kwargs):
+    def __init__(
+        self, *args, api: Api, max_body: int, allowed_hosts: frozenset[str] = LOOPBACK, **kwargs
+    ):
         # Set before super().__init__, which handles the request.
         self.api = api
         self.max_body = max_body
@@ -192,7 +214,8 @@ class Handler(SimpleHTTPRequestHandler):
 
 def dumps(payload: Any) -> str:
     """JSON the browser can parse. ``json.dumps`` writes NaN and infinity as
-    bare words, which ``JSON.parse`` rejects; they go out as null."""
+    bare words, which ``JSON.parse`` rejects; they go out as null.
+    """
     try:
         return json.dumps(payload, allow_nan=False)
     except ValueError:

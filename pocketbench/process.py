@@ -33,8 +33,9 @@ def first_executable(*candidates: str | os.PathLike | None) -> str | None:
     return None
 
 
-def run(cmd: Sequence[str], *, tool: str, timeout: float,
-        cwd: str | os.PathLike | None = None) -> subprocess.CompletedProcess:
+def run(
+    cmd: Sequence[str], *, tool: str, timeout: float, cwd: str | os.PathLike | None = None
+) -> subprocess.CompletedProcess:
     """Run ``cmd`` to completion, capturing text output.
 
     A non-zero exit is returned, not raised -- each tool says "failed" in its
@@ -42,8 +43,7 @@ def run(cmd: Sequence[str], *, tool: str, timeout: float,
     decides. Not starting at all, or running out of time, is raised.
     """
     try:
-        return subprocess.run(list(cmd), capture_output=True, text=True,
-                              timeout=timeout, cwd=cwd)
+        return subprocess.run(list(cmd), capture_output=True, text=True, timeout=timeout, cwd=cwd)
     except subprocess.TimeoutExpired as exc:
         raise ToolFailed("%s timed out after %gs" % (tool, timeout), tool) from exc
     except OSError as exc:
@@ -53,15 +53,13 @@ def run(cmd: Sequence[str], *, tool: str, timeout: float,
 def probe(cmd: Sequence[str], timeout: float = 120.0) -> str | None:
     """Stripped stdout of a quick check, or None if it fails in any way."""
     try:
-        proc = subprocess.run(list(cmd), capture_output=True, text=True,
-                              timeout=timeout)
+        proc = subprocess.run(list(cmd), capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return proc.stdout.strip() if proc.returncode == 0 else None
 
 
-def output_tail(proc: subprocess.CompletedProcess, lines: int = 6,
-                chars: int = 500) -> str:
+def output_tail(proc: subprocess.CompletedProcess, lines: int = 6, chars: int = 500) -> str:
     """The last few lines a failed run printed, for an error message."""
     tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-lines:]
     return " ".join(tail)[-chars:]

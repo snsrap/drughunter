@@ -16,7 +16,8 @@ class PocketbenchError(Exception):
 
 class BadInput(PocketbenchError, ValueError):
     """The input cannot be used: no atoms, nothing left to search, an option
-    out of range."""
+    out of range.
+    """
 
 
 class ToolError(PocketbenchError):

@@ -25,8 +25,12 @@ class FakeService:
         return {"token": req.token}
 
     def find_pockets(self, req):
-        raise {"busy": ToolFailed("x failed"), "missing": ToolUnavailable("no x"),
-               "late": Conflict("too early"), "bug": KeyError("oops")}[req.token]
+        raise {
+            "busy": ToolFailed("x failed"),
+            "missing": ToolUnavailable("no x"),
+            "late": Conflict("too early"),
+            "bug": KeyError("oops"),
+        }[req.token]
 
     def prepare(self, req):
         return {"ph": req.ph}
@@ -38,8 +42,12 @@ class FakeService:
         return {"id": "2026-10-18-" + (req.name or "session")}
 
     def save_project(self, req):
-        return {"project": req.project, "path": req.path,
-                "session": req.session is not None, "overwrite": req.overwrite}
+        return {
+            "project": req.project,
+            "path": req.path,
+            "session": req.session is not None,
+            "overwrite": req.overwrite,
+        }
 
     def project_status(self, project_id):
         raise NotFound("no such project %r" % project_id)
@@ -52,8 +60,9 @@ class WebTest(unittest.TestCase):
         app = Path(cls.tmp.name)
         (app / "index.html").write_text("<!doctype html><title>t</title>")
         (app / "main.js").write_text("export {};")
-        handler = functools.partial(Handler, directory=str(app), api=Api(FakeService()),
-                                    max_body=1000)
+        handler = functools.partial(
+            Handler, directory=str(app), api=Api(FakeService()), max_body=1000
+        )
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         cls.base = "http://127.0.0.1:%d" % cls.httpd.server_address[1]
         threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
@@ -65,8 +74,11 @@ class WebTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def request(self, method, path, body=None, headers=None):
-        data = body if isinstance(body, bytes) else (
-            json.dumps(body).encode() if body is not None else None)
+        data = (
+            body
+            if isinstance(body, bytes)
+            else (json.dumps(body).encode() if body is not None else None)
+        )
         h = {"Content-Type": "application/json"} if data is not None else {}
         h.update(headers or {})
         req = urllib.request.Request(self.base + path, data=data, method=method, headers=h)
@@ -83,18 +95,25 @@ class WebTest(unittest.TestCase):
 
     def test_get_and_post_reach_the_service(self):
         self.assertEqual(self.api("GET", "/api/status"), (200, {"api": 2, "nan": None}))
-        self.assertEqual(self.api("POST", "/api/structure", {"id": "x", "data": "ATOM"}),
-                         (200, {"token": "x"}))
-        self.assertEqual(self.api("POST", "/api/generate/", {"ranks": [2, 1]}),
-                         (200, {"ranks": [1, 2]}))
+        self.assertEqual(
+            self.api("POST", "/api/structure", {"id": "x", "data": "ATOM"}), (200, {"token": "x"})
+        )
+        self.assertEqual(
+            self.api("POST", "/api/generate/", {"ranks": [2, 1]}), (200, {"ranks": [1, 2]})
+        )
 
     def test_the_project_routes(self):
-        self.assertEqual(self.api("POST", "/api/project", {"name": "1HSG"}),
-                         (200, {"id": "2026-10-18-1HSG"}))
         self.assertEqual(
-            self.api("POST", "/api/project/save",
-                     {"project": "p1", "path": "~/out", "session": {"app": "x"}}),
-            (200, {"project": "p1", "path": "~/out", "session": True, "overwrite": False}))
+            self.api("POST", "/api/project", {"name": "1HSG"}), (200, {"id": "2026-10-18-1HSG"})
+        )
+        self.assertEqual(
+            self.api(
+                "POST",
+                "/api/project/save",
+                {"project": "p1", "path": "~/out", "session": {"app": "x"}},
+            ),
+            (200, {"project": "p1", "path": "~/out", "session": True, "overwrite": False}),
+        )
         # A save with nothing to save, and a project nobody has.
         self.assertEqual(self.api("POST", "/api/project/save", {"path": "~/out"})[0], 400)
         self.assertEqual(self.api("GET", "/api/project?id=nope")[0], 404)
@@ -121,18 +140,24 @@ class WebTest(unittest.TestCase):
 
     def test_cross_site_requests_are_refused(self):
         # A page on another site can send a text/plain POST without asking first.
-        code, _ = self.api("POST", "/api/structure", {"data": "ATOM"},
-                           {"Content-Type": "text/plain"})
+        code, _ = self.api(
+            "POST", "/api/structure", {"data": "ATOM"}, {"Content-Type": "text/plain"}
+        )
         self.assertEqual(code, 415)
-        code, _ = self.api("POST", "/api/structure", {"data": "ATOM"},
-                           {"Origin": "http://evil.example"})
+        code, _ = self.api(
+            "POST", "/api/structure", {"data": "ATOM"}, {"Origin": "http://evil.example"}
+        )
         self.assertEqual(code, 403)
         # DNS rebinding: the right address under someone else's name.
         self.assertEqual(self.api("GET", "/api/status", headers={"Host": "evil.example"})[0], 403)
         # The page itself is fine.
         port = self.base.rsplit(":", 1)[1]
-        self.assertEqual(self.api("POST", "/api/structure", {"data": "ATOM"},
-                                  {"Origin": "http://127.0.0.1:" + port})[0], 200)
+        self.assertEqual(
+            self.api(
+                "POST", "/api/structure", {"data": "ATOM"}, {"Origin": "http://127.0.0.1:" + port}
+            )[0],
+            200,
+        )
 
     def test_static_files(self):
         code, h, body = self.request("GET", "/")

@@ -36,7 +36,9 @@ __all__ = ["Option", "PocketDetector", "DetectorRegistry", "default_detectors"]
 @dataclass(frozen=True)
 class Option:
     """One option a detector takes: a pick from ``choices``, or an integer
-    between ``lo`` and ``hi``."""
+    between ``lo`` and ``hi``.
+    """
+
     name: str
     default: Any
     choices: tuple[str, ...] = ()
@@ -45,14 +47,17 @@ class Option:
 
     def check(self, raw: Mapping[str, Any]) -> Any:
         """The value ``raw`` gives, checked; absent, null or empty means the
-        default."""
+        default.
+        """
         v = raw.get(self.name)
         if v is None or v == "":
             return self.default
         if self.choices:
             v = str(v).strip().lower()
             if v not in self.choices:
-                raise BadInput("unknown %s %r (want %s)" % (self.name, v, " or ".join(self.choices)))
+                raise BadInput(
+                    "unknown %s %r (want %s)" % (self.name, v, " or ".join(self.choices))
+                )
             return v
         try:
             f = float(v)
@@ -92,22 +97,30 @@ class PocketDetector(ABC):
         """One line saying what this installation can do."""
 
     def options(self, raw: Mapping[str, Any]) -> dict[str, Any]:
-        """This detector's options from ``raw``, checked and with defaults
-        filled in. Unknown keys are left alone: ``raw`` may be a whole request."""
+        """The detector's options from ``raw``, checked and with defaults
+        filled in. Unknown keys are left alone: ``raw`` may be a whole request.
+        """
         return {o.name: o.check(raw) for o in self.OPTIONS}
 
     @abstractmethod
-    def run(self, structure: Structure, workdir: str, *,
-            cutoff: float = DEFAULT_CUTOFF,
-            ligand_resnames: frozenset[str] = frozenset(),
-            **options: Any) -> DetectionResult:
+    def run(
+        self,
+        structure: Structure,
+        workdir: str,
+        *,
+        cutoff: float = DEFAULT_CUTOFF,
+        ligand_resnames: frozenset[str] = frozenset(),
+        **options: Any,
+    ) -> DetectionResult:
         """Detect pockets in ``structure``, writing scratch files under
-        ``workdir``. ``options`` are what :meth:`options` returned."""
+        ``workdir``. ``options`` are what :meth:`options` returned.
+        """
 
     # -- shared by the implementations ------------------------------------
     @staticmethod
-    def write_receptor(structure: Structure, workdir: str, filename: str,
-                       ligand_resnames: frozenset[str]) -> tuple[Structure, str]:
+    def write_receptor(
+        structure: Structure, workdir: str, filename: str, ligand_resnames: frozenset[str]
+    ) -> tuple[Structure, str]:
         """Derive the receptor and write it as all-``ATOM`` PDB.
 
         Done here, inside every detector, so no caller can forget it: solvent
@@ -142,8 +155,9 @@ class DetectorRegistry:
         try:
             return self._by_name[name]
         except KeyError:
-            raise BadInput("unknown method %r (want %s)"
-                           % (name, " or ".join(self._by_name))) from None
+            raise BadInput(
+                "unknown method %r (want %s)" % (name, " or ".join(self._by_name))
+            ) from None
 
     def names(self) -> list[str]:
         return list(self._by_name)
@@ -153,18 +167,29 @@ class DetectorRegistry:
 
     def describe(self) -> dict[str, dict]:
         """Each detector's status, its options and its one-line summary."""
-        return {d.name: {**d.describe(), "options": {o.name: o.as_dict() for o in d.OPTIONS},
-                         "status": d.status_line()} for d in self}
+        return {
+            d.name: {
+                **d.describe(),
+                "options": {o.name: o.as_dict() for o in d.OPTIONS},
+                "status": d.status_line(),
+            }
+            for d in self
+        }
 
 
-def default_detectors(fpocket_bin: str | None = None,
-                      lacuna_bin: str | None = None) -> DetectorRegistry:
+def default_detectors(
+    fpocket_bin: str | None = None, lacuna_bin: str | None = None
+) -> DetectorRegistry:
     """Every detector pocketbench offers. A binary given here wins over
     ``FPOCKET_BIN`` / ``LACUNA_BIN``, which win over where each tool usually
-    lives."""
+    lives.
+    """
     from .fpocket import FpocketDetector
     from .lacuna import LacunaDetector
-    return DetectorRegistry([
-        FpocketDetector(fpocket_bin or os.environ.get("FPOCKET_BIN")),
-        LacunaDetector(lacuna_bin or os.environ.get("LACUNA_BIN")),
-    ])
+
+    return DetectorRegistry(
+        [
+            FpocketDetector(fpocket_bin or os.environ.get("FPOCKET_BIN")),
+            LacunaDetector(lacuna_bin or os.environ.get("LACUNA_BIN")),
+        ]
+    )
