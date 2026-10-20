@@ -4,6 +4,10 @@
 
 # drughunter
 
+[![Sponsor](https://img.shields.io/badge/sponsor-snsrap-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/snsrap)
+
+A structure-based drug discovery toolkit that makes AI models easy for scientists to use.
+
 Find pockets in protein structures, score them against sites known from
 experiment, prepare the structures they are found in, and generate binders for
 them — from a browser viewer or from the command line.
@@ -135,6 +139,22 @@ If you use DrugHunter in published work, please cite it:
 
 Please also cite the tools you used; they are listed in
 [THIRD_PARTY.md](THIRD_PARTY.md).
+
+## Sponsor
+
+DrugHunter is free and open source, and it is developed in the open. If it
+helps your work, you can support it through
+[GitHub Sponsors](https://github.com/sponsors/snsrap).
+
+Sponsorship pays for two things:
+
+- **Development.** Agentic coding sessions that build and maintain the
+  platform.
+- **Compute.** GPU time to train, benchmark, and deploy the machine-learning
+  and deep-learning models behind ligand-based and structure-based drug design.
+
+Sponsoring does not buy priority on issues or features, and the software stays
+under the Apache License 2.0.
 
 ## License
 

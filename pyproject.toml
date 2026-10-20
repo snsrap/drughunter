@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drughunter"
-description = "Find pockets in protein structures, score them against experiment, and prepare structures for them, from a browser viewer or the command line."
+description = "Structure-based drug discovery toolkit that makes AI models easy for scientists to use: pocket detection, structure prep, and binder generation."
+keywords = ["drug-discovery", "structure-based-drug-design", "computational-chemistry", "bioinformatics", "protein-structure", "molecular-modeling", "cheminformatics", "machine-learning"]
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -40,6 +41,7 @@ lacuna = ["lacuna-pockets[openmm]>=1.2"]
 
 [project.urls]
 Repository = "https://github.com/snsrap/drughunter"
+Sponsor = "https://github.com/sponsors/snsrap"
 
 [project.scripts]
 proteinviewer = "proteinviewer.server:main"
