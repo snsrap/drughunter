@@ -9,3 +9,5 @@ node_modules/
 .python-version
 .coverage
 coverage.xml
+CLAUDE.md
+graphify-out/
