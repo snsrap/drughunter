@@ -80,9 +80,14 @@ quickprep 1HSG.pdb -o 1HSG_prep.pdb
 
 Feature branches start from `dev` and merge into `dev`. Every push to `dev`
 tags a minor release (`v1.2.0` -> `v1.3.0`). `dev` is merged into `main` by
-hand; every push to `main` tags a major release (`v1.3.0` -> `v2.0.0`) and
-publishes the Docker image to `ghcr.io/snsrap/drughunter`. That is the only
-time the image is built.
+hand, then the merge commit is tagged by hand to release it, which builds and
+publishes the Docker image to `ghcr.io/snsrap/drughunter`:
+
+```
+git tag v2.0.0 && git push origin v2.0.0
+```
+
+That is the only time the image is built.
 
 ```
 docker run --rm -p 127.0.0.1:8000:8000 -v drughunter-data:/data ghcr.io/snsrap/drughunter
