@@ -27,7 +27,7 @@ from pathlib import Path
 from . import __version__
 from .buffer import StructureBuffer
 from .config import Settings, default_project_root
-from .generation import NeatPocket
+from .generation import NeatPocket, Scoring
 from .pocketbench import Pocketbench
 from .prep import QuickPrep
 from .project import ProjectStore
@@ -43,13 +43,14 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
     """Every tool the viewer drives, found and wired. The detectors themselves
     are pocketbench's: one added there is listed here with no change.
     """
+    pockets = Pocketbench(
+        settings.pocketbench_python,
+        fpocket_bin=settings.fpocket_bin,
+        lacuna_bin=settings.lacuna_bin,
+    )
     return ViewerService(
         buffer=StructureBuffer(work_root / "structures", settings.buffer_limit),
-        pockets=Pocketbench(
-            settings.pocketbench_python,
-            fpocket_bin=settings.fpocket_bin,
-            lacuna_bin=settings.lacuna_bin,
-        ),
+        pockets=pockets,
         prep=QuickPrep(settings.quickprep_python),
         generator=NeatPocket(
             work_root / "jobs",
@@ -57,6 +58,8 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
             python=settings.neat_python,
             limit=settings.job_limit,
         ),
+        # The scorer pocketbench found: scoring runs through the same command.
+        scoring=Scoring(pockets, work_root / "scores", limit=settings.job_limit),
         projects=ProjectStore(settings.project_root or default_project_root(), api=API_VERSION),
         # What a project may not be saved into: the tree the runs write in.
         work_root=work_root,

@@ -18,9 +18,11 @@ from proteinviewer.schemas import (
     PrepRequest,
     ProjectRequest,
     ProjectSaveRequest,
+    ScoreQuery,
+    ScoreRequest,
     SuperposeRequest,
 )
-from proteinviewer.service import API_VERSION, ViewerService
+from proteinviewer.service import API_VERSION, ViewerService, merge_scores
 
 from .helpers import read
 
@@ -48,6 +50,26 @@ class FakePockets:
 
     def additives(self):
         return ["HOH"]
+
+    def scorers(self):
+        return {
+            "fakesmina": {
+                "available": True,
+                "status": "fakesmina: ok",
+                "options": {
+                    "mode": {"default": "minimize", "choices": ["rescore", "minimize"]},
+                    "padding": {"default": 4, "integer": True, "min": 0, "max": 20},
+                },
+            }
+        }
+
+    def score_options(self, scorer, raw):
+        if scorer not in ("", "fakesmina"):
+            raise BadRequest("unknown scorer %r" % scorer)
+        mode = str(raw.get("mode") or "minimize")
+        if mode not in ("rescore", "minimize"):
+            raise BadRequest("unknown mode %r" % mode)
+        return {"mode": mode, "padding": int(raw.get("padding") or 4)}
 
     def options(self, method, raw):
         if method != "fake":
@@ -121,7 +143,9 @@ class FakeJob:
         return {"1": "sdf"}
 
     def table(self):
-        return [{"rank": 1}]
+        # `i` is the molecule's place in its pocket's SDF: what a score is
+        # joined back on.
+        return [{"rank": 1, "i": 0}]
 
 
 class FakeGenerator:
@@ -140,14 +164,89 @@ class FakeGenerator:
         return self.jobs.get(job_id)
 
 
+class FakeScoreJob:
+    def __init__(self, job_id, ranks, mode, minimized):
+        self.id, self.state, self.ranks, self.mode = job_id, "done", ranks, mode
+        self.minimized = minimized
+
+    def progress(self):
+        return {"id": self.id, "state": self.state}
+
+    def payload(self):
+        return {
+            "scores": {
+                str(r): [
+                    {
+                        "index": 0,
+                        "name": "pocket%s_1" % r,
+                        "score": -5.5,
+                        "le": 0.25,
+                        "rmsd_min": 0.4,
+                    }
+                ]
+                for r in self.ranks
+            },
+            "scorers": {
+                str(r): {
+                    "scorer": "fakesmina 1",
+                    "mode": self.mode,
+                    "command": "fakesmina -r r -l l",
+                    "minimized": self.minimized,
+                }
+                for r in self.ranks
+            },
+        }
+
+
+class FakeScoring:
+    """The scoring runner, answering at once: the service only waits on its
+    state, which is the part worth testing here.
+    """
+
+    def __init__(self, tmp):
+        self.jobs = {}
+        self.calls = []
+        self.tmp = Path(tmp)
+
+    def describe(self):
+        return {"available": True, "scorers": {"fakesmina": {"available": True}}}
+
+    def start(self, receptor, poses, spheres, *, mode, padding, scorer="", ligands=(), parent=""):
+        self.calls.append(
+            {
+                "receptor": receptor,
+                "ranks": sorted(poses),
+                "spheres": spheres,
+                "mode": mode,
+                "padding": padding,
+                "scorer": scorer,
+                "ligands": tuple(ligands),
+                "parent": parent,
+            }
+        )
+        minimized = self.tmp / ("min_%d.sdf" % len(self.jobs))
+        minimized.write_text("relaxed\n$$$$\n")
+        job = FakeScoreJob("score%d" % (len(self.jobs) + 1), sorted(poses), mode, str(minimized))
+        self.jobs[job.id] = job
+        return job
+
+    def get(self, job_id):
+        return self.jobs.get(job_id)
+
+
 class ServiceTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.detector = FakePockets()
         self.prep = FakePrep()
         self.gen = FakeGenerator()
+        self.scoring = FakeScoring(self.tmp.name)
         self.svc = ViewerService(
-            StructureBuffer(Path(self.tmp.name)), self.detector, self.prep, self.gen
+            StructureBuffer(Path(self.tmp.name)),
+            self.detector,
+            self.prep,
+            self.gen,
+            scoring=self.scoring,
         )
         self.token = self.svc.buffer_structure(
             BufferRequest.parse({"id": "1CRN", "data": read("1CRN.pdb")})
@@ -161,11 +260,70 @@ class ServiceTest(unittest.TestCase):
             PocketRequest.parse({"token": self.token, "method": "fake", **kw})
         )
 
+    # -- pose scoring --------------------------------------------------------
+    def generated(self, **kw):
+        """A finished generation job on pocket 1."""
+        self.pockets(**kw)
+        out = self.svc.start_generation(GenerateRequest.parse({"token": self.token, "ranks": [1]}))
+        job = self.gen.get(out["job"])
+        job.state = "done"
+        return job
+
+    def test_scoring_runs_on_a_finished_jobs_poses_in_their_own_pockets(self):
+        job = self.generated(ligand=["XYZ"])
+        out = self.svc.start_scoring(
+            ScoreRequest.parse({"job": job.id, "token": self.token, "mode": "rescore"})
+        )
+        self.assertEqual((out["ranks"], out["mode"], out["state"]), ([1], "rescore", "done"))
+        call = self.scoring.calls[0]
+        # the receptor is the structure the poses were generated in, and the
+        # box comes from the pocket run that produced them
+        self.assertTrue(call["receptor"].endswith(".pdb"))
+        self.assertIn("pocket site points", call["spheres"])
+        self.assertEqual((call["ranks"], call["parent"]), ([1], job.id))
+        self.assertEqual(call["ligands"], ("XYZ",))
+
+    def test_the_scorers_options_are_checked_against_what_pocketbench_publishes(self):
+        job = self.generated()
+        with self.assertRaises(BadRequest):
+            self.svc.start_scoring(
+                ScoreRequest.parse({"job": job.id, "token": self.token, "mode": "dock"})
+            )
+        with self.assertRaises(BadRequest):
+            self.svc.start_scoring(
+                ScoreRequest.parse({"job": job.id, "token": self.token, "scorer": "vina"})
+            )
+
+    def test_there_is_nothing_to_score_before_a_job_has_finished(self):
+        self.pockets()
+        out = self.svc.start_generation(GenerateRequest.parse({"token": self.token, "ranks": [1]}))
+        with self.assertRaises(Conflict):
+            self.svc.start_scoring(ScoreRequest.parse({"job": out["job"], "token": self.token}))
+        with self.assertRaises(NotFound):
+            self.svc.start_scoring(ScoreRequest.parse({"job": "nope", "token": self.token}))
+
+    def test_a_pocket_without_poses_is_refused(self):
+        job = self.generated()
+        with self.assertRaises(Conflict):
+            self.svc.start_scoring(
+                ScoreRequest.parse({"job": job.id, "token": self.token, "ranks": [2]})
+            )
+
+    def test_the_scores_come_back_when_the_job_is_done(self):
+        job = self.generated()
+        started = self.svc.start_scoring(ScoreRequest.parse({"job": job.id, "token": self.token}))
+        out = self.svc.score_status(ScoreQuery.parse({"id": started["job"]}))
+        self.assertEqual(out["scores"]["1"][0]["score"], -5.5)
+        self.assertEqual(out["scorers"]["1"]["scorer"], "fakesmina 1")
+        with self.assertRaises(NotFound):
+            self.svc.score_status(ScoreQuery.parse({"id": "nope"}))
+
     def test_status_lists_every_tool(self):
         st = self.svc.status()
         self.assertEqual(st["api"], API_VERSION)
         self.assertEqual(list(st["detectors"]), ["fake"])
         self.assertEqual((st["additives"], st["superpose"]["available"]), (["HOH"], True))
+        self.assertTrue(st["scoring"]["available"])
 
     def test_buffering_checks_for_atoms_and_parses_nothing(self):
         out = self.svc.buffer_structure(BufferRequest.parse({"id": "x", "data": read("1CRN.cif")}))
@@ -260,7 +418,48 @@ class ServiceTest(unittest.TestCase):
         # Residues go to the generator as (chain, resi) pairs, chains kept apart.
         self.assertEqual(job.pockets, [{"rank": 2, "residues": [["A", 2], ["B", 12]]}])
         status = self.svc.job_status(JobQuery.parse({"id": out["job"], "mols": "1", "table": "1"}))
-        self.assertEqual((status["molecules"], status["table"]), ({"1": "sdf"}, [{"rank": 1}]))
+        self.assertEqual(
+            (status["molecules"], status["table"]), ({"1": "sdf"}, [{"rank": 1, "i": 0}])
+        )
+
+
+class MergeScoresTest(unittest.TestCase):
+    """The join the feature exists for: a score onto the row whose pose it is."""
+
+    rows = [
+        {"rank": 1, "i": 0, "name": "pocket1_1", "qed": 0.5},
+        {"rank": 1, "i": 1, "name": "pocket1_2", "qed": 0.6},
+        {"rank": 2, "i": 0, "name": "pocket2_1", "qed": 0.7},
+    ]
+    scores = {
+        "1": [
+            {"index": 0, "score": -5.5, "le": 0.25, "rmsd_min": 0.4},
+            {"index": 1, "score": None, "le": None, "rmsd_min": None, "error": "clash"},
+        ]
+    }
+    scorers = {"1": {"scorer": "smina 1"}}
+
+    def merged(self):
+        return merge_scores(self.rows, self.scores, self.scorers)
+
+    def test_each_score_lands_on_its_own_row(self):
+        out = self.merged()
+        self.assertEqual((out[0]["score"], out[0]["le"], out[0]["rmsd_min"]), (-5.5, 0.25, 0.4))
+        self.assertEqual(out[0]["scorer"], "smina 1")
+        self.assertEqual(out[0]["qed"], 0.5)  # nothing else is disturbed
+
+    def test_a_pose_the_scorer_could_not_do_keeps_its_row_and_says_why(self):
+        out = self.merged()
+        self.assertIsNone(out[1]["score"])
+        self.assertEqual(out[1]["scoreError"], "clash")
+
+    def test_an_unscored_pocket_is_left_exactly_as_it_was(self):
+        self.assertEqual(self.merged()[2], self.rows[2])
+
+    def test_rows_without_a_score_are_never_given_a_zero(self):
+        out = merge_scores(self.rows, {}, {})
+        self.assertEqual(out, self.rows)
+        self.assertNotIn("score", out[0])
 
 
 class ProjectArtifactsTest(unittest.TestCase):
@@ -271,11 +470,13 @@ class ProjectArtifactsTest(unittest.TestCase):
         self.work = Path(self.tmp.name) / "work"
         self.detector, self.prep, self.gen = FakePockets(), FakePrep(), FakeGenerator()
         self.store = ProjectStore(Path(self.tmp.name) / "projects", api=API_VERSION)
+        self.scoring = FakeScoring(self.work)
         self.svc = ViewerService(
             StructureBuffer(self.work / "structures"),
             self.detector,
             self.prep,
             self.gen,
+            scoring=self.scoring,
             projects=self.store,
             work_root=self.work,
         )
@@ -371,14 +572,58 @@ class ProjectArtifactsTest(unittest.TestCase):
         self.svc.job_status(JobQuery.parse({"id": job.id, "mols": "1", "table": "1"}))
         self.assertIn("molecules/job1/pocket-1.sdf", self.files())
         self.assertEqual(self.path("molecules", "job1", "pocket-1.sdf").read_text(), "sdf")
+        # The score columns are in the header before anything is scored, and
+        # empty: a run nothing could score still has the same shape.
         self.assertEqual(
             self.path("molecules", "job1", "molecules.csv").read_text(),
-            "rank,i,name,formula,mw,heavy,logp,tpsa,qed,rings,rotb,smiles\n1,,,,,,,,,,,\n",
+            "rank,i,name,formula,mw,heavy,logp,tpsa,qed,rings,rotb,smiles,"
+            "score,le,rmsd_min,scorer\n1,0,,,,,,,,,,,,,,\n",
         )
         # Polling a finished job again does not rewrite them.
         self.path("molecules", "job1", "pocket-1.sdf").write_text("edited")
         self.svc.job_status(JobQuery.parse({"id": job.id, "mols": "1"}))
         self.assertEqual(self.path("molecules", "job1", "pocket-1.sdf").read_text(), "edited")
+
+    def test_a_finished_scoring_job_writes_its_scores_once_and_rejoins_the_table(self):
+        self.run_pockets()
+        gen = self.svc.start_generation(
+            GenerateRequest.parse(
+                {"token": self.token, "ranks": [1], "project": self.project["id"]}
+            )
+        )
+        job = self.gen.get(gen["job"])
+        job.state = "done"
+        self.svc.job_status(JobQuery.parse({"id": job.id, "mols": "1", "table": "1"}))
+
+        started = self.svc.start_scoring(
+            ScoreRequest.parse({"job": job.id, "token": self.token, "project": self.project["id"]})
+        )
+        self.svc.score_status(ScoreQuery.parse({"id": started["job"]}))
+
+        files = self.files()
+        self.assertIn("molecules/job1/scores.json", files)
+        self.assertIn("molecules/job1/pocket-1.min.sdf", files)
+        # the generated poses are never written over by the relaxed ones
+        self.assertEqual(self.path("molecules", "job1", "pocket-1.sdf").read_text(), "sdf")
+        self.assertEqual(
+            self.path("molecules", "job1", "pocket-1.min.sdf").read_text(), "relaxed\n$$$$\n"
+        )
+        # the table and the CSV carry the score, joined onto the right row
+        rows = json.loads(self.path("molecules", "job1", "molecules.json").read_text())
+        self.assertEqual(rows[0]["score"], -5.5)
+        self.assertEqual(rows[0]["scorer"], "fakesmina 1")
+        csv = self.path("molecules", "job1", "molecules.csv").read_text()
+        self.assertIn("-5.5", csv.splitlines()[1])
+        # and the manifest says what made them
+        manifest = json.loads(self.path("manifest.json").read_text())
+        made = {a["path"]: a for a in manifest["artifacts"]}
+        self.assertEqual(made["molecules/job1/scores.json"]["kind"], "scores")
+        self.assertEqual(made["molecules/job1/pocket-1.min.sdf"]["command"], "fakesmina -r r -l l")
+
+        # Polling a finished scoring job again does not rewrite anything.
+        self.path("molecules", "job1", "scores.json").write_text("edited")
+        self.svc.score_status(ScoreQuery.parse({"id": started["job"]}))
+        self.assertEqual(self.path("molecules", "job1", "scores.json").read_text(), "edited")
 
     def test_saving_adds_the_pages_own_state_and_copies_everything(self):
         self.run_pockets()

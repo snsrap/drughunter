@@ -42,6 +42,8 @@ from .schemas import (
     PrepRequest,
     ProjectRequest,
     ProjectSaveRequest,
+    ScoreQuery,
+    ScoreRequest,
     SuperposeRequest,
 )
 from .service import ViewerService
@@ -92,6 +94,8 @@ class Api:
             ("POST", "/api/superpose"): lambda r: s.superpose(SuperposeRequest.parse(r.body)),
             ("POST", "/api/prep"): lambda r: s.prepare(PrepRequest.parse(r.body)),
             ("POST", "/api/generate"): lambda r: s.start_generation(GenerateRequest.parse(r.body)),
+            ("POST", "/api/score-poses"): lambda r: s.start_scoring(ScoreRequest.parse(r.body)),
+            ("GET", "/api/score-job"): lambda r: s.score_status(ScoreQuery.parse(r.query)),
             ("GET", "/api/project"): lambda r: s.project_status(r.query.get("id", "")),
             ("POST", "/api/project"): lambda r: s.create_project(ProjectRequest.parse(r.body)),
             ("POST", "/api/project/save"): lambda r: s.save_project(

@@ -30,10 +30,21 @@ from .schemas import (
     PrepRequest,
     ProjectRequest,
     ProjectSaveRequest,
+    ScoreQuery,
+    ScoreRequest,
     SuperposeRequest,
 )
 
-__all__ = ["ViewerService", "API_VERSION", "PocketTools", "Preparer", "Generator", "GenerationJob"]
+__all__ = [
+    "ViewerService",
+    "API_VERSION",
+    "PocketTools",
+    "Preparer",
+    "Generator",
+    "GenerationJob",
+    "PoseScoring",
+    "ScoringJob",
+]
 
 log = logging.getLogger("proteinviewer")
 
@@ -41,7 +52,8 @@ log = logging.getLogger("proteinviewer")
 #: predates it (and needs a restart) from one that is merely missing a tool.
 #: 4: /api/superpose; status lists additives and superposition; buffering no
 #: longer counts atoms (the server parses no structures).
-API_VERSION = 4
+#: 5: /api/score-poses and /api/score-job; status says what can score a pose.
+API_VERSION = 5
 
 #: The molecule-table columns written to a project's CSV, in table order. The
 #: depictions in the same rows are left out; they are in molecules.json.
@@ -58,7 +70,42 @@ MOLECULE_COLUMNS = (
     "rings",
     "rotb",
     "smiles",
+    # Filled in once the poses have been scored; an unscored run leaves them
+    # empty, which is what a missing value has always looked like here.
+    "score",
+    "le",
+    "rmsd_min",
+    "scorer",
 )
+
+
+def merge_scores(
+    rows: list[dict], scores: Mapping[str, list[dict]], scorers: Mapping[str, dict]
+) -> list[dict]:
+    """The molecule rows with each pose's score joined onto it.
+
+    A row is joined by ``(rank, i)``: ``i`` is the molecule's place in its
+    pocket's SDF, which is the order the scorer was handed and the order it
+    answered in. A row whose pose was not scored is left as it was -- an empty
+    column, not a zero.
+    """
+    out = []
+    for row in rows:
+        rank = str(row.get("rank"))
+        records = scores.get(rank) or []
+        i = row.get("i")
+        record = records[i] if isinstance(i, int) and 0 <= i < len(records) else None
+        if record is None:
+            out.append(dict(row))
+            continue
+        joined = dict(row)
+        for key in ("score", "le", "rmsd_min"):
+            joined[key] = record.get(key)
+        joined["scorer"] = (scorers.get(rank) or {}).get("scorer", "")
+        if record.get("error"):
+            joined["scoreError"] = record["error"]
+        out.append(joined)
+    return out
 
 
 class PocketTools(Protocol):
@@ -69,6 +116,10 @@ class PocketTools(Protocol):
     def detectors(self) -> dict[str, dict]: ...
 
     def additives(self) -> list[str]: ...
+
+    def scorers(self) -> dict[str, dict]: ...
+
+    def score_options(self, scorer: str, raw: Mapping[str, Any]) -> dict[str, Any]: ...
 
     def options(self, method: str, raw: Mapping[str, Any]) -> dict[str, Any]: ...
 
@@ -118,6 +169,34 @@ class GenerationJob(Protocol):
     def table(self) -> list[dict]: ...
 
 
+class ScoringJob(Protocol):
+    id: str
+    state: str
+
+    def progress(self) -> dict: ...
+
+    def payload(self) -> dict: ...
+
+
+class PoseScoring(Protocol):
+    def describe(self) -> dict: ...
+
+    def start(
+        self,
+        receptor: str,
+        poses: dict[int, str],
+        spheres: str,
+        *,
+        mode: str,
+        padding: int,
+        scorer: str = "",
+        ligands: tuple[str, ...] = (),
+        parent: str = "",
+    ) -> ScoringJob: ...
+
+    def get(self, job_id: str) -> ScoringJob | None: ...
+
+
 class Generator(Protocol):
     def describe(self) -> dict: ...
 
@@ -135,6 +214,7 @@ class ViewerService:
         pockets: PocketTools,
         prep: Preparer,
         generator: Generator,
+        scoring: PoseScoring | None = None,
         projects: ProjectStore | None = None,
         work_root: os.PathLike | str | None = None,
         version: str = "",
@@ -144,12 +224,17 @@ class ViewerService:
         self.pockets = pockets
         self.prep = prep
         self.generator = generator
+        self.scoring = scoring
         self.projects = projects
         self.work_root = Path(work_root) if work_root else None
         # Which project a generation job writes into, and the jobs already
         # written: a page polls a finished job more than once.
         self._job_projects: dict[str, str] = {}
         self._job_written: set[str] = set()
+        # A scoring job's project, the generation job it scored, and the ones
+        # whose scores have been written down already.
+        self._score_jobs: dict[str, tuple[str, str]] = {}
+        self._scores_written: set[str] = set()
         self._lock = threading.Lock()
 
     def status(self) -> dict:
@@ -166,6 +251,7 @@ class ViewerService:
             "superpose": self.pockets.describe(),
             "prep": self.prep.describe(),
             "neat": self.generator.describe(),
+            "scoring": self.scoring.describe() if self.scoring else {"available": False},
             "projects": {
                 "available": self.projects is not None,
                 "root": str(self.projects.root) if self.projects else "",
@@ -318,6 +404,78 @@ class ViewerService:
             self._write_molecules(job)
         return out
 
+    # -- pose scoring --------------------------------------------------------
+    def start_scoring(self, req: ScoreRequest) -> dict:
+        """Score a finished generation job's poses in the pockets they were
+        generated for. Returns at once; the viewer polls :meth:`score_status`.
+
+        Scoring is its own run, asked for after the molecules are in the
+        table -- never part of generation, which must hand over its molecules
+        whether or not anything can score them.
+        """
+        if self.scoring is None:
+            raise Conflict("this server has no pose scorer")
+        job = self.generator.get(req.job)
+        if job is None:
+            raise NotFound("no such job")
+        if job.state != "done":
+            raise Conflict("the generation job has not finished")
+        entry = self.buffer.require(req.token)
+        run = entry.pockets
+        if run is None:
+            raise Conflict(
+                "the pocket run these poses were generated for is gone: "
+                "run pocket detection again, or score the files with "
+                "`pocketbench score-poses`"
+            )
+        scorer = req.scorer or next(
+            (n for n, s in self.pockets.scorers().items() if s.get("available")), ""
+        )
+        options = self.pockets.score_options(scorer, req.raw)
+
+        poses = {
+            int(rank): text
+            for rank, text in job.molecules().items()
+            if not req.ranks or int(rank) in req.ranks
+        }
+        if not poses:
+            raise Conflict("none of the selected pockets have poses in this job")
+        project = self._project(req.project)
+        sjob = self.scoring.start(
+            entry.path,
+            poses,
+            spheres_pdb(run.pockets, run.meta.get("method", "")),
+            mode=options["mode"],
+            padding=options["padding"],
+            scorer=scorer,
+            ligands=tuple(sorted(run.meta.get("ligandRemoved") or ())),
+            parent=job.id,
+        )
+        log.info(
+            "scoring job %s: %s %s on pockets %s of job %s",
+            sjob.id,
+            scorer or "scorer",
+            options["mode"],
+            sorted(poses),
+            job.id,
+        )
+        with self._lock:
+            self._score_jobs[sjob.id] = (project.id if project else "", job.id)
+        return {"job": sjob.id, "ranks": sorted(poses), "state": sjob.state, **options}
+
+    def score_status(self, q: ScoreQuery) -> dict[str, Any]:
+        """A scoring job's progress, and its scores once it has finished."""
+        if self.scoring is None:
+            raise Conflict("this server has no pose scorer")
+        sjob = self.scoring.get(q.job_id)
+        if sjob is None:
+            raise NotFound("no such job")
+        out = sjob.progress()
+        if sjob.state == "done":
+            out.update(sjob.payload())
+            self._write_scores(sjob)
+        return out
+
     # -- the session's output directory -------------------------------------
     def create_project(self, req: ProjectRequest) -> dict:
         """Start an output directory for this session. The page asks once,
@@ -423,6 +581,69 @@ class ViewerService:
             base + ".report.json", json.dumps(report, indent=1), kind="report", **common
         )
         project.put_text(base + ".report.txt", out.get("summary") or "", kind="report", **common)
+
+    def _write_scores(self, sjob: ScoringJob) -> None:
+        """A finished scoring job's numbers, once, beside the poses they
+        belong to: the scores themselves, the relaxed poses, and the molecule
+        table with the scores joined onto it.
+        """
+        with self._lock:
+            known = self._score_jobs.get(sjob.id)
+            if known is None or sjob.id in self._scores_written:
+                return
+            project_id, parent = known
+            if not project_id:
+                return
+            self._scores_written.add(sjob.id)
+        try:
+            project = self.projects.require(project_id) if self.projects else None
+            if project is None:
+                return
+            payload = sjob.payload()
+            base = "molecules/%s" % safe_name(parent)
+            scorers = payload.get("scorers") or {}
+            tool = next(iter(scorers.values()), {}).get("scorer", "")
+            common = {"kind": "scores", "tool": tool or "pose scorer"}
+            project.put_text(
+                base + "/scores.json",
+                json.dumps(payload, indent=1),
+                note="a scoring function's value in kcal/mol, not a measured affinity",
+                **common,
+            )
+            for rank, meta in sorted(scorers.items()):
+                minimized = meta.get("minimized") or ""
+                if minimized and os.path.isfile(minimized):
+                    project.put_file(
+                        "%s/pocket-%s.min.sdf" % (base, safe_name(rank)),
+                        minimized,
+                        command=meta.get("command"),
+                        pocket=rank,
+                        mode=meta.get("mode"),
+                        note="the poses after minimization; the generated poses are untouched",
+                        **common,
+                    )
+            # The join the whole feature is for: the same rows, now scored.
+            gen = self.generator.get(parent)
+            rows = merge_scores(gen.table() if gen else [], payload.get("scores") or {}, scorers)
+            if rows:
+                project.put_text(
+                    base + "/molecules.json",
+                    json.dumps(rows, indent=1),
+                    kind="properties",
+                    tool="NEAT-POCKET",
+                    note="properties and 2D depictions, RDKit's; scores from %s"
+                    % (tool or "the pose scorer"),
+                )
+                project.put_text(
+                    base + "/molecules.csv",
+                    csv_text(rows, MOLECULE_COLUMNS),
+                    kind="properties",
+                    tool="NEAT-POCKET",
+                )
+        except Exception:
+            with self._lock:
+                self._scores_written.discard(sjob.id)
+            log.exception("could not write scoring job %s into project %s", sjob.id, project_id)
 
     def _write_molecules(self, job: GenerationJob) -> None:
         """A finished job's molecules, once. The page polls a done job again

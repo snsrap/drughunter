@@ -22,6 +22,8 @@ __all__ = [
     "PrepRequest",
     "GenerateRequest",
     "JobQuery",
+    "ScoreRequest",
+    "ScoreQuery",
     "ProjectRequest",
     "ProjectSaveRequest",
     "DEFAULT_CUTOFF",
@@ -194,6 +196,17 @@ class GenerateRequest:
 
 
 @dataclass(frozen=True)
+class ScoreQuery:
+    """``GET /api/score-job?id=…``."""
+
+    job_id: str
+
+    @classmethod
+    def parse(cls, q: Mapping[str, str]) -> ScoreQuery:
+        return cls(q.get("id", ""))
+
+
+@dataclass(frozen=True)
 class JobQuery:
     """``GET /api/job?id=…[&mols=1][&table=1]``."""
 
@@ -204,6 +217,42 @@ class JobQuery:
     @classmethod
     def parse(cls, q: Mapping[str, str]) -> JobQuery:
         return cls(q.get("id", ""), q.get("mols") == "1", q.get("table") == "1")
+
+
+@dataclass(frozen=True)
+class ScoreRequest:
+    """``POST /api/score-poses``: score a finished job's poses in their pocket.
+
+    ``token`` names the structure whose pocket run the poses were generated
+    for: its points set each box. The scorer's own options (the mode, the room
+    around the points) are checked against what pocketbench publishes, not
+    here.
+    """
+
+    job: str
+    token: str
+    scorer: str
+    raw: Mapping[str, Any]
+    ranks: frozenset[int] = frozenset()
+    project: str = ""
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> ScoreRequest:
+        raw = p.get("ranks") or []
+        if not isinstance(raw, (list, tuple)):
+            raise BadRequest("ranks must be a list of pocket ranks")
+        try:
+            ranks = frozenset(int(r) for r in raw)
+        except (TypeError, ValueError):
+            raise BadRequest("ranks must be a list of pocket ranks") from None
+        return cls(
+            validate.text(p, "job"),
+            validate.text(p, "token"),
+            validate.text(p, "scorer"),
+            p,
+            ranks,
+            validate.text(p, "project"),
+        )
 
 
 @dataclass(frozen=True)
