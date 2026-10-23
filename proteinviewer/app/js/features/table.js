@@ -8,7 +8,9 @@ import {save} from "../core/files.js";
 import {rankColor} from "../core/colors.js";
 import * as scene from "../scene.js";
 
-const CSV_COLS = ["rank", "name", "formula", "mw", "heavy", "logp", "tpsa", "qed", "rings", "rotb", "smiles"];
+const CSV_COLS = ["rank", "name", "formula", "mw", "heavy", "logp", "tpsa", "qed", "rings", "rotb",
+                  /* empty until the poses have been scored (score.js) */
+                  "score", "le", "rmsd_min", "scorer", "smiles"];
 /* Written into the SDF as data tags, so the poses carry what the table shows.
    `i` is in there too: it is the molecule's index in its pocket's SDF, which
    is how a row maps back to a record. */
@@ -30,7 +32,16 @@ function rows(st, gen){
 }
 
 const num = (v, dp) => v === null || v === undefined ? "&mdash;" : (dp === undefined ? v : (+v).toFixed(dp));
-function rowHTML(r, run, sel){
+/* How far minimization moved the pose, marked when it moved further than the
+   user's threshold: the generated pose was strained. */
+function moved(v, flag){
+  if (v === null || v === undefined) return "<td class='num mono'>&mdash;</td>";
+  const far = flag > 0 && +v > flag;
+  return "<td class='num mono" + (far ? " moved" : "") + "'" +
+    (far ? " title='The pose moved more than " + flag + " \u00c5 to score well: it was strained as generated'" : "") +
+    ">" + (+v).toFixed(2) + "</td>";
+}
+function rowHTML(r, run, sel, flag){
   const on = sel && sel.rank === r.rank && sel.i === r.i;
   return "<tr data-rank='" + esc(String(r.rank)) + "' data-i='" + r.i + "'" +
     (on ? " aria-selected='true'" : "") + ">" +
@@ -45,6 +56,10 @@ function rowHTML(r, run, sel){
     "<td class='num mono'>" + num(r.qed, 3) + "</td>" +
     "<td class='num mono'>" + num(r.rings) + "</td>" +
     "<td class='num mono'>" + num(r.rotb) + "</td>" +
+    "<td class='num mono'" + (r.scoreError ? " title='" + esc(r.scoreError) + "'" : "") + ">" +
+      num(r.score, 2) + "</td>" +
+    "<td class='num mono'>" + num(r.le, 3) + "</td>" +
+    moved(r.rmsd_min, flag) +
     "<td class='smi mono' title='" + esc(r.smiles || "") + "'>" + esc(r.smiles || "") + "</td>" +
     "</tr>";
 }
@@ -60,12 +75,13 @@ export function render(st){
   /* Rows carry depictions, so rebuilding them is the slow part: only when
      what they show changes. Selecting a row only moves the highlight. */
   const key = [gen.job, st.table.only, st.table.sort.key, st.table.sort.dir,
+               gen.scored || 0, st.scoreTask.flag,
                run.pockets.map(p => p.rank).join(","),
                Object.keys(gen.groups).map(r => r + ":" + gen.groups[r].visible).join(";")].join("|");
   if (key !== built){
     const list = rows(st, gen);
     $("gt-n").textContent = list.length + " of " + gen.table.length;
-    body.innerHTML = list.map(r => rowHTML(r, run, st.table.sel)).join("");
+    body.innerHTML = list.map(r => rowHTML(r, run, st.table.sel, st.scoreTask.flag)).join("");
     built = key;
   }
   document.querySelectorAll("#gt th[data-sort]").forEach(th => {

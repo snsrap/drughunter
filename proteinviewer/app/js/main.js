@@ -16,10 +16,11 @@ import * as superposePanel from "./features/superpose.js";
 import * as pockets from "./features/pockets.js";
 import * as generate from "./features/generate.js";
 import * as table from "./features/table.js";
+import * as score from "./features/score.js";
 import * as project from "./features/project.js";
 import * as theme from "./features/theme.js";
 
-const FEATURES = [fetchPanel, tree, prep, superposePanel, pockets, generate, table, project];
+const FEATURES = [fetchPanel, tree, prep, superposePanel, pockets, generate, table, score, project];
 
 /* Ask once, on load, so a missing tool or a stale server is reported before
    anyone presses a button. */
@@ -38,6 +39,10 @@ async function probeServer(){
     s.superpose = !!(j.superpose && j.superpose.available);
     s.additives = Array.isArray(j.additives) ? j.additives.map(String) : [];
     s.neat = !!(j.neat && j.neat.available);
+    /* Only the scorers that can actually run: offering one that is not
+       installed would fail the moment it was asked for. */
+    const sc = (j.scoring && j.scoring.scorers) || {};
+    s.scorers = Object.keys(sc).filter(n => sc[n] && sc[n].available);
     s.projects = !!(j.projects && j.projects.available);
     s.projectRoot = (j.projects && j.projects.root) || "";
   }catch(err){

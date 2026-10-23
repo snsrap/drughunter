@@ -576,8 +576,8 @@ class ProjectArtifactsTest(unittest.TestCase):
         # empty: a run nothing could score still has the same shape.
         self.assertEqual(
             self.path("molecules", "job1", "molecules.csv").read_text(),
-            "rank,i,name,formula,mw,heavy,logp,tpsa,qed,rings,rotb,smiles,"
-            "score,le,rmsd_min,scorer\n1,0,,,,,,,,,,,,,,\n",
+            "rank,i,name,formula,mw,heavy,logp,tpsa,qed,rings,rotb,"
+            "score,le,rmsd_min,scorer,smiles\n1,0,,,,,,,,,,,,,,\n",
         )
         # Polling a finished job again does not rewrite them.
         self.path("molecules", "job1", "pocket-1.sdf").write_text("edited")

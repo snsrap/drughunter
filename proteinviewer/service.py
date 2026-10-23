@@ -69,13 +69,13 @@ MOLECULE_COLUMNS = (
     "qed",
     "rings",
     "rotb",
-    "smiles",
     # Filled in once the poses have been scored; an unscored run leaves them
     # empty, which is what a missing value has always looked like here.
     "score",
     "le",
     "rmsd_min",
     "scorer",
+    "smiles",
 )
 
 

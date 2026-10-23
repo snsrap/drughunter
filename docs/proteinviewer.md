@@ -104,7 +104,15 @@ Every run that produces a file writes it into one directory per session, and
   molecules/<job>/pocket-1.sdf      the generated poses, per pocket
   molecules/<job>/molecules.json    properties and 2D depictions, RDKit's
   molecules/<job>/molecules.csv     the same properties as a table
+  molecules/<job>/scores.json       each pose's score, and the scorer, mode and command
+  molecules/<job>/pocket-1.min.sdf  the poses after minimization, if they were minimized
 ```
+
+The score columns are in `molecules.csv` whether or not anything was scored;
+an unscored run leaves them empty, so a scored and an unscored run have the
+same shape. Scoring never writes over `pocket-1.sdf`: the poses as generated
+and the poses after relaxing are both kept, and `manifest.json` records the
+exact command behind each.
 
 The live directory is made on demand — a session that only looks at structures
 never leaves one behind — and lives under
@@ -413,7 +421,8 @@ Two things are done differently from `dataset_spindr`, on purpose:
 
 Beneath the 3D stage, every generated molecule gets a row: a 2D depiction, the
 pocket it came from (with that pocket's colour), formula, MW, heavy-atom count,
-logP, TPSA, QED, rings, rotatable bonds and SMILES. Any column header sorts;
+logP, TPSA, QED, rings, rotatable bonds, SMILES — and, once the poses have been
+scored, Score, LE and RMSD. Any column header sorts;
 clicking a row selects that molecule, thickens it in the 3D view and centres on
 it. **Visible groups only** ties the table to the group toggles, and **CSV**
 downloads what is currently listed.
@@ -425,24 +434,55 @@ is rewritten to `currentColor` in each SVG so the drawings follow the page's
 text colour and stay legible in both themes; heteroatom colours are untouched.
 
 Each row's `i` is the molecule's index in that pocket's SDF, which is how a row
-maps back to the model drawn in the stage.
+maps back to the model drawn in the stage — and how a score finds its row.
+
+### Scoring the poses
+
+**Score poses**, in the table's header, scores each pose in the pocket it was
+generated for. It appears with the table and is disabled, with the reason in
+its tooltip, when the server found no scorer.
+
+It opens a window of options, each with an **i** beside it that opens a note
+saying what to pick and why. The notes open on click or keyboard, never on
+hover alone, so they can be reached on a touch screen and by a screen reader.
+
+| option | default | note |
+| --- | --- | --- |
+| Mode | Minimize in pocket | the pose relaxes but stays in a box around its pocket. *Rescore* leaves it exactly as generated, and generated poses often clash slightly — then the number measures the clash. *Minimize freely* uses no box, so a pose can drift out of the pocket |
+| Box padding | 4 Å | room around the pocket's own alpha spheres, which the pocket run already wrote |
+| Pockets | all generated | scoring runs over whole pockets, so this picks pockets, not rows; *visible groups only* matches the group toggles |
+| Flag poses moved more than | 2 Å | marks a pose in the RMSD column as strained. A display threshold: it changes nothing about the run |
+
+Scoring is its own run, not a stage of generation: a run hands over its
+molecules whether or not anything can score them, so a missing or broken
+scorer costs nothing but the three columns. The page starts the job, polls it,
+and merges each score onto its row by `(rank, i)`. One scoring run owns those
+columns — a row the latest run did not cover goes back to unscored rather than
+keeping a number from a run that may have used another mode.
+
+A score is a scoring function's value in kcal/mol, not a measured affinity; a
+large positive value means the pose clashes with the receptor. The window says
+so, and so does the column's tooltip. Which pocket detection ran, which scorer
+and which mode are all recorded in the project (see *The project directory*).
 
 ### Endpoints
 
 | route | purpose |
 | --- | --- |
-| `GET /api/status` | `{api, detectors: {fpocket, lacuna}, additives, superpose, prep, neat, projects}`: what each tool's install can do, what every detector drops on its own, and where projects go |
+| `GET /api/status` | `{api, detectors: {fpocket, lacuna}, additives, superpose, prep, neat, scoring, projects}`: what each tool's install can do, what every detector drops on its own, and where projects go |
 | `POST /api/structure` | buffer `{id, fmt, data}` → `{token, fmt, path}`; refused if the text holds no atom records |
 | `POST /api/superpose` | `{token, reference, on, mobileOn}` → `{data, fit}`: the first structure moved onto the second, in its own format; `on` and `mobileOn` are the residues to fit on, as `[chain, number, insertion code]` |
 | `POST /api/pockets` | `{token, method, cutoff, ligand, …}` → ranked pockets, cached per structure; lacuna also takes `backend`, `detector`, `conformers` |
 | `POST /api/generate` | `{token, ranks, n}` → starts a job, returns `{job}` |
 | `GET /api/job?id=` | job progress; `&mols=1` adds the SDF per pocket, `&table=1` the rows |
+| `POST /api/score-poses` | `{job, token, mode, padding, ranks}` → starts a scoring job for a finished generation job's poses, returns `{job, ranks, mode}` |
+| `GET /api/score-job?id=` | scoring progress; once done, `{scores, scorers}` — a record per pose by pocket rank, and what produced each |
 | `POST /api/prep` | `{token, ph, noRebuild}` → `{data, report, summary}`: the prepared PDB, from the quickprep package |
 | `POST /api/project` | `{name}` → `{id, path, files, bytes}`: start this session's output directory |
 | `GET /api/project?id=` | what is in it now |
 | `POST /api/project/save` | `{project, path, session, overwrite}` → `{path, files, bytes}`: write `session.json` into it, then copy it to `path` |
 
-`/api/pockets`, `/api/prep` and `/api/generate` each also take `project`: the
+`/api/pockets`, `/api/prep`, `/api/generate` and `/api/score-poses` each also take `project`: the
 id of the directory that run's artifacts are written into. It is optional —
 without it a run leaves nothing on disk but the server's own scratch files.
 
