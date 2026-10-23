@@ -6,6 +6,7 @@
     apo       APO -o OUT [--chain A]      a detector's input: protein only
     site      APO HOLO LIGAND             a holo ligand's site, in apo terms
     score     POCKETS APO HOLO LIGAND     how well each pocket finds it
+    score-poses RECEPTOR POSES            how each generated pose sits in a pocket
 
 Every command takes ``--json``. The exit code says whose problem a failure
 is -- 2 a bad input, 3 a tool that is not installed, 4 a tool that ran and
@@ -32,6 +33,7 @@ from .move import move_text
 from .pockets import DEFAULT_CUTOFF
 from .reports import read_pockets
 from .score import CRITERIA, Criteria, best_rank, score
+from .scoring import MODES, default_scorers
 from .site import sites
 from .structure import ADDITIVES, STANDARD_AA, Key, Structure
 from .superpose import Superposition, superpose
@@ -99,6 +101,7 @@ def _json(obj) -> None:
 # ---------------------------------------------------------------- detection
 def cmd_detectors(a) -> int:
     reg = default_detectors(a.fpocket_bin, a.lacuna_bin)
+    scorers = default_scorers(a.smina_bin, a.gnina_bin)
     if a.json:
         # The additives are what every detector drops on its own, so a caller
         # offering to delete a structure's ligands knows not to offer them.
@@ -106,6 +109,7 @@ def cmd_detectors(a) -> int:
             {
                 "version": __version__,
                 "detectors": reg.describe(),
+                "scorers": scorers.describe(),
                 "cutoff": DEFAULT_CUTOFF,
                 "additives": sorted(ADDITIVES),
             }
@@ -114,6 +118,8 @@ def cmd_detectors(a) -> int:
         print("pocketbench %s" % __version__)
         for d in reg:
             print(d.status_line())
+        for s in scorers:
+            print(s.status_line())
     return 0
 
 
@@ -359,6 +365,68 @@ def cmd_score(a) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- pose scoring
+def cmd_score_poses(a) -> int:
+    """Score poses as they were generated, in the pocket they were generated
+    for. Not docking: nothing searches the pocket for a better placement.
+    """
+    scorer = default_scorers(a.smina_bin, a.gnina_bin).get(a.scorer)
+    options = scorer.options({"mode": a.mode, "padding": a.padding})
+    ligands = frozenset(x.strip().upper() for x in (a.ligand or "").split(",") if x.strip())
+    work = a.workdir or tempfile.mkdtemp(prefix="pocketbench-")
+    try:
+        result = scorer.score(
+            a.receptor,
+            a.poses,
+            work,
+            mode=options["mode"],
+            padding=options["padding"],
+            site=a.site,
+            site_rank=a.site_rank,
+            ligand_resnames=ligands,
+            output=a.output,
+        )
+    finally:
+        if not a.workdir and not a.output:
+            shutil.rmtree(work, ignore_errors=True)
+    meta = result.meta()
+    if a.json:
+        _json({"poses": [p.as_dict() for p in result], "meta": meta})
+        return 0
+    print(
+        "%s: %d of %d poses scored in %.1f s · %s"
+        % (meta["scorer"], meta["scored"], len(result), result.elapsed, MODES[result.mode])
+    )
+    print("$ " + meta["command"])
+    for w in result.warnings:
+        print("! " + w)
+    print("%5s %-22s %6s %9s %7s %8s" % ("i", "name", "heavy", "score", "le", "rmsd_min"))
+
+    def num(v, f):
+        return f % v if isinstance(v, (int, float)) else "-"
+
+    for pose in result:
+        print(
+            "%5d %-22s %6s %9s %7s %8s  %s"
+            % (
+                pose.index,
+                pose.name[:22],
+                num(pose.heavy, "%d"),
+                num(pose.score, "%.2f"),
+                num(pose.le, "%.3f"),
+                num(pose.rmsd_min, "%.2f"),
+                pose.error,
+            )
+        )
+    if result.minimized:
+        print("relaxed poses: %s" % result.minimized)
+    print(
+        "a score is a scoring function's value in kcal/mol, not a measured affinity; "
+        "a large positive value means the pose clashes with the receptor"
+    )
+    return 0
+
+
 # ---------------------------------------------------------------- the parser
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
@@ -377,6 +445,11 @@ def parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--lacuna-bin", help="the lacuna CLI (default: LACUNA_BIN, then its usual envs)"
         )
+        scorer_bins(p)
+
+    def scorer_bins(p):
+        p.add_argument("--smina-bin", help="the smina binary (default: SMINA_BIN, then PATH)")
+        p.add_argument("--gnina-bin", help="the gnina binary (default: GNINA_BIN, then PATH)")
 
     def fit_on(p):
         p.add_argument(
@@ -452,6 +525,28 @@ def parser() -> argparse.ArgumentParser:
             )
         fit_on(p), json_flag(p)
         p.set_defaults(run=cmd_site if name == "site" else cmd_score)
+
+    p = sub.add_parser("score-poses", help="score generated poses in their pocket")
+    p.add_argument("receptor", help="the receptor the poses were generated in: PDB or mmCIF")
+    p.add_argument("poses", help="an SDF of poses, in the receptor's frame")
+    p.add_argument("--scorer", help="smina or gnina (default: whichever is installed)")
+    p.add_argument(
+        "--mode",
+        default=None,
+        help="; ".join("%s: %s" % kv for kv in MODES.items()) + " (default minimize)",
+    )
+    p.add_argument(
+        "--site",
+        help="a pocket's points, e.g. a project's *.spheres.pdb, to set the box for minimize",
+    )
+    p.add_argument("--site-rank", type=int, help="which pocket in --site (default: all of them)")
+    p.add_argument("--padding", type=int, default=None, help="room around the site points, Å")
+    p.add_argument("--ligand", help="residue names to delete from the receptor, comma-separated")
+    p.add_argument("-o", "--output", help="write the relaxed poses here (never over the input)")
+    p.add_argument("--workdir", help="keep the tool's files here (default: a temp dir, removed)")
+    scorer_bins(p), json_flag(p)
+    p.set_defaults(run=cmd_score_poses)
+
     return ap
 
 
