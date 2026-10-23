@@ -2,7 +2,7 @@
    here, so errors come back as one kind of Error with a readable message. */
 
 /* The response shape this page expects; see proteinviewer/service.py. */
-export const API_VERSION = 4;
+export const API_VERSION = 5;
 
 export class StaleServerError extends Error {}
 
@@ -54,6 +54,12 @@ export function projectStatus(id){
 export function saveProject(body){ return post("/api/project/save", body); }
 export function prepare(body){ return post("/api/prep", body); }
 export function startGeneration(body){ return post("/api/generate", body); }
+/* Score a finished job's poses in their pockets: {job, token, mode, padding,
+   ranks, project} -> {job, ranks, mode}. Its own run, polled with scoreJob. */
+export function startScoring(body){ return post("/api/score-poses", body); }
+export function scoreJob(id){
+  return request("/api/score-job?id=" + encodeURIComponent(id));
+}
 /* opts.molecules / opts.table also fetch the SDF per pocket and the rows. */
 export function job(id, opts){
   opts = opts || {};

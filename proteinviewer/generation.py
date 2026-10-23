@@ -18,6 +18,7 @@ under a running job.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -30,7 +31,7 @@ from pathlib import Path
 from .errors import ToolFailed, ToolUnavailable
 from .process import run
 
-__all__ = ["NeatPocket", "Job"]
+__all__ = ["NeatPocket", "Job", "Scoring", "ScoreJob"]
 
 DEFAULT_NEAT_DIRS = ["../NEAT-POCKET", "~/projects/NEAT-POCKET"]
 PYENV_VERSIONS = "~/.pyenv/versions"
@@ -138,6 +139,14 @@ class Job:
     def table(self) -> list[dict]:
         """Per-molecule rows (properties and 2D depictions) written by the child."""
         return _read_json(self.out_dir / "molecules.json", [])
+
+    def stage(self, state: str, **info) -> None:
+        """Write our own progress, for a job this process runs itself rather
+        than handing to a child.
+        """
+        # Progress is a courtesy: losing it must not stop a run.
+        with contextlib.suppress(OSError):
+            (self.out_dir / "progress.json").write_text(json.dumps({"state": state, **info}))
 
     def molecules(self) -> dict[str, str]:
         """SDF text per pocket rank, for whatever has been written so far."""
@@ -286,6 +295,189 @@ class NeatPocket:
             job._finish("error", error=payload.get("error") or "generation failed")
         else:
             job._finish("done", results=payload.get("results", []))
+
+
+class ScoreJob(Job):
+    """A scoring job: the same progress and lifecycle as a generation job,
+    with the scores it produced.
+    """
+
+    def __init__(self, job_id: str, out_dir: Path, spec: dict):
+        super().__init__(job_id, out_dir, spec)
+        self.scores: dict[str, list[dict]] = {}
+        self.meta: dict[str, dict] = {}
+
+    def payload(self) -> dict:
+        """The scores, by pocket rank, and what produced each one."""
+        with self._lock:
+            return {"scores": dict(self.scores), "scorers": dict(self.meta)}
+
+
+class Scoring:
+    """Scores a finished generation job's poses, in the pockets they were
+    generated for.
+
+    Scoring is seconds per molecule, so a run of a few hundred is no more
+    request-shaped than generation is: it goes on a thread and the viewer
+    polls, exactly as generation does. It is never part of generation --
+    molecules reach the table whether or not a scorer exists.
+    """
+
+    name = "scoring"
+
+    def __init__(
+        self,
+        scorer,
+        jobs_root: str | os.PathLike,
+        *,
+        limit: int = 32,
+        timeout: float = 3600.0,
+    ):
+        # Anything that can run pocketbench: the Pocketbench adapter does.
+        self.scorer = scorer
+        self.jobs_root = Path(jobs_root)
+        self.limit = limit
+        self.timeout = timeout
+        self._jobs: OrderedDict[str, ScoreJob] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @property
+    def available(self) -> bool:
+        return any(s.get("available") for s in self._scorers().values())
+
+    def _scorers(self) -> dict:
+        try:
+            return self.scorer.scorers()
+        except Exception:  # a tool that cannot be probed is simply not there
+            return {}
+
+    def describe(self) -> dict:
+        return {"available": self.available, "scorers": self._scorers()}
+
+    def status_line(self) -> str:
+        return "pose scoring: %s" % (
+            ", ".join(n for n, s in self._scorers().items() if s.get("available"))
+            if self.available
+            else "NOT FOUND - install smina or gnina (SMINA_BIN, GNINA_BIN)"
+        )
+
+    def start(
+        self,
+        receptor: str,
+        poses: dict[int, str],
+        spheres: str,
+        *,
+        mode: str,
+        padding: int,
+        scorer: str = "",
+        ligands: tuple[str, ...] = (),
+        parent: str = "",
+    ) -> ScoreJob:
+        """Score ``poses`` (SDF text per pocket rank) against ``receptor``.
+
+        ``spheres`` is the pocket points of the run the poses came from, the
+        same text a project keeps; each pocket's own points set its box. The
+        job owns its directory, as a generation job does, so nothing can pull
+        files out from under it. Returns at once; poll :meth:`get`.
+        """
+        if not self.available:
+            raise ToolUnavailable(
+                "no pose scorer found. Install smina or gnina and put it on PATH, or set "
+                "SMINA_BIN or GNINA_BIN, then restart the server.",
+                self.name,
+            )
+        if not poses:
+            raise ToolFailed("there are no poses to score", self.name)
+
+        job_id = uuid.uuid4().hex[:12]
+        out_dir = self.jobs_root / ("score_" + job_id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        site = out_dir / "pockets.spheres.pdb"
+        site.write_text(spheres)
+        # The poses as they were generated, kept beside the scores: what was
+        # scored has to stay readable next to the numbers.
+        paths = {}
+        for rank, text in poses.items():
+            path = out_dir / ("pocket-%s.sdf" % rank)
+            path.write_text(text)
+            paths[rank] = str(path)
+        spec = {
+            "parent": parent,
+            "receptor": receptor,
+            "pockets": [{"rank": r} for r in sorted(poses)],
+            "mode": mode,
+            "padding": padding,
+            "scorer": scorer,
+            "ligands": list(ligands),
+            "site": str(site),
+            "out_dir": str(out_dir),
+        }
+        (out_dir / "job.json").write_text(json.dumps(spec, indent=1))
+
+        job = ScoreJob(job_id, out_dir, spec)
+        with self._lock:
+            self._jobs[job_id] = job
+            self._prune()
+        threading.Thread(
+            target=self._run, args=(job, paths), daemon=True, name="score-" + job_id
+        ).start()
+        return job
+
+    def get(self, job_id: str) -> ScoreJob | None:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def _prune(self) -> None:
+        """Forget the oldest finished jobs past the limit, and their files.
+        A running job is never dropped.
+        """
+        finished = [j for j in self._jobs.values() if j.done]
+        for job in finished[: max(0, len(self._jobs) - self.limit)]:
+            del self._jobs[job.id]
+            shutil.rmtree(job.out_dir, ignore_errors=True)
+
+    def _run(self, job: ScoreJob, poses: dict[int, str]) -> None:
+        job.state = "running"
+        spec = job.spec
+        ranks = sorted(poses)
+        failures: list[str] = []
+        for done, rank in enumerate(ranks):
+            job.stage("scoring", done=done, total=len(ranks), current=rank)
+            try:
+                out = self.scorer.score_poses(
+                    spec["receptor"],
+                    poses[rank],
+                    str(job.out_dir / ("work_%s" % rank)),
+                    mode=spec["mode"],
+                    padding=spec["padding"],
+                    site=spec["site"],
+                    site_rank=rank,
+                    scorer=spec["scorer"],
+                    output=str(job.out_dir / ("pocket-%s.min.sdf" % rank)),
+                    ligands=spec["ligands"],
+                )
+            except Exception as exc:  # one pocket failing must not lose the rest
+                failures.append("pocket %s: %s" % (rank, exc))
+                continue
+            with job._lock:
+                job.scores[str(rank)] = out.get("poses") or []
+                job.meta[str(rank)] = out.get("meta") or {}
+        try:
+            (job.out_dir / "scores.json").write_text(json.dumps(job.payload(), indent=1))
+        except OSError as exc:
+            failures.append(str(exc))
+        if not job.scores:
+            job.stage("error", error="; ".join(failures))
+            job._finish("error", error="; ".join(failures) or "nothing was scored")
+            return
+        job.stage("scoring", done=len(ranks), total=len(ranks))
+        # Some pockets scored and some did not: the scores still go to the
+        # page, with what went wrong beside them.
+        job._finish(
+            "done",
+            error="; ".join(failures) or None,
+            results=[{"rank": r} for r in sorted(job.scores)],
+        )
 
 
 def _last_json_line(stdout: str) -> dict | None:

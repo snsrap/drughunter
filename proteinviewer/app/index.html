@@ -170,12 +170,15 @@
         <span class="eyebrow" id="gt-n"></span>
         <span class="sp">
           <label class="chk"><input type="checkbox" id="gt-only"> Visible groups only</label>
+          <button class="btn" type="button" id="gt-score"
+                  title="Score each pose in the pocket it was generated for">Score poses</button>
           <button class="btn" type="button" id="gt-sdf"
                   title="The molecules themselves: poses with their properties as SD tags">SDF</button>
           <button class="btn" type="button" id="gt-csv"
                   title="The properties of the rows listed here">CSV</button>
         </span>
       </div>
+      <div class="pdbq-msg" id="gt-msg" aria-live="polite"></div>
       <div class="gscroll" id="gscroll">
         <table class="gt" id="gt">
           <thead><tr>
@@ -190,6 +193,9 @@
             <th data-sort="qed" class="num">QED</th>
             <th data-sort="rings" class="num">Rings</th>
             <th data-sort="rotb" class="num">RotB</th>
+            <th data-sort="score" class="num" title="A scoring function's value in kcal/mol, not a measured affinity. Positive means the pose clashes with the receptor.">Score</th>
+            <th data-sort="le" class="num" title="Ligand efficiency: minus the score over the pose's heavy atoms">LE</th>
+            <th data-sort="rmsd_min" class="num" title="How far minimization moved the pose, Å. A large value means the generated pose was strained.">RMSD</th>
             <th data-sort="smiles">SMILES</th>
           </tr></thead>
           <tbody id="gt-body"></tbody>
@@ -203,6 +209,78 @@
 
 <!-- Shown while files are dragged over the page; fetch.js does the dropping. -->
 <div class="dropzone" id="dropzone" hidden><div>Drop a structure or a session file</div></div>
+
+
+<!-- Score poses: the options, each with a note saying what to pick and why.
+     score.js fills in what depends on the run. -->
+<dialog class="dlg" id="scoredlg" aria-labelledby="sd-title">
+  <form method="dialog" id="sd-form">
+    <h2 class="dlg-h" id="sd-title">Score poses</h2>
+    <p class="dlg-sub" id="sd-sub"></p>
+
+    <fieldset class="fset">
+      <legend class="eyebrow">Mode <button class="info" type="button" aria-expanded="false"
+              aria-controls="sd-tip-mode" aria-label="About the modes">i</button></legend>
+      <p class="tip" id="sd-tip-mode" hidden>
+        <b>Minimize in pocket</b> is the one to use: the pose settles into the nearest
+        low-energy position but stays inside a box around the pocket it was generated for.
+        <b>Rescore</b> leaves the pose exactly as generated — generated poses often clash
+        slightly, and then the number measures the clash rather than the fit.
+        <b>Minimize freely</b> uses no box at all, so only the protein around the pose
+        holds it in place and a pose can drift out of the pocket.
+      </p>
+      <label class="chk"><input type="radio" name="sd-mode" value="minimize" checked>
+        Minimize in pocket <span class="aside">suggested</span></label>
+      <label class="chk"><input type="radio" name="sd-mode" value="rescore">
+        Rescore as generated</label>
+      <label class="chk"><input type="radio" name="sd-mode" value="minimize-free">
+        Minimize freely</label>
+    </fieldset>
+
+    <label class="fld" id="sd-pad-wrap"><span class="eyebrow">Box padding, Å
+        <button class="info" type="button" aria-expanded="false" aria-controls="sd-tip-pad"
+                aria-label="About the box padding">i</button></span>
+      <input type="number" id="sd-padding" min="0" max="20" step="1" value="4"></label>
+    <p class="tip" id="sd-tip-pad" hidden>
+      Room added around the pocket's own alpha spheres, which the pocket run already wrote.
+      4 Å fits most ligands; more room lets a pose drift further from the pocket.
+    </p>
+
+    <fieldset class="fset">
+      <legend class="eyebrow">Pockets <button class="info" type="button" aria-expanded="false"
+              aria-controls="sd-tip-pockets" aria-label="About which pockets are scored">i</button></legend>
+      <p class="tip" id="sd-tip-pockets" hidden>
+        Scoring runs over whole pockets, so this picks pockets rather than single rows.
+        <b>Visible groups only</b> scores the pockets whose groups are showing — the same
+        ones the table is listing when "Visible groups only" is ticked.
+      </p>
+      <label class="chk"><input type="radio" name="sd-ranks" value="all" checked>
+        All generated pockets</label>
+      <label class="chk"><input type="radio" name="sd-ranks" value="visible">
+        Visible groups only</label>
+    </fieldset>
+
+    <label class="fld"><span class="eyebrow">Flag poses moved more than, Å
+        <button class="info" type="button" aria-expanded="false" aria-controls="sd-tip-flag"
+                aria-label="About the flag threshold">i</button></span>
+      <input type="number" id="sd-flag" min="0" max="20" step="0.5" value="2"></label>
+    <p class="tip" id="sd-tip-flag" hidden>
+      How far minimization moved a pose. More than about 2 Å means the generated pose was
+      strained and had to move to score well — that is a pose-quality signal, not a binding
+      one. Marked in the RMSD column; it changes nothing about the run.
+    </p>
+
+    <p class="dlg-note">A score is a scoring function's value in kcal/mol, not a measured
+      affinity and not a prediction of one. A large positive value means the pose clashes
+      with the receptor.</p>
+
+    <div class="dlg-bar">
+      <span class="eyebrow" id="sd-est"></span>
+      <button class="btn" type="button" id="sd-cancel">Cancel</button>
+      <button class="btn solid" type="submit" id="sd-go">Score</button>
+    </div>
+  </form>
+</dialog>
 
 <script type="module" src="js/main.js"></script>
 </body>

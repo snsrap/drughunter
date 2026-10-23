@@ -15,12 +15,14 @@ try:
 except PackageNotFoundError:  # run from a checkout that was never installed
     __version__ = "0+unknown"
 
-from .detectors import DetectorRegistry, Option, PocketDetector, default_detectors
+from .detectors import DetectorRegistry, PocketDetector, default_detectors
 from .errors import BadInput, PocketbenchError, ToolFailed, ToolUnavailable
 from .move import move_text
+from .options import Option
 from .pockets import DEFAULT_CUTOFF, DetectionResult, Pocket, select_residues
 from .reports import ReportedPocket, parse_pockets, read_pockets
 from .score import Criteria, PocketScore, best_rank, score
+from .scoring import MODES, PoseScore, PoseScorer, ScorerRegistry, ScoreRun, default_scorers
 from .site import Site, sites
 from .structure import ADDITIVES, Atom, Structure
 from .superpose import Superposition, Transform, fit, related, superpose
@@ -52,6 +54,12 @@ __all__ = [
     "PocketScore",
     "score",
     "best_rank",
+    "PoseScorer",
+    "ScorerRegistry",
+    "PoseScore",
+    "ScoreRun",
+    "MODES",
+    "default_scorers",
     "PocketbenchError",
     "BadInput",
     "ToolUnavailable",

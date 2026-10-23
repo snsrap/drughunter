@@ -178,6 +178,8 @@ input[type=range]{width:100%; accent-color:var(--accent); margin:0}
 .gtab:not(.closed) .hd{border-bottom:1px solid var(--line)}
 .gtab .hd .sp{margin-left:auto; display:flex; gap:10px; align-items:center}
 .gtab .tog{padding:1px 7px; line-height:1.3}
+#gt-msg{padding:5px 10px; border-bottom:1px solid var(--line)}
+.gtab.closed #gt-msg{display:none}
 .gscroll{height:240px; overflow:auto}
 .gtab.closed .gscroll{display:none}
 table.gt{border-collapse:collapse; width:100%; font-size:12.5px}
@@ -273,4 +275,41 @@ table.gt tbody tr:last-child td{border-bottom:0}
   .rail{overflow:visible}
   .top .end{margin-left:0}
 }
+/* ---------- a modal window, and the notes that explain its options ---------- */
+/* <dialog> brings Esc, the focus trap and the backdrop with it; only the look
+   is set here, from the same tokens as every panel. */
+.dlg{
+  border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink);
+  box-shadow:var(--shadow); padding:0; width:min(420px, calc(100vw - 32px)); max-height:86vh;
+}
+.dlg::backdrop{background:rgba(17,26,28,.42)}
+.dlg form{display:flex; flex-direction:column; gap:9px; padding:14px 16px 12px; max-height:86vh; overflow:auto}
+.dlg-h{margin:0; font-family:"IBM Plex Sans Condensed",sans-serif; font-size:15.5px; letter-spacing:.01em}
+.dlg-sub{margin:0; font-size:12px; color:var(--muted)}
+.dlg-note{margin:0; font-size:11.5px; line-height:1.5; color:var(--ink-2);
+  background:var(--info-soft); padding:7px 9px; border-radius:3px}
+.dlg-bar{display:flex; align-items:center; gap:8px; margin-top:2px}
+.dlg-bar .eyebrow{margin-right:auto}
+.fset{border:1px solid var(--line); border-radius:3px; margin:0; padding:6px 9px 8px;
+  display:flex; flex-direction:column; gap:4px}
+.fset legend{padding:0 4px}
+/* The round i beside an option: a note, opened by click or keyboard, never by
+   hover alone -- a hover-only note is unreachable on a touch screen. */
+button.info{
+  width:15px; height:15px; padding:0; margin-left:5px; border-radius:50%; cursor:pointer;
+  border:1px solid var(--line-2); background:var(--panel-2); color:var(--ink-2);
+  font-family:"IBM Plex Serif",Georgia,serif; font-size:10.5px; font-style:italic;
+  font-weight:600; line-height:1; text-transform:none; letter-spacing:0; vertical-align:middle;
+}
+button.info:hover{background:var(--accent-soft); border-color:var(--accent)}
+button.info[aria-expanded=true]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.tip{
+  margin:0; font-size:11.5px; line-height:1.55; color:var(--ink-2);
+  background:var(--sunk); border-left:2px solid var(--accent); padding:7px 9px; border-radius:0 3px 3px 0;
+}
+.tip b{color:var(--ink)}
+/* A pose that had to move a long way to score well: strained as generated. */
+.gt .moved{color:var(--warn); font-weight:600}
+.gt .moved:after{content:"\00a0!"}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}

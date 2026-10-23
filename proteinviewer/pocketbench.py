@@ -88,6 +88,12 @@ class Pocketbench:
         """Each detector's status, by name: what ``/api/status`` lists."""
         return self.info.get("detectors", {})
 
+    def scorers(self) -> dict[str, dict]:
+        """Each pose scorer's status, by name. Asked in the same probe as the
+        detectors, so a scorer costs no extra interpreter start.
+        """
+        return self.info.get("scorers", {})
+
     def additives(self) -> list[str]:
         """Residues every detector drops on its own, so the page does not
         offer to delete them.
@@ -101,9 +107,11 @@ class Pocketbench:
                 "(%s cannot run it: start the server from the environment drughunter "
                 "is installed in, or set POCKETBENCH_PYTHON)" % (self.python or "no python")
             ]
-        return ["pocketbench: %s  (%s)" % (self.version, self.python)] + [
-            d.get("status", name) for name, d in self.detectors().items()
-        ]
+        return (
+            ["pocketbench: %s  (%s)" % (self.version, self.python)]
+            + [d.get("status", name) for name, d in self.detectors().items()]
+            + [s.get("status", name) for name, s in self.scorers().items()]
+        )
 
     # -- detection ---------------------------------------------------------
     def options(self, method: str, raw: Mapping[str, Any]) -> dict[str, Any]:
@@ -155,6 +163,74 @@ class Pocketbench:
             cmd += ["--ligand", ",".join(sorted(ligands))]
         for k, v in sorted((options or {}).items()):
             cmd += ["--" + k, str(v)]
+        return self._call(cmd)
+
+    # -- pose scoring ------------------------------------------------------
+    def score_options(self, scorer: str, raw: Mapping[str, Any]) -> dict[str, Any]:
+        """A scorer's own options from a request, checked against what
+        pocketbench says it takes, every default filled in.
+        """
+        self._require()
+        names = self.scorers()
+        if not names:
+            raise ToolUnavailable(
+                "this pocketbench has no pose scorer: install smina or gnina and put it "
+                "on PATH, or set SMINA_BIN or GNINA_BIN, then restart the server.",
+                self.name,
+            )
+        spec = names.get(scorer) if scorer else next(iter(names.values()))
+        if spec is None:
+            raise BadRequest("unknown scorer %r (want %s)" % (scorer, " or ".join(names)))
+        out = {}
+        for name, o in spec.get("options", {}).items():
+            if "choices" in o:
+                out[name] = validate.choice(raw, name, o["choices"], o["default"])
+            else:
+                out[name] = validate.integer(
+                    raw, name, o["default"], lo=o.get("min"), hi=o.get("max")
+                )
+        return out
+
+    def score_poses(
+        self,
+        receptor: str,
+        poses: str,
+        workdir: str,
+        *,
+        mode: str,
+        padding: int,
+        site: str | None = None,
+        site_rank: int | None = None,
+        scorer: str = "",
+        output: str | None = None,
+        ligands: Iterable[str] = (),
+    ) -> dict:
+        """Score the poses in ``poses`` against ``receptor``, in the pocket
+        ``site_rank`` of ``site``. Returns ``{poses, meta}``: one record per
+        pose, in the order they appear in the file.
+        """
+        cmd = self._cmd(
+            "score-poses",
+            receptor,
+            poses,
+            "--mode",
+            mode,
+            "--padding",
+            str(padding),
+            "--workdir",
+            workdir,
+            "--json",
+        )
+        if scorer:
+            cmd += ["--scorer", scorer]
+        if site:
+            cmd += ["--site", site]
+        if site_rank is not None:
+            cmd += ["--site-rank", str(site_rank)]
+        if output:
+            cmd += ["-o", output]
+        if ligands:
+            cmd += ["--ligand", ",".join(sorted(ligands))]
         return self._call(cmd)
 
     # -- superposition -----------------------------------------------------

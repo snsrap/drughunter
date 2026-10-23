@@ -19,6 +19,9 @@ export const state = {
   server: {known: false, stale: false, error: null,
            fpocket: false, lacuna: [], prep: false, neat: false, superpose: false,
            projects: false, projectRoot: "",
+           /* Which pose scorers the server found, by name; [] when none can
+              run, which is what disables the Score poses button. */
+           scorers: [],
            /* What every detector drops on its own (pocketbench's list): not
               offered for deletion before a run. */
            additives: []},
@@ -52,6 +55,10 @@ export const state = {
   genTask: {busy: false, msg: null},
   genShow: 25,
   table: {sort: {key: "rank", dir: 1}, only: false, sel: null},
+  /* Pose scoring, asked for from the table once a run has finished:
+     busy while a scoring job runs, msg what to say about the last one, flag
+     the distance that marks a pose as strained. */
+  scoreTask: {busy: false, msg: null, flag: 2},
 
   busy: null,                               /* text of the busy pill */
 };

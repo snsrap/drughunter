@@ -72,6 +72,7 @@ where the old script fitted every Cα.
 | `apo APO -o OUT [--chain A]` | a detector's input: standard amino acids, no hydrogens, the chains named. From a PDB file the lines are copied as they are |
 | `site APO HOLO LIGAND` | the holo ligand's site, carried into the apo frame and numbering |
 | `score POCKETS APO HOLO LIGAND` | each pocket's overlap, coverage, Jaccard, DCC and DCA, and the best rank per criterion |
+| `score-poses RECEPTOR POSES` | how each generated pose sits in its pocket: a score per molecule, ligand efficiency, and how far minimization moved it |
 
 All of them take `--json`. `superpose`, `site` and `score` take `--on SPEC`
 to fit only on some residues of the reference (the apo structure), e.g.
@@ -79,6 +80,12 @@ to fit only on some residues of the reference (the apo structure), e.g.
 takes `--mobile-on`. A spec names a chain (`A`), a residue (`A:52`, `A:52A`) or
 a range (`A:10-50`, inserted residues included). `score` takes `--cutoff` for
 the shell radius and `--coverage`, `--dcc`, `--dca` for the hit thresholds.
+
+`score-poses` takes `--mode`, `--site` and `--site-rank` (the pocket whose
+points set the box), `--padding`, `--ligand` (residues to delete from the
+receptor), `-o` (where the relaxed poses go) and `--scorer`; `--smina-bin` and
+`--gnina-bin`, otherwise `SMINA_BIN`, `GNINA_BIN`, then `PATH`. See
+*Scoring poses*.
 
 `detect` takes `--cutoff` (residues within this of a site point, default 6 Å),
 `--ligand MK1,HEM` (residues to delete first), `--workdir` (keep the tool's
@@ -109,6 +116,92 @@ usually lives.
 
 With `--json` a run is `{tool, pockets, meta}`. Each pocket carries its rank,
 scores, centroid, residues as `sel: [{chain, resi}]`, and site points.
+
+## Scoring poses
+
+A generated pose is a placement in a receptor, so it can be asked a question a
+2D property cannot answer: does this molecule fit the pocket it was made for?
+`score-poses` answers it per molecule.
+
+```sh
+pocketbench score-poses receptor.pdb poses.sdf \
+    --site run.fpocket.spheres.pdb --site-rank 1 -o poses.min.sdf
+```
+
+```
+gnina v1.1 master:e4cb380+: 25 of 25 poses scored in 48.2 s · let the pose relax, kept inside a box around the pocket
+$ gnina -r …/receptor.pdb -l poses.sdf --cnn_scoring none --no_gpu --local_only …
+    i name                    heavy     score      le rmsd_min
+    0 pocket1_1                  23     -6.41   0.279     1.12
+    1 pocket1_2                  21     -5.08   0.242     0.74
+    …
+a score is a scoring function's value in kcal/mol, not a measured affinity; a large positive value means the pose clashes with the receptor
+```
+
+**What a score is not.** It is a scoring function's value in kcal/mol — not a
+measured affinity and not a prediction of one. Treat it as a way to order one
+run's molecules, not as a number to quote. A large positive value is a clash:
+atoms overlapping the receptor, which says the pose is wrong rather than that
+the molecule binds weakly. Generated poses often clash slightly, which is why
+rescoring alone is rarely the useful mode.
+
+### The three modes
+
+| `--mode` | flag | what it answers |
+| --- | --- | --- |
+| `rescore` | `--score_only` | is the pose, exactly as generated, physically sensible here? |
+| `minimize` | `--local_only` + autobox | what does it score at the nearest local optimum, without leaving the pocket? |
+| `minimize-free` | `--minimize` | the same, with no box: only the receptor around the pose holds it in place |
+
+One flag per mode, never two. `minimize` is the default and takes the box from
+the pocket: `--site` is a file of pocket points — the `*.spheres.pdb` a
+ProteinViewer project already writes, one residue per pocket numbered by rank —
+and `--site-rank` picks one of them. `--padding` is the room added around those
+points, 4 Å by default. Nothing new has to be measured or typed in.
+
+`minimize` and `minimize-free` write the relaxed poses to `-o`, never over the
+poses that went in; `rescore` writes nothing, because nothing moved.
+`rmsd_min` is how far the pose had to move: more than about 2 Å means it was
+strained as generated. That is a statement about the pose, not about binding.
+
+### The receptor
+
+The receptor is written out before the run: solvent and crystallisation
+additives go, and so does any residue named with `--ligand`.
+
+**Hydrogens stay.** Pocket detection drops them; a scoring function must not,
+because it types hydrogen-bond donors by them. A cofactor stays for the same
+reason — on a haem protein it is part of the wall the ligand sits against. A
+receptor that arrives without hydrogens is scored anyway, with a warning: run
+`quickprep` on it first and the numbers mean more.
+
+### Which tool
+
+**smina** first, and gnina behind the same interface because it takes the same
+flags. Neither needs PDBQT: both read the receptor as PDB and the ligand as SDF,
+so there is no conversion step and no second integration before a number comes
+out. gnina is run with `--cnn_scoring none`, so it computes smina's own scoring
+function and its numbers mean the same thing, and with `--no_gpu`, so scoring
+does not compete with a generation run for a card.
+
+Both are found on `PATH` and run as subprocesses, never bundled — the same
+arrangement as fpocket, and the reason smina being GPL-2.0 raises no question
+for a project distributed under Apache-2.0 (`THIRD_PARTY.md`). A pyenv *shim*
+on `PATH` is ignored on purpose: it is on `PATH` whatever environment is
+active and refuses to run from the wrong one, so taking it would make the
+scorer look installed and then fail on the first pose. The binaries inside
+pyenv environments are found instead.
+
+### Per molecule, not per file
+
+Each pose's numbers come back joined to the input by record order: `index` is
+its place in the SDF it came from, which is how a caller puts a score back on
+its own table row. `le` is ligand efficiency, `-score / heavy`, over the pose's
+own heavy atoms — the column that compares small molecules fairly.
+
+A tool that dies on one molecule of a file costs only that molecule: the batch
+is re-run a molecule at a time, the bad one carries an error and the rest carry
+their scores. A tool that manages nothing at all is a failed tool, exit 4.
 
 ## Driven by a program
 
