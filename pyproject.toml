@@ -67,6 +67,10 @@ omit = ["*/__main__.py", "pocketgen/neat_pocket.py", "proteinviewer/server.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "health: verifies a built environment from the inside (pytest -m health)",
+    "e2e: runs a real structure through the whole pipeline (pytest -m e2e)",
+]
 
 [tool.ruff]
 target-version = "py310"
