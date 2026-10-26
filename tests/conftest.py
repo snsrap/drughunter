@@ -22,8 +22,13 @@ import pytest
 _HEALTH = pytest.StashKey[list]()
 _TOOLS = pytest.StashKey[dict]()
 
-#: Everything that can be required by name in ``DRUGHUNTER_REQUIRE_TOOLS``.
-TOOLS = ("fpocket", "lacuna", "scorer", "neat-pocket", "weights", "gpu")
+#: Requirable by name, and all of them together when the variable is ``1``.
+TOOLS = ("fpocket", "lacuna", "scorer", "neat-pocket", "weights")
+#: Requirable by name too, but never implied by ``1``: a machine with no card
+#: must still pass a run that asks for everything, so only ``gpu`` by name
+#: demands one. (A card that is present and broken fails either way -- that is
+#: the health test's business, not this gate's.)
+NAMEABLE = TOOLS + ("gpu",)
 
 
 def required() -> set[str]:
@@ -147,9 +152,9 @@ def pytest_terminal_summary(terminalreporter, config):
     seen = config.stash.get(_TOOLS, {})
     if seen:
         terminalreporter.section("tools exercised")
-        for name in TOOLS:
+        for name in NAMEABLE:
             if name in seen:
                 terminalreporter.write_line("%-12s %s" % (name, seen[name]))
         for name, state in seen.items():
-            if name not in TOOLS:
+            if name not in NAMEABLE:
                 terminalreporter.write_line("%-12s %s" % (name, state))
