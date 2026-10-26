@@ -12,6 +12,9 @@ from quickprep import prepare
 
 DATA = Path(__file__).parent / "data"
 
+# Every test here runs the real preparation stack on a real structure.
+pytestmark = pytest.mark.smoke
+
 
 @pytest.fixture(scope="module")
 def run(tmp_path_factory):

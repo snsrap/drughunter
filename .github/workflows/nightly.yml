@@ -1,0 +1,41 @@
+name: Nightly
+
+# lacuna's ensemble is too slow for every pull request, so it is exercised
+# once a night with the rest of the smoke tests. Nothing here is a gate on
+# merging; it is how an installed-but-unexercised tool stops being possible.
+#
+# What still cannot run on a public runner: NEAT-POCKET and the GPU. Those are
+# checked by hand on a real card, and the summary this job prints says so by
+# reporting them as skipped.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: nightly
+          condarc: |
+            channels:
+              - conda-forge
+          create-args: >-
+            python=3.11
+            fpocket
+            smina
+      - name: Install drughunter with lacuna
+        shell: bash -el {0}
+        run: pip install -e ".[test,lacuna]"
+      - name: Health and smoke, including the slow ensemble
+        shell: bash -el {0}
+        env:
+          DRUGHUNTER_REQUIRE_TOOLS: fpocket,scorer,lacuna
+        run: pytest -m "health or smoke"

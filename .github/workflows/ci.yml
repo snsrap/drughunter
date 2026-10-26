@@ -37,6 +37,39 @@ jobs:
           files: coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  # The tools a public runner can really run: fpocket and smina, both from
+  # conda-forge. The job above proves the suite passes with no tools at all --
+  # every smoke test skips there -- which is exactly why this one has to exist:
+  # a skip is indistinguishable from a pass. DRUGHUNTER_REQUIRE_TOOLS turns the
+  # absence of what this job installed into a failure, so a broken fpocket
+  # cannot quietly go green.
+  #
+  # lacuna is not required here: it is installed and exercised nightly
+  # (.github/workflows/nightly.yml). NEAT-POCKET and the GPU cannot run on a
+  # public runner at all and are checked by hand on a real card.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: smoke
+          condarc: |
+            channels:
+              - conda-forge
+          create-args: >-
+            python=3.11
+            fpocket
+            smina
+      - name: Install drughunter
+        shell: bash -el {0}
+        run: pip install -e ".[test]"
+      - name: Health and smoke
+        shell: bash -el {0}
+        env:
+          DRUGHUNTER_REQUIRE_TOOLS: fpocket,scorer
+        run: pytest -m "health or smoke"
+
   js:
     runs-on: ubuntu-latest
     steps:

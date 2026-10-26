@@ -6,13 +6,12 @@ tests when detection moved here.
 import json
 import os
 import random
-import shutil
 
 import pytest
 from helpers import FAKE_FPOCKET, chain_lines, fake_executable, pdb, pdb_line, read
 
 from pocketbench.cli import main, residues
-from pocketbench.detectors import DetectorRegistry, Option
+from pocketbench.detectors import DetectorRegistry, Option, default_detectors
 from pocketbench.detectors.fpocket import FpocketDetector
 from pocketbench.detectors.lacuna import LacunaDetector
 from pocketbench.errors import BadInput, ToolUnavailable
@@ -206,23 +205,33 @@ def test_the_registry():
         reg.register(a)
 
 
-@pytest.mark.skipif(
-    not (shutil.which("fpocket") or os.environ.get("FPOCKET_BIN")),
-    reason="fpocket is not installed",
-)
-def test_real_fpocket_on_crambin(tmp_path):
-    result = FpocketDetector(os.environ.get("FPOCKET_BIN")).run(
-        Structure.from_text(read("1CRN.pdb")), str(tmp_path)
-    )
+# ------------------------------------------------------------------- the tools
+# Found the way the code finds them, so an installed detector is exercised by a
+# plain ``pytest`` with nothing to opt into. Everything above this line runs
+# against the fake; these two are the only places fpocket and lacuna really run.
+
+
+@pytest.mark.smoke
+def test_real_fpocket_on_crambin(tmp_path, tools):
+    det = default_detectors(fpocket_bin=os.environ.get("FPOCKET_BIN")).get("fpocket")
+    if not det.available:
+        tools.absent("fpocket", det.status_line())
+    tools.ran("fpocket", det.status_line())
+    result = det.run(Structure.from_text(read("1CRN.pdb")), str(tmp_path))
     assert len(result) > 0
     assert all(p.residues and all(k[0] == "A" for k in p.residues) for p in result)
 
 
-@pytest.mark.skipif(not os.environ.get("PB_SLOW_TESTS"), reason="set PB_SLOW_TESTS=1 to run lacuna")
-def test_real_lacuna_nma_on_crambin(tmp_path):
-    det = LacunaDetector(os.environ.get("LACUNA_BIN"))
+@pytest.mark.smoke
+@pytest.mark.slow
+def test_real_lacuna_nma_on_crambin(tmp_path, tools):
+    """Slow because it is an ensemble: marked, not gated. An installed lacuna is
+    exercised unless the run asks for ``-m "not slow"``.
+    """
+    det = default_detectors(lacuna_bin=os.environ.get("LACUNA_BIN")).get("lacuna")
     if not det.available:
-        pytest.skip("lacuna is not installed")
+        tools.absent("lacuna", det.status_line())
+    tools.ran("lacuna", det.status_line())
     result = det.run(Structure.from_text(read("1CRN.pdb")), str(tmp_path), conformers=5)
     assert result.meta()["backend"] == "nma" and all(p.residues for p in result)
 

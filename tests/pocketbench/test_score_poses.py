@@ -8,10 +8,11 @@ molecule of many -- is tested without smina installed.
 """
 
 import json
+import math
 import os
 
 import pytest
-from helpers import fake_executable, pdb_line
+from helpers import fake_executable, pdb_line, read
 
 from pocketbench import poses as sdf
 from pocketbench.cli import main
@@ -117,6 +118,45 @@ def files(tmp_path):
     (tmp_path / "poses.sdf").write_text(poses_sdf())
     (tmp_path / "spheres.pdb").write_text(spheres_pdb())
     return tmp_path
+
+
+# A real molecule, since a real scorer reads it with a real chemistry toolkit:
+# benzene, planar, 1.39 Å ring, written where the caller puts it.
+RING = [
+    (1.39, 0.0),
+    (0.695, 1.204),
+    (-0.695, 1.204),
+    (-1.39, 0.0),
+    (-0.695, -1.204),
+    (0.695, -1.204),
+]
+BONDS = [(1, 2, 2), (2, 3, 1), (3, 4, 2), (4, 5, 1), (5, 6, 2), (6, 1, 1)] + [
+    (i, i + 6, 1) for i in range(1, 7)
+]
+
+
+def benzene_sdf(centre: tuple[float, float, float]) -> str:
+    cx, cy, cz = centre
+    atoms = [(cx + x, cy + y, cz, "C") for x, y in RING]
+    atoms += [(cx + x * 1.777, cy + y * 1.777, cz, "H") for x, y in RING]
+    lines = ["benzene", "     drughunter          3D", ""]
+    lines.append("%3d%3d  0  0  0  0  0  0  0  0999 V2000" % (len(atoms), len(BONDS)))
+    for x, y, z, el in atoms:
+        lines.append("%10.4f%10.4f%10.4f %-3s 0  0  0  0  0  0  0  0  0  0  0  0" % (x, y, z, el))
+    for a, b, order in BONDS:
+        lines.append("%3d%3d%3d  0" % (a, b, order))
+    lines += ["M  END", "$$$$", ""]
+    return "\n".join(lines)
+
+
+def centre_of(pdb_text: str) -> tuple[float, float, float]:
+    xyz = [
+        (float(line[30:38]), float(line[38:46]), float(line[46:54]))
+        for line in pdb_text.splitlines()
+        if line.startswith("ATOM")
+    ]
+    n = len(xyz)
+    return tuple(sum(c[i] for c in xyz) / n for i in range(3))  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------- the SDF plumbing
@@ -374,3 +414,32 @@ def test_exit_codes_say_whose_problem_it_was(tool, files, capsys, monkeypatch):
     # 4: the tool ran and could score nothing
     monkeypatch.setenv("FAKE_SMINA_FAIL_ON", "")
     assert code_and_kind("--smina-bin", tool.binary, "--mode", "rescore", "--json") == (4, "failed")
+
+
+# ------------------------------------------------------------------- the tool
+# Everything above runs against the fake smina. This is the only place a real
+# scorer runs, so an installed smina or gnina is exercised by a plain pytest.
+
+
+@pytest.mark.smoke
+def test_a_real_scorer_rescores_a_pose_in_a_real_receptor(tmp_path, scorer):
+    """Crambin and a benzene at its centre, rescored where it stands.
+
+    ``rescore`` needs no box, so this does not depend on a detector having run.
+    The assertion is that a number came back, never which number: that is the
+    scorer's business and it varies with its version and build.
+    """
+    receptor_text = read("1CRN.pdb")
+    receptor = tmp_path / "1CRN.pdb"
+    receptor.write_text(receptor_text)
+    poses = tmp_path / "poses.sdf"
+    poses.write_text(benzene_sdf(centre_of(receptor_text)))
+
+    run = scorer.score(str(receptor), str(poses), str(tmp_path), mode="rescore")
+
+    assert len(run) == 1, run.meta()
+    pose = run.poses[0]
+    assert pose.error == "", pose.error
+    assert pose.score is not None and math.isfinite(pose.score), run.meta()
+    assert pose.heavy == 6, "benzene has six heavy atoms, got %r" % pose.heavy
+    assert run.meta()["scored"] == 1 and run.meta()["failed"] == 0

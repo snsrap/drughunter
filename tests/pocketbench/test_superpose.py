@@ -3,9 +3,10 @@ tests/js/superpose.test.js checks, so the two implementations agree.
 """
 
 import pytest
-from helpers import SEQ, T0, chain_lines, pdb, rotation, trace
+from helpers import SEQ, T0, chain_lines, pdb, read, rotation, trace
 
 from pocketbench.align import BLOSUM62, align
+from pocketbench.cli import main
 from pocketbench.structure import Atom
 from pocketbench.superpose import Transform, fit, protein_chains, related, superpose
 
@@ -135,3 +136,36 @@ def test_superpose_says_why_it_cannot():
         superpose(ref.atoms, ref.atoms, reference_on={("W", 1, "")})
     with pytest.raises(ValueError, match="at least 3"):
         superpose(pdb(chain_lines("A", "GS", trace(2, 1))).atoms, ref.atoms)
+
+
+# ------------------------------------------------- a whole real structure
+# The cases above are constructed geometry, where the right answer is known
+# exactly. This one pushes a real file through the real command: crambin onto a
+# moved copy of itself, which the fit has to undo.
+
+
+def shifted(text: str, dx: float) -> str:
+    out = []
+    for line in text.splitlines():
+        if line.startswith(("ATOM", "HETATM")):
+            line = "%s%8.3f%s" % (line[:30], float(line[30:38]) + dx, line[38:])
+        out.append(line)
+    return "\n".join(out) + "\n"
+
+
+@pytest.mark.smoke
+def test_a_whole_real_structure_superposes_onto_a_moved_copy(tmp_path, capsys):
+    original = read("1CRN.pdb")
+    reference = tmp_path / "1CRN.pdb"
+    reference.write_text(original)
+    moved = tmp_path / "moved.pdb"
+    moved.write_text(shifted(original, 7.5))
+    out = tmp_path / "back.pdb"
+
+    assert main(["superpose", str(moved), str(reference), "-o", str(out)]) == 0
+    capsys.readouterr()
+
+    first = next(line for line in original.splitlines() if line.startswith("ATOM"))
+    came_back = next(line for line in out.read_text().splitlines() if line.startswith("ATOM"))
+    assert abs(float(came_back[30:38]) - float(first[30:38])) < 1e-2
+    assert abs(float(came_back[38:46]) - float(first[38:46])) < 1e-2

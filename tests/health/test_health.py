@@ -44,45 +44,15 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import run, tail
+
 pytestmark = pytest.mark.health
 
 PARTS = ("proteinviewer", "pocketbench", "quickprep")
-TOOLS = ("fpocket", "lacuna", "scorer", "neat-pocket", "weights")
 # The checkpoints pocketgen/neat_pocket.py loads unless a job names others.
 WEIGHTS = ("trained_models/neat_spindr", "trained_models/bond_predictor/bp_spindr")
 # Distributions whose import name is not their own name.
 IMPORT_NAMES: dict[str, str] = {}
-
-
-def required() -> set[str]:
-    raw = os.environ.get("DRUGHUNTER_REQUIRE_TOOLS", "").strip().lower()
-    if raw in ("", "0", "no", "false"):
-        return set()
-    if raw in ("1", "yes", "true", "all"):
-        return set(TOOLS)
-    return {w.strip() for w in raw.split(",") if w.strip()}
-
-
-def absent(what: str, why: str) -> None:
-    """Fail if ``what`` is required here, otherwise skip, either way saying why."""
-    if what in required():
-        pytest.fail("%s is required (DRUGHUNTER_REQUIRE_TOOLS) but %s" % (what, why))
-    pytest.skip(why)
-
-
-def run(cmd: list[str], timeout: float = 120, cwd: str | None = None):
-    """Run a check, turning not starting or hanging into an ordinary failure."""
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
-    except subprocess.TimeoutExpired:
-        pytest.fail("%s did not finish in %gs" % (cmd[0], timeout))
-    except OSError as exc:
-        pytest.fail("%s could not be started: %s" % (cmd[0], exc))
-
-
-def tail(proc: subprocess.CompletedProcess, n: int = 15) -> str:
-    text = (proc.stderr or proc.stdout or "").strip()
-    return "\n".join(text.splitlines()[-n:])
 
 
 def runtime_requirements():
@@ -144,65 +114,36 @@ def test_part_imports(part):
 
 
 @pytest.mark.parametrize("name", ("fpocket", "lacuna"))
-def test_detector(name, health_report):
+def test_detector(name, tools, health_report):
     from pocketbench.detectors import default_detectors
 
     detector = default_detectors().get(name)
     health_report.append(detector.status_line())
     if not detector.available:
-        absent(name, detector.status_line())
+        tools.absent(name, detector.status_line())
+    tools.ran(name, detector.status_line())
 
 
-def test_scorer(health_report):
+def test_scorer(tools, health_report):
     """A pose scorer: smina or gnina, either one will do."""
     from pocketbench.scoring import default_scorers
 
     scorers = list(default_scorers())
     for s in scorers:
         health_report.append(s.status_line())
-    if not any(s.available for s in scorers):
-        absent("scorer", "neither smina nor gnina was found (put one on PATH or set SMINA_BIN)")
-
-
-def neat_pocket(tmp_path):
-    from proteinviewer.generation import NeatPocket
-
-    return NeatPocket(
-        tmp_path,
-        neat_dir=os.environ.get("NEAT_POCKET_DIR") or None,
-        python=os.environ.get("NEAT_PYTHON") or None,
-    )
-
-
-@pytest.fixture
-def neat(tmp_path, health_report):
-    """NEAT-POCKET's checkout and an interpreter that can run it, or a skip."""
-    gen = neat_pocket(tmp_path)
-    if not gen.available:
-        health_report.append(gen.status_line())
-        absent("neat-pocket", gen.status_line())
-    # find_python() falls back to whatever python3 is on PATH, which finds an
-    # interpreter but not necessarily one that has torch.
-    proc = run(
-        [gen.python, "-c", "import torch, torch_geometric, rdkit, neat"],
-        timeout=300,
-        cwd=gen.neat_dir,
-    )
-    if proc.returncode != 0:
-        health_report.append("NEAT-POCKET: %s  (%s)  CANNOT RUN" % (gen.neat_dir, gen.python))
-        absent(
-            "neat-pocket",
-            "%s cannot import NEAT-POCKET's stack (set NEAT_PYTHON):\n%s"
-            % (gen.python, tail(proc)),
+    found = next((s for s in scorers if s.available), None)
+    if found is None:
+        tools.absent(
+            "scorer", "neither smina nor gnina was found (put one on PATH or set SMINA_BIN)"
         )
-    return gen
+    tools.ran("scorer", found.status_line())
 
 
 def test_neat_pocket(neat, health_report):
     health_report.append(neat.status_line())
 
 
-def test_neat_pocket_weights(neat, health_report):
+def test_neat_pocket_weights(neat, tools, health_report):
     """Weights are a step of their own: a checkout without them is not broken,
     just not finished, and is reported as such rather than as a missing tool.
     """
@@ -216,7 +157,9 @@ def test_neat_pocket_weights(neat, health_report):
         if not found:
             missing.append(str(d))
     if missing:
-        absent("weights", "NEAT-POCKET weights not yet fetched: no .ckpt in " + ", ".join(missing))
+        tools.absent(
+            "weights", "NEAT-POCKET weights not yet fetched: no .ckpt in " + ", ".join(missing)
+        )
 
 
 # -- the GPU, by running something on it -----------------------------------
@@ -259,7 +202,7 @@ def hidden_on_purpose() -> bool:
     return value is not None and value.strip().lower() in ("", "-1", "none", "nodevfiles")
 
 
-def test_gpu(neat, health_report):
+def test_gpu(neat, tools, health_report):
     proc = run([neat.python, "-c", GPU_PROBE], timeout=300, cwd=neat.neat_dir)
     lines = proc.stdout.splitlines()
     try:
@@ -290,13 +233,14 @@ def test_gpu(neat, health_report):
             if mask is not None
             else "Install a torch built for this driver's CUDA.",
         )
-        absent("gpu", "no CUDA device (%s)" % built)
+        tools.absent("gpu", "no CUDA device (%s)" % built)
 
     device = "%s %s" % (info["device"], info["capability"])
     ok = proc.returncode == 0 and "kernel ok" in lines
     health_report.append(
         "gpu         %s on %s: %s" % (built, device, "kernel OK" if ok else "KERNEL FAILED")
     )
+    tools.ran("gpu", "%s  %s" % (device, "kernel OK" if ok else "KERNEL FAILED"))
     assert ok, (
         "torch sees %s but cannot run on it. %s was built for %s; a capability "
         "missing from that list needs a torch built for it.\n%s"
