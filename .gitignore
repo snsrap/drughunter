@@ -11,3 +11,6 @@ node_modules/
 coverage.xml
 CLAUDE.md
 graphify-out/
+
+# Claude Code local settings
+.claude/
