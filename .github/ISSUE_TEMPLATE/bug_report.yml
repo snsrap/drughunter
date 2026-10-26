@@ -7,6 +7,16 @@ body:
       value: |
         Thanks for reporting. The more detail you give, the faster this can be reproduced.
         Please search existing issues first.
+  - type: textarea
+    id: health
+    attributes:
+      label: Environment health
+      description: |
+        Run `python -m pytest -m health` in the environment you ran DrugHunter in and paste the whole output.
+        It lists every dependency, external tool and the GPU, and says which of them work.
+      render: text
+    validations:
+      required: true
   - type: dropdown
     id: component
     attributes:

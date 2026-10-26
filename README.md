@@ -121,6 +121,11 @@ structures with OpenMM; real fpocket is exercised when it is on `PATH`, real
 lacuna with `PB_SLOW_TESTS=1`. The browser walkthrough is in
 [docs/proteinviewer.md](docs/proteinviewer.md#tests).
 
+`python -m pytest -m health` checks the machine rather than the code: the
+dependencies, the external tools, NEAT-POCKET's weights and the GPU. It is the
+first thing to run when something does not work; see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Style
 
 Ruff lints and formats (`[tool.ruff]` in `pyproject.toml`). Install the hook once with
