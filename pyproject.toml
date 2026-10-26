@@ -69,7 +69,8 @@ omit = ["*/__main__.py", "pocketgen/neat_pocket.py", "proteinviewer/server.py"]
 testpaths = ["tests"]
 markers = [
     "health: verifies a built environment from the inside (pytest -m health)",
-    "e2e: runs a real structure through the whole pipeline (pytest -m e2e)",
+    "smoke: runs one module on a real structure with its real tool (pytest -m smoke)",
+    "slow: a smoke run heavy enough to want out of a quick loop (pytest -m 'not slow')",
 ]
 
 [tool.ruff]
