@@ -16,9 +16,13 @@ script to check what it just installed:
                                         neat-pocket, weights, gpu)
 
 The GPU is required only when ``gpu`` is named, since ``1`` must also hold on a
-machine without one. A device torch can see but cannot run a kernel on fails
-whatever the setting: that is the case this test exists for (``sm_120`` with
-cu121 wheels: ``is_available()`` says yes, the first kernel says no).
+machine without one. Two GPU cases fail whatever the setting, because they are
+broken, not absent:
+
+- a card the driver lists (``nvidia-smi -L``) that torch cannot see, usually a
+  CPU-only wheel; unless ``CUDA_VISIBLE_DEVICES`` hides it on purpose;
+- a card torch can see but cannot run a kernel on (``sm_120`` with cu121
+  wheels: ``is_available()`` says yes, the first kernel says no).
 
 CI has no GPU, so it only ever takes the skip path. The fail path is checked by
 hand on a real card. Do not "fix" the skip into a failure to make CI cover it.
@@ -249,6 +253,12 @@ def nvidia_gpus() -> list[str]:
     return [line.strip() for line in out.splitlines() if line.startswith("GPU ")]
 
 
+def hidden_on_purpose() -> bool:
+    """Whether CUDA_VISIBLE_DEVICES was set to hide every card, to run on CPU."""
+    value = os.environ.get("CUDA_VISIBLE_DEVICES")
+    return value is not None and value.strip().lower() in ("", "-1", "none", "nodevfiles")
+
+
 def test_gpu(neat, health_report):
     proc = run([neat.python, "-c", GPU_PROBE], timeout=300, cwd=neat.neat_dir)
     lines = proc.stdout.splitlines()
@@ -265,12 +275,21 @@ def test_gpu(neat, health_report):
             "gpu         %s: no CUDA device%s"
             % (built, "; but the driver lists " + listed[0] if listed else "")
         )
-        if listed:
-            # Most often a CPU-only torch wheel on a machine that has a card.
-            absent(
-                "gpu",
-                "%s sees no CUDA device, but nvidia-smi lists: %s" % (built, "; ".join(listed)),
+        if listed and hidden_on_purpose():
+            pytest.skip(
+                "CUDA_VISIBLE_DEVICES=%r hides %s from torch"
+                % (os.environ["CUDA_VISIBLE_DEVICES"], "; ".join(listed))
             )
+        # A card the driver lists and torch cannot see is broken, not absent:
+        # most often a CPU-only torch wheel, or one built for another driver.
+        mask = os.environ.get("CUDA_VISIBLE_DEVICES")
+        assert not listed, "nvidia-smi lists %s, but %s sees no CUDA device. %s" % (
+            "; ".join(listed),
+            built,
+            "Check CUDA_VISIBLE_DEVICES=%r." % mask
+            if mask is not None
+            else "Install a torch built for this driver's CUDA.",
+        )
         absent("gpu", "no CUDA device (%s)" % built)
 
     device = "%s %s" % (info["device"], info["capability"])
