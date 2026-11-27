@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 
 import {
   MAX_SEED, validateSeed, newForm, buildRequest, profileFromSearch, otherStrategy, gate, datasetRows,
-  idleTask, beginStart, startFailed, startError, progressed, pollFailed, cancelRequested, cancelFailed,
+  idleTask, beginStart, startFailed, startError, progressed, pollFailed, cancelRequested, cancelFailed, resume,
   resultLoaded, resultFailed, resultRetry, nextAction, panelState, fraction, stageText, formatElapsed, isTerminal,
   metricLabel, metricNumber, aggregateCell, unavailableView, configText, metricsView, productionView,
   STRATEGIES, STRATEGY_HELP, CAVEATS, TEMPORARY_NOTE, MAX_POLL_FAILURES, POLL_MS, POLL_RETRY_MS,
@@ -370,6 +370,18 @@ test("a few failed polls are retried before the run is called lost", () => {
   assert.equal(nextAction(t), null);
 });
 
+test("after lost contact the panel can look again, and finds the run still going", () => {
+  let t = progressed(started(), prog("running"));
+  for (let i = 0; i < MAX_POLL_FAILURES; i++) t = pollFailed(t, new Error("down"));
+  assert.equal(panelState(t).kind, "lost");
+  const r = resume(t);
+  assert.equal(panelState(r).kind, "running");
+  assert.equal(r.failures, 0);
+  assert.deepEqual(nextAction(r), {what: "poll", delay: POLL_MS});
+  assert.strictEqual(resume(progressed(started(), prog("running"))).phase, "tracking");   // not lost: unchanged
+  assert.equal(resume(idleTask(DS)).phase, "idle");
+});
+
 test("an answer after a failure resets the count", () => {
   let t = progressed(started(), prog("running"));
   t = pollFailed(t, new Error("x")); t = pollFailed(t, new Error("x"));
@@ -480,6 +492,7 @@ test("no defined value is 'undefined' with its reason", () => {
   assert.equal(c.defined, "0 of 5");
   assert.equal(c.undefinedAll, true);
   assert.equal(c.why, "a; b");
+  assert.equal(c.whyText, "undefined in 5 of 5: a; b");
   assert.equal(c.title, "a; b");
 });
 

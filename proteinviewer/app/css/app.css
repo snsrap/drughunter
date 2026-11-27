@@ -323,12 +323,12 @@ table.gt tbody tr:last-child td{border-bottom:0}
   .srow{grid-template-columns:minmax(0,9em) minmax(40px,1fr) 4em 4em}
 }
 /* ---------- training: the dataset's facts and the form beside the run's progress, then its metrics ---------- */
-.trn .tbody{max-height:56vh; overflow:auto; scrollbar-width:thin; padding:10px 12px}
+.trn .tbody{padding:10px 12px}   /* the column scrolls, not the panel */
 .trn.closed .tbody{display:none}
-.tgrid{display:grid; grid-template-columns:minmax(240px,340px) minmax(0,1fr); gap:14px 26px; align-items:start}
+.tgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px 26px; align-items:start}
 .tset{display:flex; flex-direction:column; gap:9px; min-width:0}
 .tset form{display:flex; flex-direction:column; gap:8px}
-.tset .kv{grid-template-columns:9.5em minmax(0,1fr)}
+.tgrid > .kv{grid-template-columns:8.5em minmax(0,1fr)}
 .tset .chk{flex-wrap:wrap; align-items:baseline; row-gap:0}
 .tbar{display:flex; gap:8px}
 .tstat{display:flex; flex-direction:column; gap:8px; min-width:0}
@@ -351,7 +351,7 @@ table.gt tbody tr:last-child td{border-bottom:0}
 .tgrid2{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-top:10px}
 .tkv{grid-template-columns:11em minmax(0,1fr)}
 .tscroll{overflow-x:auto}
-.ttab{border-collapse:collapse; font-size:12px; min-width:100%}
+.ttab{border-collapse:collapse; font-size:12px; width:auto; max-width:100%}
 .ttab th,.ttab td{padding:3px 12px 3px 0; text-align:left; white-space:nowrap; vertical-align:baseline}
 .ttab thead th{font:600 10px "IBM Plex Mono",ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line)}
 .ttab thead .tcol{color:var(--ink); border-bottom:1px solid var(--line-2)}
@@ -368,8 +368,12 @@ table.gt tbody tr:last-child td{border-bottom:0}
 .trep summary{cursor:pointer; color:var(--ink-2); font-size:12px}
 .trep .tscroll{margin-top:6px}
 .tcaveats{margin:12px 0 0; padding-left:18px; font-size:11px; line-height:1.5; color:var(--muted)}
+/* Beside the summary and the training panel the ligands keep a page of their own: the column scrolls
+   rather than squeezing them away. */
+.center:has(> #trn-panel){overflow-y:auto; scrollbar-width:thin}
+.center > .mol.page{min-height:380px}
 @media (max-width:900px){
-  .trn .tbody{max-height:none}
+  .center:has(> #trn-panel){overflow-y:visible}
   .tgrid{grid-template-columns:minmax(0,1fr)}
 }
 #dd-reg{display:flex; flex-direction:column; gap:9px}
