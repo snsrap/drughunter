@@ -82,6 +82,17 @@ class DatasetStore:
         _write_json(path / "staged.json", {"name": name, "created": self._clock()})
         return {"dataset_id": dataset_id, "name": name}
 
+    def annotate(self, dataset_id: str, **found: Any) -> None:
+        """Keep what was found in a staged upload (its columns), so it can be
+        picked up again by id -- from a link, or after the page is reloaded.
+        """
+        self._check(dataset_id)
+        path = self._staged / dataset_id / "staged.json"
+        info = _read_json(path)
+        if info is None:
+            raise NotFound("no staged dataset %s (it may have expired)" % dataset_id)
+        _write_json(path, {**info, **found})
+
     def staged(self, dataset_id: str) -> dict | None:
         """The staged record, or None when it is gone or never was."""
         self._check(dataset_id)

@@ -76,6 +76,7 @@ class WebTest(unittest.TestCase):
         app = Path(cls.tmp.name)
         (app / "index.html").write_text("<!doctype html><title>t</title>")
         (app / "main.js").write_text("export {};")
+        (app / "ligands.html").write_text("<!doctype html><title>ligands</title>")
         handler = functools.partial(
             Handler, directory=str(app), api=Api(FakeService()), max_body=1000
         )
@@ -217,6 +218,20 @@ class WebTest(unittest.TestCase):
         self.assertIn(b"<title>t</title>", body)
         code, h, _ = self.request("GET", "/main.js")
         self.assertEqual(h["Content-Type"], "text/javascript")
+
+    def test_the_ligands_page_has_a_path_of_its_own_and_one_per_dataset(self):
+        for path in ("/ligands", "/ligands/", "/ligands/ds-0123456789ab", "/ligands/ds-x?y=1"):
+            code, h, body = self.request("GET", path)
+            self.assertEqual(code, 200, path)
+            self.assertIn(b"<title>ligands</title>", body, path)
+            self.assertIn("text/html", h["Content-Type"])
+        code, _, body = self.request("HEAD", "/ligands/ds-0123456789ab")
+        self.assertEqual(code, 200)
+        # Only that one file is ever served for it, and only under that name.
+        self.assertIn(b"ligands", self.request("GET", "/ligands/../main.js")[2])
+        self.assertEqual(self.request("GET", "/ligandsx")[0], 404)
+        self.assertEqual(self.request("GET", "/ligands.html")[0], 200)
+        self.assertIn(b"<title>t</title>", self.request("GET", "/")[2])
 
     def test_dumps_never_writes_nan(self):
         self.assertEqual(json.loads(dumps({"a": [float("inf"), 1.5]})), {"a": [None, 1.5]})

@@ -21,7 +21,7 @@ One package, four parts:
 | **ligandbench** | `ligandbench` | ligand datasets: reads a CSV of molecules with RDKit, resolves its structure and target columns, draws structures | [docs/ligandbench.md](docs/ligandbench.md) |
 | **quickprep** | `quickprep` | structure preparation: protonation, missing atoms and loops, refinement, provenance | [docs/quickprep.md](docs/quickprep.md) |
 
-The viewer is only a GUI. Its server runs pocketbench, ligandbench and quickprep
+The viewer is only a GUI (its Ligands page, `/ligands`, is where datasets are read). Its server runs pocketbench, ligandbench and quickprep
 as commands, in its own interpreter, and imports none of them; it holds no
 science of its own. They do not need the viewer: each is a complete
 command-line tool and Python library.

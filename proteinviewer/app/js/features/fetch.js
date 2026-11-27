@@ -7,12 +7,13 @@
 import {state, commit, addEntity, freeId} from "../core/state.js";
 import {$, esc, setMsg, note, fault, plural} from "../core/dom.js";
 import {ENT_COLORS} from "../core/colors.js";
+import * as api from "../core/api.js";
 import {fetchEntry, isPdbId} from "../core/rcsb.js";
 import {readText, hasFiles} from "../core/files.js";
 import {formatOf, idFromName, titleOf, firstModel, hasAtoms, fileSub} from "../model/structurefile.js";
 import {isSessionText} from "../model/session.js";
 import {openSession} from "./session.js";
-import {openDataset} from "./dataset.js";
+import {isCsvName} from "../model/dataset.js";
 
 export function render(st){
   $("pdbq").querySelector("button").disabled = st.fetch.busy;
@@ -64,15 +65,31 @@ function addFile(name, bytes, text){
          (m.models > 1 ? " · first of " + m.models + " models" : "");
 }
 
-/* A CSV is a dataset of ligands, not a structure: it goes to its own dialog. */
-export const isCsvName = name => /\.csv(\.gz)?$/i.test(name || "");
+/* A CSV is a dataset of ligands, not a structure: it is set up on the Ligands
+   page, which has an address of its own. The file is sent there now and left
+   waiting on the server, so what is loaded here stays loaded -- navigating away
+   would lose it -- and the link opens the upload where it was left. */
+async function sendToLigands(name, text, left){
+  state.fetch = {busy: true, msg: note("Sending <b>" + esc(name) + "</b> to the Ligands page…")};
+  commit();
+  try{
+    const staged = await api.datasetUpload(name, text);
+    state.fetch = {busy: false, msg: note("<b>" + esc(name) + "</b> is uploaded — " +
+      "<a href='/ligands/" + esc(staged.dataset_id) + "' target='_blank' rel='noopener'>" +
+      "set it up on the Ligands page</a>." +
+      (left ? " " + plural(left, "other CSV") + " left: one dataset is set up at a time." : ""))};
+  }catch(err){
+    state.fetch = {busy: false, msg: fault(name + ": " + err.message)};
+  }
+  commit();
+}
 
 /* Whatever the user chose or dropped, in the order they gave it. */
 export async function openFiles(files){
   let list = Array.prototype.slice.call(files || []);
   if (!list.length) return;
-  /* One dataset at a time -- its dialog is modal -- so the first CSV is taken and
-     any others are said to have been left. */
+  /* One dataset at a time, so the first CSV is taken and any others are said to
+     have been left. The structures in the same drop load here as ever. */
   const csvs = list.filter(f => isCsvName(f.name));
   if (csvs.length){
     list = list.filter(f => !isCsvName(f.name));
@@ -85,9 +102,7 @@ export async function openFiles(files){
     }
     state.fetch = {busy: false, msg: null};
     if (list.length) await openFiles(list);
-    if (left && !state.fetch.msg)
-      state.fetch.msg = note("Only one ligand file is opened at a time; " + plural(left, "other CSV") + " left.");
-    return openDataset(csvs[0].name, text);
+    return sendToLigands(csvs[0].name, text, left);
   }
   state.fetch = {busy: true, msg: note("Reading " + plural(list.length, "file") + "…")};
   state.busy = "reading…";

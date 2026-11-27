@@ -68,6 +68,11 @@ STATUS: tuple[tuple[type[ViewerError], int], ...] = (
 
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 
+#: Pages with a path of their own, served by the one file in ``app/``. The ligands
+#: page is addressed by the dataset it shows -- ``/ligands/ds-0123456789ab`` -- so
+#: a dataset can be linked to and reopened; the page reads its id from the path.
+PAGES = {"/ligands": "/ligands.html"}
+
 
 def status_for(exc: ViewerError) -> int:
     for cls, code in STATUS:
@@ -165,9 +170,23 @@ class Handler(SimpleHTTPRequestHandler):
         log.info(fmt, *args)
 
     # -- dispatch -----------------------------------------------------------
+    def _page(self, path: str) -> None:
+        """Point a page's path at its file. Only the file named in PAGES is ever
+        served for it, whatever follows the prefix, so nothing here reaches the disk.
+        """
+        for prefix, target in PAGES.items():
+            if path == prefix or path.startswith(prefix + "/"):
+                self.path = target
+                return
+
+    def do_HEAD(self):
+        self._page(self._split()[0])
+        super().do_HEAD()
+
     def do_GET(self):
         path, query = self._split()
         if not path.startswith("/api/"):
+            self._page(path)
             return super().do_GET()
         refused = self._refuse()
         if refused:

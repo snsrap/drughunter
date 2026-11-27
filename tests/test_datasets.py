@@ -89,11 +89,10 @@ def test_a_staged_dataset_cannot_be_queried_or_trained_on(tmp_path, tool):
     staged = upload(svc)
     with pytest.raises(NotFound):
         rows(svc, staged["dataset_id"])
-    assert svc.dataset_status(DatasetIdRequest(staged["dataset_id"])) == {
-        "dataset_id": staged["dataset_id"],
-        "state": "staged",
-        "name": "cdd.csv",
-    }
+    # ...but it is still there by id, with its columns, to be picked up where it was left
+    again = svc.dataset_status(DatasetIdRequest(staged["dataset_id"]))
+    assert again == {k: staged[k] for k in again} and again["state"] == "staged"
+    assert again["columns"] == staged["columns"] and again["structure_candidates"] == ["SMILES"]
 
 
 def test_a_file_that_is_not_csv_is_refused_and_not_kept(tmp_path, tool):

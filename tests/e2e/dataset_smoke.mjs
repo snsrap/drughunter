@@ -1,6 +1,8 @@
-// Upload a ligand CSV through the page, inspect it, sort and filter it -- the
-// connected path through the dialog, the server, ligandbench and the grid --
-// and check that a 10,000-row dataset is only ever shown a page at a time.
+// The Ligands page, /ligands: asked to load a dataset, upload a CSV, inspect it,
+// sort and filter it -- the connected path through the dialog, the server,
+// ligandbench and the grid -- reopen it by its address, and check that a
+// 10,000-row dataset is only ever shown a page at a time. Also that the viewer
+// hands a dropped CSV to that page rather than opening it over the 3D stage.
 //
 //   npm install                      # playwright-core, once
 //   node tests/e2e/dataset_smoke.mjs [OUTDIR]
@@ -77,33 +79,57 @@ const cards = () => page.locator("#mol-grid .mcard").count();
 const shot = async name => { if (OUT) await page.screenshot({ path: path.join(OUT, name + ".png") }); };
 const gridOpens = () => page.waitForSelector("#mol-grid .mcard");
 
+// ---- the page asks for a dataset ---------------------------------------------------------------------
+console.log("the ligands page");
+await page.goto(BASE + "/ligands");
+await page.waitForFunction(() => document.getElementById("version").textContent.startsWith("v"), null, { timeout: 60000 });
+check("it opens with a prompt to load a dataset", await page.locator("#ds-prompt").isVisible()
+  && (await text("#ds-prompt")).includes("Load your ligand dataset") && await page.locator("#ds-open-big").isEnabled());
+check("there is no panel yet, and the tab says Ligands", await page.locator("#mtab").isHidden() && (await page.title()).startsWith("Ligands"));
+check("the navigation says where this is", (await page.locator(".nav a[aria-current=page]").innerText()) === "Ligands");
+await shot("prompt");
+await page.goto(BASE + "/ligands/ds-000000000000");
+await page.waitForFunction(() => document.getElementById("ds-prompt-msg").textContent.length > 0);
+check("an address that names no dataset says so and still asks for one", (await text("#ds-prompt-msg")).includes("load the file again") && await page.locator("#ds-prompt").isVisible(), await text("#ds-prompt-msg"));
+await page.goto(BASE + "/ligands/nonsense");
+await page.waitForFunction(() => document.getElementById("ds-prompt-msg").textContent.length > 0);
+check("an address that cannot be a dataset's is said to be wrong", (await text("#ds-prompt-msg")).includes("not a dataset id"));
+
+// ---- the viewer hands a CSV over, and still loads a structure ------------------------------------------------
+console.log("the viewer");
 await page.goto(BASE + "/");
 await page.waitForFunction(() => document.getElementById("version").textContent.startsWith("v"), null, { timeout: 60000 });
-
-// ---- a structure still loads where it always did ---------------------------------
-console.log("a structure file");
 await page.setInputFiles("#file-input", PDB);
 await page.waitForFunction(() => document.getElementById("ent-n").textContent.includes("1 loaded"));
 check("1CRN.pdb loads into the tree", true);
-check("a structure does not open the dataset dialog", !(await page.locator("#datadlg").evaluate(d => d.open)));
-
-// ---- cancelling an upload removes it ------------------------------------------------
-console.log("cancel");
+check("a structure does not open the dataset dialog", (await page.locator("#datadlg").count()) === 0);
 await page.setInputFiles("#file-input", CDD);
-await page.waitForSelector("#datadlg[open]");
+await page.waitForSelector("#pdb-msg a[href^='/ligands/ds-']");
+const handed = await page.locator("#pdb-msg a").getAttribute("href");
+check("a CSV is sent to the Ligands page, not opened over the stage", (await text("#pdb-msg")).includes("cdd_export_hiv1_protease.csv")
+  && (await page.locator("#mtab").count()) === 0 && (await page.locator("#ent-n").innerText()).toLowerCase().includes("1 loaded"), handed);
+check("the viewer links to the Ligands page", (await page.locator(".nav a[href='/ligands']").count()) === 1);
+
+// ---- the link opens the upload where it was left; cancelling removes it -----------------------------------
+console.log("a staged upload, by its address");
 const staged = uploaded;
+await page.goto(BASE + handed);
+await page.waitForSelector("#datadlg[open]");
+check("the address is the upload's own", new URL(page.url()).pathname === handed && handed === "/ligands/" + staged.dataset_id);
 check("upload answers staged with its columns", staged.state === "staged" && staged.columns.length === 8 && staged.n_rows === 106);
 check("the dialog names the file and its size", (await text("#dd-sub")).includes("cdd_export_hiv1_protease.csv · 106 rows · 8 columns"));
+check("nothing is behind it but the prompt", await page.locator("#mtab").isHidden());
 await page.click("#dd-cancel");
 await page.waitForFunction(() => !document.getElementById("datadlg").open);
 await page.waitForTimeout(300);
 const gone = await fetch(`${BASE}/api/dataset?id=${staged.dataset_id}`);
 check("a cancelled upload is gone from the server", gone.status === 404, "HTTP " + gone.status);
-check("no dataset panel appears", await page.locator("#mtab").isHidden());
+check("the address goes back to the page with no dataset", new URL(page.url()).pathname === "/ligands");
+check("and the prompt asks again", await page.locator("#ds-prompt").isVisible() && await page.locator("#mtab").isHidden());
 
 // ---- the CDD export: the dialog asks, nothing is assumed ---------------------------------
 console.log("the CDD export");
-await page.setInputFiles("#file-input", CDD);
+await page.setInputFiles("#ds-file", CDD);
 await page.waitForSelector("#datadlg[open]");
 check("the one structure column is chosen", (await page.locator("#dd-structure").inputValue()) === "3");
 check("the target is left to the user", (await page.locator("#dd-target").inputValue()) === "" && await page.locator("#dd-go").isDisabled());
@@ -144,7 +170,25 @@ const summary = await text("#ds-sum");
 check("the rail says what was read", ["cdd_export_hiv1_protease.csv", "106", "SMILES", "102 of 106", "none"].every(s => summary.includes(s)), summary);
 check("a bound is listed among what is left out", summary.includes("bound"));
 check("the first card is the first record", (await text("#mol-grid .mcard .mname")) === "DH-0001");
+check("the prompt is gone and the page is titled for the dataset", await page.locator("#ds-prompt").isHidden() && (await page.title()).startsWith("cdd_export_hiv1_protease.csv"));
 await shot("grid");
+
+// ---- the dataset has an address: reload, Back, and a link -------------------------------------------------------
+console.log("its address");
+const cddPath = new URL(page.url()).pathname;
+check("the address is the dataset's id", /^\/ligands\/ds-[0-9a-f]{12}$/.test(cddPath), cddPath);
+await page.reload();
+await gridOpens(); await idle();
+check("reloading reopens it, with the same rows", (await text("#mol-range")) === "1–50 of 106" && (await text("#mol-grid .mcard .mname")) === "DH-0001");
+check("and its summary", (await text("#ds-sum")).includes("102 of 106"));
+await page.goto(BASE + "/ligands");
+check("the bare page asks for a dataset again", await page.locator("#ds-prompt").isVisible());
+await page.goBack();
+await gridOpens(); await idle();
+check("Back returns to the dataset", new URL(page.url()).pathname === cddPath && (await cards()) === 50);
+await page.goto(BASE + cddPath);
+await gridOpens(); await idle();
+check("a link opens it directly", (await text("#mol-range")) === "1–50 of 106");
 
 // ---- sort ----------------------------------------------------------------------------------------
 console.log("sort and filter");
@@ -193,7 +237,7 @@ check("the detail closes", await page.locator("#mol-detail").isHidden());
 console.log("partial parse failures");
 const PARTIAL = path.join(tmp, "partial.csv");
 fs.writeFileSync(PARTIAL, "Name,Smiles,Active\nethanol,CCO,1\nbroken,C(C(,0\n,,1\nbenzene,c1ccccc1,0\ntoluene,Cc1ccccc1,1\n");
-await page.setInputFiles("#file-input", PARTIAL);
+await page.setInputFiles("#ds-file", PARTIAL);
 await page.waitForSelector("#datadlg[open]");
 await page.selectOption("#dd-target", "2");   // Active
 await page.check("input[name=dd-kind][value=classification]");
@@ -212,7 +256,7 @@ check("a placeholder says why", why.includes("not a valid SMILES") && why.includ
 // ---- ten thousand rows -------------------------------------------------------------------------------------
 console.log("ten thousand rows");
 pages.length = 0;
-await page.setInputFiles("#file-input", TEN_K);
+await page.setInputFiles("#ds-file", TEN_K);
 await page.waitForSelector("#datadlg[open]");
 check("a file with no target: the user says so", (await page.locator("#dd-structure").inputValue()) === "1");
 await page.selectOption("#dd-target", "-1");

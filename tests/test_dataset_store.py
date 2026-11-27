@@ -54,6 +54,17 @@ def test_cancel_deletes_the_staged_files(tmp_path):
         store.cancel(dataset_id)
 
 
+def test_what_was_found_in_a_staged_upload_is_kept_with_it(tmp_path):
+    store = DatasetStore(tmp_path)
+    dataset_id = store.stage("a.csv", "a\n1\n")["dataset_id"]
+    store.annotate(dataset_id, n_rows=1, columns=[{"name": "a"}])
+    again = DatasetStore(tmp_path).staged(dataset_id)
+    assert again["name"] == "a.csv" and again["n_rows"] == 1 and again["columns"] == [{"name": "a"}]
+    store.cancel(dataset_id)
+    with pytest.raises(NotFound):
+        store.annotate(dataset_id, n_rows=2)
+
+
 def test_a_staged_upload_expires_after_a_day(tmp_path):
     clock = Clock()
     store = DatasetStore(tmp_path, clock=clock)

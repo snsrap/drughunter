@@ -558,15 +558,14 @@ class ViewerService:
         except Exception:
             store.cancel(dataset_id)  # a file that cannot be read is not kept
             raise
-        log.info("dataset %s staged: %s, %s rows", dataset_id, req.name, found.get("n_rows"))
-        return {
-            "dataset_id": dataset_id,
-            "state": "staged",
-            "name": req.name,
+        view = {
             "n_rows": found.get("n_rows"),
             "columns": found.get("columns", []),
             "structure_candidates": found.get("structure_candidates", []),
         }
+        store.annotate(dataset_id, **view)
+        log.info("dataset %s staged: %s, %s rows", dataset_id, req.name, view["n_rows"])
+        return {"dataset_id": dataset_id, "state": "staged", "name": req.name, **view}
 
     def resolve_dataset(self, req: DatasetResolveRequest) -> dict:
         """Apply the user's choices. A staged dataset becomes ready under its
@@ -599,7 +598,9 @@ class ViewerService:
         return {"dataset_id": req.dataset_id, "state": "cancelled"}
 
     def dataset_status(self, req: DatasetIdRequest) -> dict:
-        """A dataset by id: ready ones are reopened from disk after a restart."""
+        """A dataset by id: a ready one is reopened from disk after a restart, and a
+        staged one comes back with its columns, still waiting to be resolved.
+        """
         store = self._store()
         try:
             return self._dataset_view(store.get(req.dataset_id))
@@ -607,7 +608,14 @@ class ViewerService:
             staged = store.staged(req.dataset_id)
             if staged is None:
                 raise
-            return {"dataset_id": req.dataset_id, "state": "staged", "name": staged["name"]}
+            return {
+                "dataset_id": req.dataset_id,
+                "state": "staged",
+                "name": staged["name"],
+                "n_rows": staged.get("n_rows"),
+                "columns": staged.get("columns", []),
+                "structure_candidates": staged.get("structure_candidates", []),
+            }
 
     def dataset_rows(self, req: DatasetRowsRequest) -> dict:
         """One page of a ready dataset. Sorting and filtering happen before the

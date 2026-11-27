@@ -8,6 +8,7 @@ import {
   summaryRows, targetText, detail, exclusionLine, NO_TARGET, NO_QUALIFIER,
   newQuery, withSort, withFilter, withoutFilter, withLimit, withOffset, queryBody, pageInfo,
   parseFilter, filterText, makeLatest, operatorsFor, MAX_LIMIT,
+  datasetFromPath, ligandsPath, isCsvName, LIGANDS,
 } from "../../proteinviewer/app/js/model/dataset.js";
 
 const KI = "HIV-1 PR FRET (Q7K): Ki (nM)", QUAL = "HIV-1 PR FRET (Q7K): Ki Qualifier";
@@ -327,4 +328,26 @@ test("only the newest request may change what is on screen", () => {
   const third = latest.issue();
   assert.equal(latest.current(second), false);
   assert.equal(latest.current(third), true);
+});
+
+// ---- where a dataset lives ----
+
+test("a dataset is addressed by its id under /ligands", () => {
+  assert.equal(LIGANDS, "/ligands");
+  assert.equal(ligandsPath("ds-0123456789ab"), "/ligands/ds-0123456789ab");
+  assert.equal(ligandsPath(null), "/ligands");
+  assert.deepEqual(datasetFromPath("/ligands/ds-0123456789ab"), {id: "ds-0123456789ab"});
+  assert.deepEqual(datasetFromPath("/ligands/ds-0123456789ab/"), {id: "ds-0123456789ab"});
+});
+
+test("the page with no dataset open has no id, and a path that is not an id is said to be wrong", () => {
+  for (const p of ["/ligands", "/ligands/", "/", "", null]) assert.deepEqual(datasetFromPath(p), {id: null}, String(p));
+  for (const bad of ["abc", "ds-xyz", "DS-0123456789AB", "ds-0123456789abc"])
+    assert.match(datasetFromPath("/ligands/" + bad).error, /is not a dataset id/, bad);
+  assert.deepEqual(datasetFromPath("/ligands/ds-0123456789ab/extra"), {id: null}, "not a path this page owns");
+});
+
+test("the ligands page reads CSV, plain or gzipped, whatever the case", () => {
+  for (const ok of ["a.csv", "A.CSV", "export.2026.csv.gz", "x y.csv"]) assert.equal(isCsvName(ok), true, ok);
+  for (const no of ["a.pdb", "a.csv.txt", "csv", "", null, "a.csvx"]) assert.equal(isCsvName(no), false, String(no));
 });

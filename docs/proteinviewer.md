@@ -486,7 +486,7 @@ and which mode are all recorded in the project (see *The project directory*).
 | `POST /api/dataset/upload` | `{name, data}` → `{dataset_id, state: "staged", n_rows, columns, structure_candidates}`: keep a CSV, staged; it cannot train, and expires after 24 hours if never resolved |
 | `POST /api/dataset/resolve` | `{dataset_id, structure_column, target_column, target_kind, qualifier_column, source_units, transform, positive_class}` → the ready dataset (`state: "ready"`, counts, `exclusions`, `content_hash`, `schema`). A staged dataset keeps its id; resolving a ready one makes a new dataset |
 | `POST /api/dataset/cancel` | `{dataset_id}`: delete a staged upload |
-| `GET /api/dataset?id=` | a dataset by id; a ready one is reopened from disk after a restart |
+| `GET /api/dataset?id=` | a dataset by id; a ready one is reopened from disk after a restart, a staged one comes back with its columns |
 | `POST /api/dataset/rows` | `{dataset_id, offset, limit, sort: {key, dir}, filters: [{key, op, value}]}` → `{total, rows}`: one page (default 50, at most 100), sorted and filtered before it is cut, with only that page's depictions |
 | `POST /api/project/save` | `{project, path, session, overwrite}` → `{path, files, bytes}`: write `session.json` into it, then copy it to `path` |
 
@@ -517,12 +517,20 @@ pocketbench superpose mobile.pdb reference.pdb -o moved.pdb
 
 ## Ligand datasets
 
-A `.csv` of ligands goes through the same **Open file…** button and drop zone as
-a structure, and opens a dialog instead of the 3D view. Upload is two stages:
-the file is sent as it is and the server answers with its columns, then the
-dialog asks what is in it and the answers are sent back to be resolved. Cancel
-(or Esc) deletes the staged upload; a refusal -- a column that holds no SMILES,
-a pKi from the wrong units -- leaves the dialog open to change the answer.
+Ligand datasets have a page of their own, **Ligands**, at `/ligands` (the link
+beside the title). Opened with nothing loaded it asks you to load a dataset:
+choose a `.csv` (`.gz` too), or drop one anywhere on the page. Each dataset lives
+at its own address, `/ligands/<dataset id>`, so one can be linked to, bookmarked,
+reopened after a reload and returned to with Back -- even an upload still
+waiting for its columns to be chosen is picked up where it was left. A `.csv`
+dropped on the 3D viewer is sent to this page, not opened over the stage: the
+viewer leaves what it has loaded alone and links to the upload.
+
+Upload is two stages: the file is sent as it is and the server answers with its
+columns, then a dialog asks what is in it and the answers are sent back to be
+resolved. Cancel (or Esc) deletes the staged upload; a refusal -- a column that
+holds no SMILES, a pKi from the wrong units -- leaves the dialog open to change
+the answer.
 
 The dialog asks for the **structure column** (chosen for you only when exactly
 one header looks like one), the **target** or "No target — prediction only", the
@@ -584,10 +592,11 @@ proteinviewer/               the server: Python standard library only
   schemas.py  service.py       parsed requests, and the use cases over them
   web.py                       HTTP: routing, status codes, the cross-site checks
   server.py                    composition root: picks the tools, wires, serves, cleans up
-  app/                         the page: no build step, no install; shipped as package data
-    index.html                   markup only
+  app/                         the pages: no build step, no install; shipped as package data
+    index.html                   the viewer, at /
+    ligands.html                 the ligand datasets, at /ligands and /ligands/<id>
     css/tokens.css  css/app.css  theme colours, then components and layout
-    js/main.js                   boot: registers the views, binds the features, probes the server
+    js/main.js  js/ligands.js    boot of each page: registers the views, binds the features, probes the server
     js/core/                     state store, API client, RCSB fetch, files in and out,
                                    colours, DOM helpers
     js/model/                    pure: tree building, cutting a selection out of its file,

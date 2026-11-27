@@ -32,6 +32,27 @@ export const UNITS = [
   {value: "", label: "none / not applicable"},
 ];
 
+/* ---------------- where a dataset lives ---------------- */
+
+/* The ligands page has an address of its own, and so does each dataset on it:
+   /ligands/ds-0123456789ab. The id in the path is what is opened, so a dataset
+   can be linked to, bookmarked and reopened after a reload. */
+export const LIGANDS = "/ligands";
+const ID = /^ds-[0-9a-f]{12}$/;
+
+export const ligandsPath = id => id ? LIGANDS + "/" + id : LIGANDS;
+
+/* {id} for a dataset's path, {id: null} for the page with none open, {error}
+   for something that cannot be a dataset's id. */
+export function datasetFromPath(path){
+  const m = /^\/ligands(?:\/([^/]*))?\/?$/.exec(path || "");
+  if (!m || !m[1]) return {id: null};
+  return ID.test(m[1]) ? {id: m[1]} : {error: "“" + m[1] + "” is not a dataset id."};
+}
+
+/* A file the ligands page reads: CSV, plain or gzipped. */
+export const isCsvName = name => /\.csv(\.gz)?$/i.test(name || "");
+
 /* ---------------- the resolution dialog ---------------- */
 
 /* The form as it starts. A structure column is chosen for the user only when
