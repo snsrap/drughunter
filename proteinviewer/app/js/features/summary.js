@@ -11,7 +11,7 @@
    four displays to show, is model/summary.js's, and testable. */
 
 import {commit} from "../core/state.js";
-import {$, esc, setHTML} from "../core/dom.js";
+import {$, esc, attr, setHTML} from "../core/dom.js";
 import * as api from "../core/api.js";
 import * as S from "../model/summary.js";
 import {makeLatest} from "../model/dataset.js";
@@ -101,7 +101,7 @@ function targetBlock(v){
       "<p class='snote'>" + esc(v.ruleNote) + "</p>";
   if (v.kind === "classification")
     return "<p class='snote'>" + esc(v.caption) + "</p>" + "<div class='sbars'>" + v.rows.map(r =>
-      "<div class='srow'><span class='sname' title='" + esc(r.label) + "'>" + esc(r.label) + (r.positive ? " (positive)" : "") + "</span>" +
+      "<div class='srow'><span class='sname' title='" + attr(r.label) + "'>" + esc(r.label) + (r.positive ? " (positive)" : "") + "</span>" +
       "<span class='strack'><span class='sfill' style='width:" + (r.frac * 100).toFixed(2) + "%'></span></span>" +
       "<span class='mono'>" + esc(r.value) + "</span><span class='sshare'>" + esc(r.share) + "</span></div>").join("") + "</div>";
   return "<div class='sempty'><b>" + esc(v.message) + "</b><span>" + esc(v.detail) + "</span></div>";
@@ -117,14 +117,14 @@ function histogram(v){
     "<text class='stick' x='" + (t.pos * W).toFixed(1) + "' y='" + (H + 15) + "' text-anchor='" +
     (t.pos === 0 ? "start" : t.pos === 1 ? "end" : "middle") + "'>" + esc(t.label) + "</text>").join("");
   return "<svg class='shist' viewBox='0 0 " + W + " " + (H + 20) + "' role='img' aria-label='" +
-    esc("Histogram of " + v.axis + " in " + v.bars.length + " bins") + "'>" + rects +
+    attr("Histogram of " + v.axis + " in " + v.bars.length + " bins") + "'>" + rects +
     "<line class='saxis' x1='0' x2='" + W + "' y1='" + (H + .5) + "' y2='" + (H + .5) + "'/>" + ticks + "</svg>";
 }
 
 function missingSection(m){
   return section("Missing cells", "<p class='snote'>" + esc(m.heading) + ". " + esc(m.note) + "</p>" +
     "<div class='sbars smissing'>" + m.rows.map(r =>
-      "<div class='srow" + (r.n ? "" : " none") + "'><span class='sname' title='" + esc(r.name) + "'>" + esc(r.name) + "</span>" +
+      "<div class='srow" + (r.n ? "" : " none") + "'><span class='sname' title='" + attr(r.name) + "'>" + esc(r.name) + "</span>" +
       "<span class='strack'><span class='sfill' style='width:" + (r.frac * 100).toFixed(2) + "%'></span></span>" +
       "<span class='mono'>" + esc(r.value) + "</span><span class='sshare'>" + esc(r.share) + "</span></div>").join("") + "</div>",
     "wide");
