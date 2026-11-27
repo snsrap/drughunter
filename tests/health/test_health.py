@@ -50,6 +50,13 @@ PARTS = ("proteinviewer", "pocketbench", "ligandbench", "quickprep")
 TOOLS = ("fpocket", "lacuna", "scorer", "neat-pocket", "weights")
 # The checkpoints pocketgen/neat_pocket.py loads unless a job names others.
 WEIGHTS = ("trained_models/neat_spindr", "trained_models/bond_predictor/bp_spindr")
+# Ring systems for the small training set of test_ligandbench_trains_a_model.
+RINGS = (
+    "c1ccccc1", "c1ccncc1", "C1CCCCC1", "c1ccc2ccccc2c1", "c1ccsc1", "c1ccoc1",
+    "C1CCNCC1", "c1ccc2[nH]ccc2c1", "c1ccnc2ccccc12", "C1CCOC1", "c1cnccn1", "C1CCCC1",
+    "C1CC1", "C1CCC1", "C1CCCCCC1", "c1cncnc1", "c1ccnnc1", "c1cc[nH]c1", "c1c[nH]cn1",
+    "c1cocn1",
+)  # fmt: skip
 # Distributions whose import name is not their own name.
 IMPORT_NAMES: dict[str, str] = {}
 
@@ -153,8 +160,67 @@ def test_ligandbench(health_report):
     except ValueError:
         health_report.append("ligandbench NOT RUNNING in %s" % sys.executable)
         pytest.fail("ligandbench did not answer:\n%s" % tail(proc))
-    health_report.append("ligandbench %s  (RDKit %s)" % (info.get("version"), info.get("rdkit")))
+    health_report.append(
+        "ligandbench %s  (RDKit %s, XGBoost %s)"
+        % (info.get("version"), info.get("rdkit"), info.get("xgboost"))
+    )
     assert proc.returncode == 0, info.get("error")
+    assert info.get("xgboost"), "training needs XGBoost: %s" % info.get("xgboost_error")
+
+
+def test_ligandbench_trains_a_model(tmp_path, health_report):
+    """``ligandbench train`` on the smallest search, in this interpreter: the featuriser,
+    the splits, XGBoost and the run directory all have to work for it to finish.
+    """
+    rows = "".join(
+        "%s,%s\n" % ("C" * k + ring, 0.2 * k + i)
+        for i, ring in enumerate(RINGS)
+        for k in range(1, 6)
+    )
+    source = tmp_path / "source.csv"
+    source.write_text("smiles,y\n" + rows)
+    config = tmp_path / "config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "structure_column": "smiles",
+                "target": {
+                    "column": "y",
+                    "kind": "regression",
+                    "qualifier_column": None,
+                    "transform": "identity",
+                    "source_units": "pKi",
+                },
+            }
+        )
+    )
+    dataset = tmp_path / "ds"
+    proc = run(
+        [
+            sys.executable,
+            "-m",
+            "ligandbench",
+            "resolve",
+            str(source),
+            "--config",
+            str(config),
+            "--out",
+            str(dataset),
+        ]
+    )
+    assert proc.returncode == 0, tail(proc)
+    (dataset / "source.csv").write_bytes(source.read_bytes())
+    out = tmp_path / "run"
+    out.mkdir()
+    proc = run(
+        [sys.executable, "-m", "ligandbench", "train", str(dataset), "--out", str(out),
+         "--seed", "0", "--production-strategy", "random", "--profile", "tiny"]
+    )  # fmt: skip
+    assert proc.returncode == 0, tail(proc)
+    answer = json.loads(proc.stdout)
+    assert answer == {"status": "completed", "run": "run.json"}, answer
+    run_json = json.loads((out / "run.json").read_text())
+    health_report.append("training    OK  (XGBoost %s)" % run_json["versions"]["xgboost"])
 
 
 def test_dataset_adapter_and_store(tmp_path, health_report):

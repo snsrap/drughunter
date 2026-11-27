@@ -40,7 +40,7 @@ class PackagingTest(unittest.TestCase):
                 )
 
     @unittest.skipUnless(sys.version_info >= (3, 11), "tomllib")
-    def test_every_package_is_discovered_and_rdkit_is_declared(self):
+    def test_every_package_is_discovered_and_ligandbench_dependencies_are_declared(self):
         # ligandbench is run by the server, not imported, so nothing else would
         # notice a package that was left out of the distribution or its dependency.
         import tomllib
@@ -49,9 +49,10 @@ class PackagingTest(unittest.TestCase):
         include = cfg["tool"]["setuptools"]["packages"]["find"]["include"]
         for part in (*PARTS, "pocketgen"):
             self.assertIn(part + "*", include)
-        self.assertIn(
-            "rdkit", [d.split(">")[0].split("=")[0].strip() for d in cfg["project"]["dependencies"]]
-        )
+        declared = [d.split(">")[0].split("=")[0].strip() for d in cfg["project"]["dependencies"]]
+        self.assertIn("rdkit", declared)
+        self.assertIn("xgboost", declared)
+        self.assertIn("xgboost>=2.1", cfg["project"]["dependencies"])
         self.assertIn("ligandbench", cfg["project"]["scripts"])
 
 
