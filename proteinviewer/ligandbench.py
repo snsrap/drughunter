@@ -67,6 +67,7 @@ class Ligandbench:
             "version": self.info.get("version", ""),
             "rdkit": self.info.get("rdkit", ""),
             "depiction": self.info.get("depiction", ""),
+            "summary": self.info.get("summary", ""),
             "python": self.python or "",
         }
 
@@ -117,6 +118,13 @@ class Ligandbench:
             with open(req, "w", encoding="utf-8") as fh:
                 json.dump({"smiles": list(smiles)}, fh)
             return self._call(self._cmd("depict", req))
+
+    def summarize(self, dataset_dir: str) -> dict:
+        """The dashboard's statistics for the resolved dataset whose
+        ``dataset.json`` and ``rows.json`` are in ``dataset_dir``: one JSON
+        object, no per-row data.
+        """
+        return self._call(self._cmd("summarize", dataset_dir))
 
     # -- plumbing ----------------------------------------------------------
     def _require(self) -> None:

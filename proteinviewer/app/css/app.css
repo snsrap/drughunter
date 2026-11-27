@@ -278,6 +278,50 @@ table.gt tbody tr:last-child td{border-bottom:0}
   .mscroll{flex:none; height:260px}
   .mdetail{width:auto; max-height:320px; border-left:0; border-top:1px solid var(--line)}
 }
+/* ---------- the dataset summary: tables of counts, a histogram or class bars, missing cells ---------- */
+/* Its body has a height of its own, so a long list of columns scrolls inside the panel instead of
+   pushing the ligands off the page. */
+.sum .sbody{max-height:48vh; overflow:auto; scrollbar-width:thin; padding:10px 12px}
+.sum.closed .sbody,.sum.closed #sum-msg{display:none}
+#sum-msg{padding:6px 10px}
+.sgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px 24px}
+.ssec{min-width:0}
+.ssec.wide{grid-column:1/-1}
+.ssec h3{margin-bottom:5px}
+.ssec h4{font:600 12px/1.3 "IBM Plex Sans Condensed","IBM Plex Sans",sans-serif; margin:10px 0 3px}
+.stab{border-collapse:collapse; width:100%; font-size:12px}
+.stab th{text-align:left; font-weight:500; color:var(--ink-2); padding:2px 10px 2px 0}
+.stab td{padding:2px 0; vertical-align:baseline}
+.stab td.mono{text-align:right; padding-right:12px; color:var(--ink); font-weight:600; white-space:nowrap}
+.stab td:last-child{color:var(--muted); font-size:11px}
+.snote{margin:5px 0 0; font-size:11px; line-height:1.4; color:var(--muted)}
+.shist{display:block; width:100%; max-width:480px; height:auto; margin-top:6px}
+.sbar{fill:var(--accent)}
+.sbar:hover{fill:var(--ink-2)}
+.saxis{stroke:var(--line-2); stroke-width:1}
+.stick{fill:var(--muted); font:11px "IBM Plex Mono",ui-monospace,monospace}
+.slabel{max-width:480px; text-align:center; font-size:11px; color:var(--ink-2)}
+.sstats{display:flex; flex-wrap:wrap; gap:4px 18px; margin:8px 0 0}
+.sstats div{display:flex; gap:6px; align-items:baseline}
+.sstats dt{font:600 10px "IBM Plex Mono",ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+.sstats dd{margin:0; font-size:12px}
+.sbars{display:flex; flex-direction:column; gap:3px; margin-top:5px}
+.srow{display:grid; grid-template-columns:minmax(0,15em) minmax(60px,1fr) 4.5em 4.5em; align-items:center; gap:8px; font-size:12px}
+.sname{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.strack{height:8px; background:var(--panel-2); border-radius:2px; overflow:hidden}
+.sfill{display:block; height:100%; background:var(--accent)}
+.srow .mono{text-align:right}
+.sshare{text-align:right; font-size:11px; color:var(--muted)}
+.srow.none .sname,.srow.none .mono{color:var(--muted)}
+.sempty{display:flex; flex-direction:column; gap:3px; padding:14px; font-size:12px; color:var(--ink-2);
+  background:var(--panel-2); border:1px dashed var(--line-2); border-radius:3px}
+.sempty b{font-size:14px; color:var(--ink)}
+.sfail{display:flex; flex-wrap:wrap; align-items:center; gap:10px; font-size:12px; color:var(--fail)}
+@media (max-width:900px){
+  .sum .sbody{max-height:none}
+  .sgrid{grid-template-columns:minmax(0,1fr)}
+  .srow{grid-template-columns:minmax(0,9em) minmax(40px,1fr) 4em 4em}
+}
 #dd-reg{display:flex; flex-direction:column; gap:9px}
 .dlg.dlg-wide{width:min(520px, calc(100vw - 32px))}
 

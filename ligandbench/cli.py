@@ -5,6 +5,7 @@
     resolve CSV --config F --out DIR    rows and metadata, written into DIR
     depict  REQUEST                     SVGs for the SMILES a JSON file lists
     split   DIR --strategy S --seed N   five repeated holdouts of a resolved dataset
+    summarize DIR                       the dashboard's numbers for a resolved dataset in DIR
 
 Every command prints one JSON object. The exit code says whose problem a
 failure is -- 2 a file or choice that cannot be used, 3 RDKit missing -- and the
@@ -48,8 +49,16 @@ def _rdkit():
 def cmd_info(a) -> int:
     chem = _rdkit()
     from .depict import DEPICTION_VERSION
+    from .summary import SUMMARY_VERSION
 
-    _out({"version": __version__, "rdkit": chem.require_rdkit(), "depiction": DEPICTION_VERSION})
+    _out(
+        {
+            "version": __version__,
+            "rdkit": chem.require_rdkit(),
+            "depiction": DEPICTION_VERSION,
+            "summary": SUMMARY_VERSION,
+        }
+    )
     return 0
 
 
@@ -147,6 +156,32 @@ def cmd_split(a) -> int:
     return 0
 
 
+def _read_json(path: Path) -> dict:
+    try:
+        payload = json.loads(_read(str(path)))
+    except ValueError as exc:
+        raise BadInput("%s is not JSON: %s" % (path, exc)) from None
+    if not isinstance(payload, dict):
+        raise BadInput("%s is not a ligandbench dataset file" % path)
+    return payload
+
+
+def cmd_summarize(a) -> int:
+    _rdkit()
+    from .summary import summarize
+
+    base = Path(a.directory)
+    meta, rows = _read_json(base / "dataset.json"), _read_json(base / "rows.json").get("rows")
+    try:
+        summary = summarize(meta, rows)
+    except (KeyError, TypeError, AttributeError):
+        raise BadInput(
+            "%s is not a ligandbench dataset (dataset.json and rows.json)" % base
+        ) from None
+    _out(summary)
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="ligandbench", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -170,6 +205,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--strategy", help="random or scaffold")
     p.add_argument("--seed", default="0", help="a whole number; the same seed, the same split")
     p.set_defaults(run=cmd_split)
+    p = sub.add_parser("summarize", help="the dashboard's statistics for a resolved dataset")
+    p.add_argument("directory", help="the directory resolve wrote dataset.json and rows.json into")
+    p.set_defaults(run=cmd_summarize)
     return ap
 
 

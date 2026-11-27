@@ -8,7 +8,7 @@ immutable: resolving a ready dataset again makes a new one with a new id, so
 anything that recorded an id (a split, a model) still means what it did.
 
     <root>/staged/<id>/source.csv, staged.json
-    <root>/ready/<id>/source.csv, dataset.json, rows.json, depictions/...
+    <root>/ready/<id>/source.csv, dataset.json, rows.json, depictions/..., summaries/...
 
 The rows are written by ligandbench; this module never reads a molecule. It
 is I/O: the filesystem and nothing of HTTP, of the domain, or of any tool.
@@ -242,6 +242,31 @@ class DatasetStore:
             tmp = base / ("%d.svg.%s.tmp" % (rid, uuid.uuid4().hex[:6]))
             tmp.write_text(svg, encoding="utf-8")
             os.replace(tmp, base / ("%d.svg" % rid))
+
+    # -- summaries ---------------------------------------------------------
+    def directory(self, dataset_id: str) -> Path:
+        """Where a ready dataset's files are, for a tool that reads them itself."""
+        self.get(dataset_id)
+        return self._ready / dataset_id
+
+    def _summary_path(self, dataset_id: str, version: str) -> Path:
+        key = str(self.get(dataset_id).get("content_hash", ""))[:12] or "unhashed"
+        name = "%s-v%s.json" % (key, re.sub(r"\W", "", version))
+        return self._ready / dataset_id / "summaries" / name
+
+    def cached_summary(self, dataset_id: str, version: str) -> dict | None:
+        """The summary made under this version, or None: never made, or a file
+        that cannot be read, which is made again.
+        """
+        return _read_json(self._summary_path(dataset_id, version))
+
+    def put_summary(self, dataset_id: str, version: str, summary: Mapping[str, Any]) -> None:
+        """Keep a summary. A dataset never changes, so what is kept for a version
+        stays true; another version is another file.
+        """
+        path = self._summary_path(dataset_id, version)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(path, summary)
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:

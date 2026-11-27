@@ -31,6 +31,7 @@ __all__ = [
     "DatasetIdRequest",
     "DatasetRowsRequest",
     "DatasetSplitRequest",
+    "DatasetSummaryRequest",
     "DEFAULT_CUTOFF",
     "DEFAULT_PAGE",
     "MAX_PAGE",
@@ -454,3 +455,17 @@ class DatasetSplitRequest:
         if seed > MAX_SEED:  # not validate's own hi=, which prints it as 4.29497e+09
             raise BadRequest("seed must be at most %d" % MAX_SEED)
         return cls(dataset_id, strategy, seed)
+
+
+@dataclass(frozen=True)
+class DatasetSummaryRequest:
+    """``GET /api/dataset/summary?id=...``: the statistics of a ready dataset."""
+
+    dataset_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetSummaryRequest:
+        dataset_id = validate.text(p, "dataset_id") or validate.text(p, "id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(dataset_id)

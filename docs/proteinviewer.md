@@ -489,6 +489,7 @@ and which mode are all recorded in the project (see *The project directory*).
 | `GET /api/dataset?id=` | a dataset by id; a ready one is reopened from disk after a restart, a staged one comes back with its columns |
 | `POST /api/dataset/rows` | `{dataset_id, offset, limit, sort: {key, dir}, filters: [{key, op, value}]}` → `{total, rows}`: one page (default 50, at most 100), sorted and filtered before it is cut, with only that page's depictions |
 | `POST /api/dataset/splits` | `{dataset_id, strategy: "random"\|"scaffold", seed}` → five repeated 80/10/10 holdouts of a ready dataset with a target (`status: "ok"`, `repeats`), or `status: "split_unavailable"` with why (an answer, not an error), plus `dataset_id`. A staged dataset is 409, a target-free one 400. Nothing is stored; the result's fields are in [ligandbench.md](ligandbench.md#splits) |
+| `GET /api/dataset/summary?id=` | the dashboard's statistics for a ready dataset, in one answer with no rows (`populations`, `exclusions`, `duplicates`, `target`, `scaffolds`, `missing`: see [ligandbench](ligandbench.md#dataset-summary)). Computed once by ligandbench and kept beside the dataset under its content hash and the summary version; a staged or unknown id is a 404 |
 | `POST /api/project/save` | `{project, path, session, overwrite}` → `{path, files, bytes}`: write `session.json` into it, then copy it to `path` |
 
 `/api/pockets`, `/api/prep`, `/api/generate` and `/api/score-poses` each also take `project`: the
@@ -557,6 +558,22 @@ combine with AND. Depictions are cached beside the dataset by content hash, row
 id and depiction version. The pure parts -- the dialog's rules, the query, the
 paging arithmetic, ignoring a stale answer -- are `proteinviewer/app/js/model/dataset.js`
 and tested with `npm test`.
+
+Above the ligands sits the **Dataset summary** panel: source rows, valid
+structures, parse failures and training-eligible rows each shown with the
+population it is a share of; why rows were left out (reasons overlap, and the
+panel says so); duplicates and conflicting labels; the target's distribution
+over the training-eligible rows -- a histogram in the units the model sees for
+regression (pKi, not nM), class counts for classification, "No target" for a
+prediction-only dataset, an empty state when no row can train; scaffold
+concentration; and the missing cells of every source column. It is one request,
+`GET /api/dataset/summary`, made as soon as a dataset is open and answered from
+what the server kept after the first time (a ready dataset never changes; a new
+summary version computes again). It does not wait for the ligand panel, shows a
+loading line while a large dataset is computed, shows an error with *Try again*
+if it fails, and draws one bar per bin or per class, never one element per row.
+Its wording and chart geometry are `proteinviewer/app/js/model/summary.js`,
+tested with `npm test`.
 
 ## Preparing structures
 
@@ -657,7 +674,7 @@ menu and, if it reports new numbers, show them in `js/features/pockets.js`.
 python3 -m unittest discover -s tests -t .   # server: about a second, no tools needed
 npm test                                     # the page's pure modules, Node 18+
 npm install && npm run e2e -- http://127.0.0.1:8000 /tmp/pv-ui --slow   # the whole UI
-npm run e2e:dataset                          # upload -> inspect -> sort/filter a ligand CSV; starts its own server
+npm run e2e:dataset                          # upload -> inspect -> summarise -> sort/filter a ligand CSV; starts its own server
 ```
 
 The server tests use fake tools, so they pass with nothing installed; real

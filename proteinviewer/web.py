@@ -40,6 +40,7 @@ from .schemas import (
     DatasetResolveRequest,
     DatasetRowsRequest,
     DatasetSplitRequest,
+    DatasetSummaryRequest,
     DatasetUploadRequest,
     GenerateRequest,
     JobQuery,
@@ -126,6 +127,9 @@ class Api:
             ),
             ("POST", "/api/dataset/splits"): lambda r: s.dataset_splits(
                 DatasetSplitRequest.parse(r.body)
+            ),
+            ("GET", "/api/dataset/summary"): lambda r: s.dataset_summary(
+                DatasetSummaryRequest.parse(r.query)
             ),
         }
 
