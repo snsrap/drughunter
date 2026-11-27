@@ -30,6 +30,7 @@ from .schemas import (
     DatasetIdRequest,
     DatasetResolveRequest,
     DatasetRowsRequest,
+    DatasetSplitRequest,
     DatasetUploadRequest,
     GenerateRequest,
     JobQuery,
@@ -255,6 +256,8 @@ class LigandTools(Protocol):
     def resolve(self, csv_path: str, config: Mapping[str, Any], out_dir: str) -> dict: ...
 
     def depict(self, smiles: list[str]) -> dict: ...
+
+    def split(self, dataset_dir: str, strategy: str, seed: int) -> dict: ...
 
 
 class ViewerService:
@@ -645,6 +648,44 @@ class ViewerService:
             "limit": req.limit,
             "rows": rows,
         }
+
+    def dataset_splits(self, req: DatasetSplitRequest) -> dict:
+        """Five repeated holdouts of a ready dataset, by one strategy and seed.
+
+        Only a resolved dataset with a target can be split: a staged one has to
+        be resolved first, and one without a target is not for training. The
+        split is made by ligandbench from the dataset's stored rows; what comes
+        back is its result -- ``ok`` with the repeats, or ``split_unavailable``
+        with why, which is an answer and not an error -- with the dataset's id
+        added. Nothing is stored: the caller keeps the result it is given.
+        """
+        store = self._store()
+        try:
+            meta = store.get(req.dataset_id)
+        except NotFound:
+            if store.staged(req.dataset_id) is not None:
+                raise Conflict(
+                    "dataset %s is staged, not resolved: choose its structure column and "
+                    "target (resolve it) before splitting it" % req.dataset_id
+                ) from None
+            raise
+        if not meta.get("trainable"):
+            raise BadRequest(
+                "dataset %s has no target, so it cannot be split for training; resolve it "
+                "again with a target column" % req.dataset_id
+            )
+        # A ready dataset is a directory: source.csv beside the rows.json and
+        # dataset.json that ligandbench reads.
+        directory = store.source(req.dataset_id)[0].parent
+        out = self.ligands.split(str(directory), req.strategy, req.seed)
+        log.info(
+            "dataset %s: %s split, seed %d: %s",
+            req.dataset_id,
+            req.strategy,
+            req.seed,
+            out.get("status"),
+        )
+        return {"dataset_id": req.dataset_id, **out}
 
     def _dataset_view(self, meta: dict) -> dict:
         return {

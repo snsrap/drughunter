@@ -30,6 +30,7 @@ __all__ = [
     "DatasetResolveRequest",
     "DatasetIdRequest",
     "DatasetRowsRequest",
+    "DatasetSplitRequest",
     "DEFAULT_CUTOFF",
     "DEFAULT_PAGE",
     "MAX_PAGE",
@@ -46,6 +47,10 @@ MAX_PAGE = 100
 
 TARGET_KINDS = ("regression", "classification")
 TRANSFORMS = ("identity", "pki")
+SPLIT_STRATEGIES = ("random", "scaffold")
+#: Seeds are whole numbers from 0 to this: ligandbench's own limit, and what a
+#: browser and a command line both carry without loss.
+MAX_SEED = 2**32 - 1
 
 
 @dataclass(frozen=True)
@@ -424,3 +429,28 @@ class DatasetRowsRequest:
             tuple(MappingProxyType(dict(f)) for f in filters),
             p.get("depict", True) is not False,
         )
+
+
+@dataclass(frozen=True)
+class DatasetSplitRequest:
+    """``POST /api/dataset/splits``: five repeated holdouts of a ready dataset by
+    one strategy. ``strategy`` must be named; ``seed`` is a whole number from 0
+    (0 when left out) and is echoed back, since it is what makes the split repeatable.
+    """
+
+    dataset_id: str
+    strategy: str
+    seed: int
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetSplitRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        if not validate.text(p, "strategy"):
+            raise BadRequest("say which strategy: %s" % " or ".join(SPLIT_STRATEGIES))
+        strategy = validate.choice(p, "strategy", SPLIT_STRATEGIES, "")
+        seed = validate.integer(p, "seed", 0, lo=0)
+        if seed > MAX_SEED:  # not validate's own hi=, which prints it as 4.29497e+09
+            raise BadRequest("seed must be at most %d" % MAX_SEED)
+        return cls(dataset_id, strategy, seed)

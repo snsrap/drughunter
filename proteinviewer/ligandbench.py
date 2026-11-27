@@ -98,6 +98,16 @@ class Ligandbench:
                 json.dump(config, fh, default=dict)  # a request's choices are read-only mappings
             return self._call(self._cmd("resolve", csv_path, "--config", cfg, "--out", out_dir))
 
+    def split(self, dataset_dir: str, strategy: str, seed: int) -> dict:
+        """Five repeated holdouts of the ready dataset ``resolve`` wrote into
+        ``dataset_dir`` (its ``rows.json`` and ``dataset.json``), by ``random`` or
+        ``scaffold`` groups. Returns ligandbench's result: ``status`` is ``ok``
+        with the five repeats, or ``split_unavailable`` with why -- both answers.
+        """
+        return self._call(
+            self._cmd("split", dataset_dir, "--strategy", strategy, "--seed", str(seed))
+        )
+
     def depict(self, smiles: Sequence[str]) -> dict:
         """``{version, svgs}``: a drawing per SMILES, in order; an empty string
         for one that will not draw.
