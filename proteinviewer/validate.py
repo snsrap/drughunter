@@ -41,6 +41,8 @@ def number(
         v = float(v)
     except (TypeError, ValueError):
         raise BadRequest("%s must be a number, not %r" % (key, v)) from None
+    except OverflowError:  # a JSON integer too large for a float
+        raise BadRequest("%s must be a finite number" % key) from None
     if v != v or v in (float("inf"), float("-inf")):
         raise BadRequest("%s must be a finite number" % key)
     _check_range(key, v, lo, hi)
