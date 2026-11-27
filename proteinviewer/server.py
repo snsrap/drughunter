@@ -35,6 +35,7 @@ from .config import (
 )
 from .dataset import DatasetStore
 from .experiments import ExperimentStore, StoreError
+from .predictions import Predictions
 from .generation import NeatPocket, Scoring
 from .ligandbench import Ligandbench
 from .pocketbench import Pocketbench
@@ -105,6 +106,7 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
     )
     ligands = Ligandbench(settings.ligandbench_python)
     experiments, experiments_error = open_experiments(settings)
+    datasets = DatasetStore(settings.dataset_root or default_dataset_root())
     return ViewerService(
         buffer=StructureBuffer(work_root / "structures", settings.buffer_limit),
         pockets=pockets,
@@ -122,7 +124,7 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
         work_root=work_root,
         version=__version__,
         ligands=ligands,
-        datasets=DatasetStore(settings.dataset_root or default_dataset_root()),
+        datasets=datasets,
         # Run directories are temporary: a completed run is kept only until it is
         # registered, or until the limit forgets it.
         training=Training(
@@ -135,6 +137,21 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
         ),
         experiments=experiments,
         experiments_error=experiments_error,
+        # Applying a registered model to a dataset: needs the registry (the model) and the
+        # dataset store (the rows and the place the result lives).
+        predictions=(
+            Predictions(
+                ligands,
+                experiments,
+                datasets,
+                work_root / "predictions",
+                concurrency=settings.prediction_limit,
+                queue=settings.prediction_queue,
+                timeout=settings.prediction_timeout,
+            )
+            if experiments is not None
+            else None
+        ),
     )
 
 
@@ -242,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         # Before the work directory goes: a child writing into it must not outlive it.
         if service is not None and service.training is not None:
             service.training.shutdown()
+        if service is not None and service.predictions is not None:
+            service.predictions.shutdown()
         if not settings.work_root:
             shutil.rmtree(work_root, ignore_errors=True)
     return 0

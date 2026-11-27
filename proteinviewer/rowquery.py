@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .errors import BadRequest
@@ -47,11 +47,15 @@ class Column:
     key: str
     label: str
     type: str
-    kind: str  # "source" (a CSV column), "derived" (computed from the row)
+    kind: str  # "source" (a CSV column), "derived" (computed), "prediction" (a model's output)
     get: Callable[[dict], Any]
+    meta: Mapping[str, Any] = field(default_factory=dict)  # what a reader needs to label it
 
     def describe(self) -> dict:
-        return {"key": self.key, "label": self.label, "type": self.type, "kind": self.kind}
+        out = {"key": self.key, "label": self.label, "type": self.type, "kind": self.kind}
+        if self.meta:
+            out["meta"] = dict(self.meta)
+        return out
 
 
 @dataclass(frozen=True)
@@ -79,9 +83,9 @@ def _source(index: int, numeric: bool) -> Callable[[dict], Any]:
     return get
 
 
-def schema(meta: Mapping[str, Any]) -> list[Column]:
-    """The columns of a ready dataset: the derived ones, then the CSV's own,
-    each with the key the page sends back.
+def schema(meta: Mapping[str, Any], extra: Sequence[Column] = ()) -> list[Column]:
+    """The columns of a ready dataset: the derived ones, then the CSV's own, then
+    ``extra`` (a model's predictions), each with the key the page sends back.
     """
     regression = meta.get("target_kind") == "regression"
     out = [
@@ -121,6 +125,7 @@ def schema(meta: Mapping[str, Any]) -> list[Column]:
                 c["key"], c["name"], c["type"], "source", _source(c["index"], c["type"] == "number")
             )
         )
+    out.extend(extra)
     return out
 
 

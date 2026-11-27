@@ -953,6 +953,7 @@ def _summary(row) -> dict:
         "production_strategy": row["production_strategy"],
         "artifact_path": row["artifact_path"],
         "target": _loads(row["target"]),
+        "versions": _loads(row["versions"]),
     }
 
 

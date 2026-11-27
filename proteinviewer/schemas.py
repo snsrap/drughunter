@@ -531,6 +531,60 @@ class TrainingQuery:
         return cls(run_id)
 
 
+# -- applying a registered model to a dataset -----------------------------------
+_PREDICTION_KEY = re.compile(r"^pred_[0-9a-f]{32}_[0-9a-f]{12}$")
+
+
+@dataclass(frozen=True)
+class PredictionStartRequest:
+    """``POST /api/dataset/predict``: apply a registered experiment's model to every row
+    of a ready dataset. There is nothing else to choose: the whole dataset, whatever the
+    page is filtered to, and the model exactly as it was trained.
+    """
+
+    dataset_id: str
+    experiment_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> PredictionStartRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(dataset_id, _experiment_id({"id": p.get("experiment_id")}, required=True))
+
+
+@dataclass(frozen=True)
+class PredictionQuery:
+    """``GET /api/dataset/predict?id=...`` and ``POST /api/dataset/predict/cancel``."""
+
+    job_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> PredictionQuery:
+        job_id = validate.text(p, "id") or validate.text(p, "job_id")
+        if not job_id:
+            raise BadRequest("name the prediction job")
+        return cls(job_id)
+
+
+@dataclass(frozen=True)
+class PredictionSetRequest:
+    """``POST /api/dataset/predictions/delete``: one kept set of predictions."""
+
+    dataset_id: str
+    key: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> PredictionSetRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        key = validate.text(p, "key")
+        if not key or not _PREDICTION_KEY.match(key):
+            raise BadRequest("name the set of predictions by its key")
+        return cls(dataset_id, key)
+
+
 # -- the experiment registry --------------------------------------------------
 #: What a training run id looks like (``run-`` and twelve hex digits today); the
 #: shape is checked loosely so a change in how runs are named does not break it.

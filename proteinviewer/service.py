@@ -42,6 +42,9 @@ from .schemas import (
     ExperimentQuery,
     ExperimentRegisterRequest,
     ExperimentUpdateRequest,
+    PredictionQuery,
+    PredictionSetRequest,
+    PredictionStartRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
@@ -131,6 +134,25 @@ def _row_view(row: Mapping[str, Any], id_index: int | None) -> dict:
     name = row["cells"][id_index].strip() if id_index is not None else ""
     out["label"] = name or str(row["record"])
     return out
+
+
+def _attach_predictions(rows: list[dict], sets: list[dict]) -> None:
+    """Each row of a page with its predictions (by output key) and, for a set that could not
+    predict it, the reason: joined by row id, so a number is on the row it was made for.
+    """
+    if not sets:
+        return
+    for row in rows:
+        rid = str(row["row_id"])
+        found: dict[str, Any] = {}
+        why: dict[str, str] = {}
+        for kept in sets:
+            if rid in kept["values"]:
+                found.update(kept["values"][rid])
+            elif rid in kept["errors"]:
+                why[kept["key"]] = kept["errors"][rid]
+        row["predictions"] = found
+        row["prediction_errors"] = why
 
 
 def merge_scores(
@@ -283,6 +305,14 @@ class LigandTools(Protocol):
 
     def training_outcome(self, returncode: int | None, stdout: str, stderr: str) -> dict: ...
 
+    def prediction_unavailable(self) -> str | None: ...
+
+    def model_compatibility(self, versions: Mapping[str, Any] | None, schema: str | None) -> str | None: ...
+
+    def start_prediction(self, run_dir: str, dataset_dir: str, out_dir: str) -> Any: ...
+
+    def prediction_outcome(self, returncode: int | None, stdout: str, stderr: str) -> dict: ...
+
 
 class Trainer(Protocol):
     """Training jobs on ready datasets: the registry in training.py."""
@@ -344,9 +374,13 @@ class ViewerService:
         training: Trainer | None = None,
         experiments: ExperimentStore | None = None,
         experiments_error: str = "",
+        predictions: Any = None,
     ):
         self.version = version
         self.training = training
+        # Background jobs applying a registered model to a dataset (predictions.py); None
+        # when there is no registry or no dataset directory to work with.
+        self.predictions = predictions
         # None when the registry could not be opened; then the experiment routes
         # answer 503 with ``experiments_error`` and nothing else is affected.
         self.experiments = experiments
@@ -395,6 +429,7 @@ class ViewerService:
             "datasets": self._datasets_status(),
             "training": self.training.describe() if self.training else {"available": False},
             "experiments": self._experiments_status(),
+            "predictions": self.predictions.describe() if self.predictions else {"available": False},
         }
 
     def _datasets_status(self) -> dict:
@@ -707,7 +742,8 @@ class ViewerService:
         """
         store = self._store()
         meta = store.get(req.dataset_id)
-        columns = rowquery.schema(meta)
+        extra, sets = self._prediction_columns(req.dataset_id)
+        columns = rowquery.schema(meta, extra)
         page, total = rowquery.run(
             columns,
             store.rows(req.dataset_id),
@@ -720,6 +756,7 @@ class ViewerService:
             (c["index"] for c in meta["columns"] if c["name"] == meta.get("id_column")), None
         )
         rows = [_row_view(r, id_index) for r in page]
+        _attach_predictions(rows, sets)
         if req.depict:
             self._depict(meta, rows)
         return {
@@ -982,7 +1019,21 @@ class ViewerService:
             if q.experiment_id:
                 return self._clean(store.get(q.experiment_id), store)
             rows = store.list(selectable_only=not q.everything)
+            for row in rows:
+                row["usable"] = self._usable(row)
             return {"experiments": self._clean(rows, store)}
+
+    def _usable(self, row: dict) -> dict:
+        """Whether a model can be applied here, and why not: what the selector shows beside
+        each experiment. A first look at what the registry recorded; starting a job checks
+        the files themselves again.
+        """
+        if self.predictions is None:
+            return {"ok": False, "reason": "predictions are not available on this server"}
+        if not row.get("selectable"):
+            return {"ok": False, "reason": "its files are missing or it is not ready"}
+        why = self.ligands.model_compatibility(row.get("versions"), None)
+        return {"ok": why is None, "reason": why or ""}
 
     def update_experiment(self, req: ExperimentUpdateRequest) -> dict:
         """Change an experiment's name and/or annotations (the whole set is replaced).
@@ -1037,11 +1088,134 @@ class ViewerService:
             return self._clean(store.recover(), store)
 
     def _dataset_view(self, meta: dict) -> dict:
+        extra, sets = self._prediction_columns(meta["dataset_id"])
         return {
             **meta,
-            "schema": [c.describe() for c in rowquery.schema(meta)],
+            "schema": [c.describe() for c in rowquery.schema(meta, extra)],
             "operators": {k: list(v) for k, v in rowquery.OPERATORS.items()},
+            "predictions": [s["view"] for s in sets],
         }
+
+    # -- applying a registered model to a dataset ---------------------------------
+    def _predictor(self):
+        if self.predictions is None:
+            raise Conflict(
+                "predictions are not available: %s"
+                % (self.experiments_error or "this server has no experiment registry or no dataset directory")
+            )
+        return self.predictions
+
+    def _prediction_columns(self, dataset_id: str) -> tuple[list[rowquery.Column], list[dict]]:
+        """The kept sets of predictions of a dataset as query columns, and the sets.
+
+        Each output is a column that sorts and filters like any other, over every row,
+        before a page is cut. A row the model could not predict is missing in it, and
+        its reason travels with the row. Sets whose experiment was deleted stay, labelled
+        as such: they are what that model said at the time.
+        """
+        store = self._store()
+        columns: list[rowquery.Column] = []
+        sets: list[dict] = []
+        for key in store.prediction_keys(dataset_id):
+            kept = store.prediction(dataset_id, key)
+            if kept is None:
+                continue
+            exp = kept["experiment"]
+            deleted = self._experiment_deleted(exp["id"], exp["checksum"])
+            values = kept["values"]
+            outputs = []
+            for out in kept["outputs"]:
+                label = out["label"] + (" — source model deleted" if deleted else "")
+                meta = {
+                    "set": key,
+                    "output": out["name"],
+                    "units": out.get("units", ""),
+                    "experiment_id": exp["id"],
+                    "experiment_name": exp["name"],
+                    "source_deleted": deleted,
+                }
+                if "class" in out:
+                    meta["class"] = out["class"]
+                outputs.append({**out, "label": label})
+                columns.append(
+                    rowquery.Column(
+                        out["key"],
+                        label,
+                        out["type"],
+                        "prediction",
+                        lambda r, v=values, k=out["key"]: (v.get(str(r["row_id"])) or {}).get(k),
+                        meta,
+                    )
+                )
+            sets.append(
+                {
+                    "key": key,
+                    "values": values,
+                    "errors": kept["errors"],
+                    "view": {
+                        "key": key,
+                        "experiment": {**exp, "deleted": deleted},
+                        "created_utc": kept["created_utc"],
+                        "n_rows": kept["dataset"]["n_rows"],
+                        "n_failed": kept["n_failed"],
+                        "source_deleted": deleted,
+                        "outputs": outputs,
+                    },
+                }
+            )
+        return columns, sets
+
+    def _experiment_deleted(self, experiment_id: str, checksum: str) -> bool:
+        """True when the registry has no such experiment any more. An unreadable registry
+        says nothing, so it is not "deleted".
+        """
+        if self.experiments is None:
+            return False
+        try:
+            self.experiments.get(experiment_id)
+        except NotFound:
+            return True
+        except Exception:
+            return False
+        return False
+
+    def start_prediction(self, req: PredictionStartRequest) -> dict:
+        """Apply a registered model to every row of a ready dataset, as a job. The job
+        captures the dataset's hash and the model's checksum now; polling it, or the
+        dataset's predictions, is how the result is read.
+        """
+        self._store().get(req.dataset_id)  # NotFound before anything is started
+        with self._guarded(self._registry()):
+            out = self._predictor().start(req.dataset_id, req.experiment_id)
+        log.info("prediction %s: experiment %s on dataset %s", out["id"], req.experiment_id, req.dataset_id)
+        return out
+
+    def prediction_status(self, q: PredictionQuery) -> dict:
+        return self._predictor().progress(q.job_id)
+
+    def cancel_prediction(self, q: PredictionQuery) -> dict:
+        return self._predictor().cancel(q.job_id)
+
+    def dataset_predictions(self, req: DatasetIdRequest) -> dict:
+        """A dataset's columns (with the predictions' in them), the sets kept for it and
+        its prediction jobs, newest first: what the page reads after a job ends.
+        """
+        store = self._store()
+        meta = store.get(req.dataset_id)
+        extra, sets = self._prediction_columns(req.dataset_id)
+        return {
+            "dataset_id": req.dataset_id,
+            "schema": [c.describe() for c in rowquery.schema(meta, extra)],
+            "predictions": [s["view"] for s in sets],
+            "jobs": self.predictions.for_dataset(req.dataset_id) if self.predictions else [],
+        }
+
+    def delete_predictions(self, req: PredictionSetRequest) -> dict:
+        """Remove one kept set of predictions from a dataset (not the model, not the dataset)."""
+        removed = self._store().delete_prediction(req.dataset_id, req.key)
+        if not removed:
+            raise NotFound("no such set of predictions %s on dataset %s" % (req.key, req.dataset_id))
+        return {"dataset_id": req.dataset_id, "key": req.key, "deleted": True}
 
     def _depict(self, meta: dict, rows: list[dict]) -> None:
         """Draw the rows on this page, from the cache where they were drawn

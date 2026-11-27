@@ -8,6 +8,7 @@
     summarize DIR                       the dashboard's numbers for a resolved dataset in DIR
     train DIR --out RUN --seed N --production-strategy S
                                         tune, evaluate and refit an XGBoost model into RUN
+    predict RUN DIR --out OUT           apply a registered run's model to every row of a dataset
 
 Every command prints one JSON object. The exit code says whose problem a
 failure is -- 2 a file or choice that cannot be used, 3 RDKit or XGBoost missing -- and the
@@ -54,6 +55,8 @@ def _rdkit():
 def cmd_info(a) -> int:
     chem = _rdkit()
     from .depict import DEPICTION_VERSION
+    from .features import FEATURISER_VERSION
+    from .predict import RUN_SCHEMAS
     from .summary import SUMMARY_VERSION
 
     try:
@@ -69,6 +72,8 @@ def cmd_info(a) -> int:
             **boost,
             "depiction": DEPICTION_VERSION,
             "summary": SUMMARY_VERSION,
+            "featuriser": FEATURISER_VERSION,
+            "predicts": list(RUN_SCHEMAS),
         }
     )
     return 0
@@ -311,6 +316,38 @@ def cmd_train(a) -> int:
     return 0
 
 
+def cmd_predict(a) -> int:
+    """Apply the model in the run directory RUN to every row of the dataset in DIR, writing
+    ``predictions.json`` into the existing directory ``--out`` (``progress.json`` beside it
+    while it works). Nothing is written when the model cannot be applied: that is exit 2
+    with ``"code": "incompatible"``.
+    """
+    _rdkit()
+    from .predict import predict_rows
+    from .train import require_xgboost
+
+    require_xgboost()
+    out = Path(a.out)
+    if not out.is_dir():
+        raise BadInput("--out %s must be an existing directory" % out)
+    rows = _json_object(Path(a.dataset) / "rows.json", "the dataset's rows").get("rows")
+    if not isinstance(rows, list):
+        raise BadInput("%s has no list of rows" % (Path(a.dataset) / "rows.json"))
+
+    def note(done: int, total: int) -> None:
+        _write_atomic(
+            out / "progress.json",
+            json.dumps({"state": "running", "stage": "predicting", "completed": done, "total": total}),
+        )
+
+    result = predict_rows(a.run_dir, rows, progress=note)
+    from .split import canonical_json
+
+    _write_atomic(out / "predictions.json", canonical_json(result))
+    _out({"status": "completed", "n_rows": result["n_rows"], "n_failed": result["n_failed"]})
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="ligandbench", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -348,6 +385,11 @@ def parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--profile", default="full", help="full (12 candidates) or tiny (CI)")
     p.set_defaults(run=cmd_train)
+    p = sub.add_parser("predict", help="apply a registered run's model to every row of a dataset")
+    p.add_argument("run_dir", help="the run directory (run.json, model.json, features.json)")
+    p.add_argument("dataset", help="a ready dataset's directory (rows.json)")
+    p.add_argument("--out", required=True, help="an existing directory for predictions.json")
+    p.set_defaults(run=cmd_predict)
     return ap
 
 
@@ -359,7 +401,10 @@ def main(argv: list[str] | None = None) -> int:
         _out({"error": str(err), "kind": "unavailable"})
         return 3
     except (LigandbenchError, ValueError, OSError) as err:
-        _out({"error": str(err), "kind": "bad-input"})
+        payload = {"error": str(err), "kind": "bad-input"}
+        if getattr(err, "code", None):
+            payload["code"] = err.code
+        _out(payload)
         return 2
 
 

@@ -31,11 +31,14 @@ from typing import Any
 
 from .errors import Conflict, NotFound
 
-__all__ = ["DatasetStore", "STAGED_TTL"]
+__all__ = ["DatasetStore", "STAGED_TTL", "PREDICTION_SCHEMA"]
 
 #: How long an upload may wait to be resolved before it is removed, seconds.
 STAGED_TTL = 24 * 3600
 _ID = re.compile(r"^ds-[0-9a-f]{12}$")
+#: A prediction set's key: ``pred_<experiment uuid, no dashes>_<first 12 of the model's sha256>``.
+_PREDICTION_KEY = re.compile(r"^pred_[0-9a-f]{32}_[0-9a-f]{12}$")
+PREDICTION_SCHEMA = "dataset-predictions-v1"
 
 
 class DatasetStore:
@@ -56,6 +59,7 @@ class DatasetStore:
         self._lock = threading.Lock()
         self._meta: dict[str, dict] = {}
         self._rows: OrderedDict[str, list[dict]] = OrderedDict()
+        self._predictions: OrderedDict[tuple[str, str], tuple[int, dict]] = OrderedDict()
 
     # -- paths ------------------------------------------------------------
     @property
@@ -267,6 +271,74 @@ class DatasetStore:
         path = self._summary_path(dataset_id, version)
         path.parent.mkdir(parents=True, exist_ok=True)
         _write_json(path, summary)
+
+    # -- predictions ---------------------------------------------------------
+    # A registered model's output for every row of a dataset, kept with the dataset:
+    #   <root>/ready/<id>/predictions/<set key>.json
+    # One file per (model, artifact) and replaced whole, so a rerun swaps its own
+    # columns in one rename, a failed or cancelled run never touches what was there, and
+    # a reader sees the old set or the new one, never half of either.
+    def _prediction_path(self, dataset_id: str, key: str) -> Path:
+        if not isinstance(key, str) or not _PREDICTION_KEY.match(key):
+            raise NotFound("no such prediction set %r" % (key,))
+        return self._ready / dataset_id / "predictions" / (key + ".json")
+
+    def put_prediction(self, dataset_id: str, key: str, payload: Mapping[str, Any]) -> None:
+        """Keep a finished set under its key, replacing the one of the same key."""
+        self.get(dataset_id)
+        path = self._prediction_path(dataset_id, key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name("%s.%s.tmp" % (path.name, uuid.uuid4().hex[:6]))
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, allow_nan=False), encoding="utf-8")
+        os.replace(tmp, path)
+        with self._lock:
+            self._predictions.pop((dataset_id, key), None)
+
+    def prediction(self, dataset_id: str, key: str) -> dict | None:
+        """One kept set, or None when there is none (or it cannot be read: a damaged
+        file is no set, and the model can be applied again). Re-read when the file changes.
+        """
+        self.get(dataset_id)
+        path = self._prediction_path(dataset_id, key)
+        try:
+            stamp = path.stat().st_mtime_ns
+        except OSError:
+            return None
+        with self._lock:
+            hit = self._predictions.get((dataset_id, key))
+            if hit and hit[0] == stamp:
+                self._predictions.move_to_end((dataset_id, key))
+                return hit[1]
+        found = _read_json(path)
+        if not found or found.get("schema") != PREDICTION_SCHEMA or found.get("key") != key:
+            return None
+        with self._lock:
+            self._predictions[(dataset_id, key)] = (stamp, found)
+            while len(self._predictions) > 8:
+                self._predictions.popitem(last=False)
+        return found
+
+    def prediction_keys(self, dataset_id: str) -> list[str]:
+        """The keys of the sets kept for a dataset, in name order."""
+        self.get(dataset_id)
+        base = self._ready / dataset_id / "predictions"
+        try:
+            names = sorted(p.name[: -len(".json")] for p in base.glob("*.json"))
+        except OSError:
+            return []
+        return [n for n in names if _PREDICTION_KEY.match(n)]
+
+    def delete_prediction(self, dataset_id: str, key: str) -> bool:
+        """Remove one set. True if it was there."""
+        self.get(dataset_id)
+        path = self._prediction_path(dataset_id, key)
+        with self._lock:
+            self._predictions.pop((dataset_id, key), None)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        return True
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:

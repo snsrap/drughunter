@@ -20,7 +20,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .errors import BadRequest, ToolFailed, ToolUnavailable
+from .errors import BadRequest, Incompatible, ToolFailed, ToolUnavailable
 from .process import Once, first_executable, output_tail, probe, run
 
 __all__ = ["Ligandbench"]
@@ -209,6 +209,84 @@ class Ligandbench:
         message = out.get("error") or tail
         if returncode == 2:
             raise BadRequest(message)
+        if returncode == 3:
+            raise ToolUnavailable(message, self.name)
+        raise ToolFailed(message, self.name)
+
+    # -- prediction --------------------------------------------------------
+    def prediction_unavailable(self) -> str | None:
+        """Why this installation cannot apply a saved model, or None when it can."""
+        if not self.available:
+            return "ligandbench does not run in %s (it needs RDKit)" % (
+                self.python or "this Python"
+            )
+        if not self.info.get("xgboost"):
+            return "XGBoost is not installed in %s" % self.python
+        if "predicts" not in self.info:
+            return "this ligandbench cannot apply a saved model (it predates prediction)"
+        return None
+
+    def model_compatibility(self, versions: Mapping[str, Any] | None, schema: str | None) -> str | None:
+        """Why a model trained with ``versions`` cannot be applied by this installation,
+        or None. A first look from what the registry recorded, for the selector: the
+        command itself checks again, against the files, before it predicts.
+        """
+        reason = self.prediction_unavailable()
+        if reason:
+            return reason
+        if schema is not None and schema not in (self.info.get("predicts") or []):
+            return "its run is %r, which this build cannot apply" % (schema,)
+        versions = versions or {}
+        for name in ("rdkit", "xgboost"):
+            if versions.get(name) != self.info.get(name):
+                return "trained with %s %s; this server runs %s %s" % (
+                    name, versions.get(name) or "(unrecorded)", name, self.info.get(name)
+                )
+        if versions.get("featuriser") != self.info.get("featuriser"):
+            return "its features come from featuriser %s; this build implements %s" % (
+                versions.get("featuriser") or "(unrecorded)", self.info.get("featuriser")
+            )
+        return None
+
+    def start_prediction(self, run_dir: str, dataset_dir: str, out_dir: str) -> subprocess.Popen:
+        """Start ``ligandbench predict`` (the saved model in ``run_dir`` on every row of the
+        dataset in ``dataset_dir``, into the existing ``out_dir``) and return the process;
+        the caller waits for it and hands what it printed to :meth:`prediction_outcome`.
+        Held to one thread and a group of its own, like training.
+        """
+        self._require()
+        env = dict(os.environ)
+        for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+            env[var] = "1"
+        cmd = self._cmd("predict", run_dir, dataset_dir, "--out", out_dir)
+        try:
+            return subprocess.Popen(
+                cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, env=env, start_new_session=True,
+            )
+        except OSError as exc:
+            raise ToolFailed("ligandbench could not be started: %s" % exc, self.name) from exc
+
+    def prediction_outcome(self, returncode: int | None, stdout: str, stderr: str) -> dict:
+        """What a finished ``ligandbench predict`` said: its JSON line (``status``
+        ``completed``). A model that cannot be applied is :class:`Incompatible`; anything
+        else raises as :meth:`training_outcome` does.
+        """
+        out = _last_json_object(stdout)
+        tail = output_tail(subprocess.CompletedProcess([], returncode or 0, stdout, stderr))
+        if returncode is not None and returncode < 0:
+            raise ToolFailed(
+                "ligandbench predict was killed by signal %d. %s" % (-returncode, tail), self.name
+            )
+        if out is None:
+            raise ToolFailed(
+                "ligandbench predict printed no result (exit %s): %s" % (returncode, tail), self.name
+            )
+        if returncode == 0:
+            return out
+        message = out.get("error") or tail
+        if returncode == 2:
+            raise (Incompatible if out.get("code") == "incompatible" else BadRequest)(message)
         if returncode == 3:
             raise ToolUnavailable(message, self.name)
         raise ToolFailed(message, self.name)

@@ -12,6 +12,7 @@ __all__ = [
     "BadRequest",
     "PayloadTooLarge",
     "NotFound",
+    "Incompatible",
     "Conflict",
     "ToolUnavailable",
     "ToolFailed",
@@ -37,6 +38,12 @@ class NotFound(ViewerError):
 class Conflict(ViewerError):
     """The request is valid, but not in the current state -- e.g. generation
     asked for before any pocket run on that structure.
+    """
+
+
+class Incompatible(Conflict):
+    """A saved model that cannot be applied here (its files, its schema or the versions
+    it needs); the message says which. Never a reason to fall back to something else.
     """
 
 

@@ -77,6 +77,9 @@ class Settings:
     training_limit: int = 1  # training runs going at once (each is one thread, one process)
     training_queue: int = 8  # runs that may wait behind them
     training_timeout: float = 6 * 3600.0  # a run that takes longer is stopped, seconds
+    prediction_limit: int = 2  # registered models being applied to a dataset at once
+    prediction_queue: int = 8  # jobs that may wait behind them
+    prediction_timeout: float = 3600.0  # a prediction job that takes longer is stopped, seconds
     max_body: int = 64 * 1024 * 1024  # deposited mmCIF entries get large
 
     pocketbench_python: str | None = None  # POCKETBENCH_PYTHON

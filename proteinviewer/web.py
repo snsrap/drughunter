@@ -57,6 +57,9 @@ from .schemas import (
     ScoreRequest,
     SuperposeRequest,
     TrainingQuery,
+    PredictionQuery,
+    PredictionSetRequest,
+    PredictionStartRequest,
     TrainingStartRequest,
 )
 from .service import ViewerService
@@ -137,6 +140,21 @@ class Api:
             ),
             ("GET", "/api/dataset/summary"): lambda r: s.dataset_summary(
                 DatasetSummaryRequest.parse(r.query)
+            ),
+            ("POST", "/api/dataset/predict"): lambda r: s.start_prediction(
+                PredictionStartRequest.parse(r.body)
+            ),
+            ("GET", "/api/dataset/predict"): lambda r: s.prediction_status(
+                PredictionQuery.parse(r.query)
+            ),
+            ("POST", "/api/dataset/predict/cancel"): lambda r: s.cancel_prediction(
+                PredictionQuery.parse(r.body)
+            ),
+            ("GET", "/api/dataset/predictions"): lambda r: s.dataset_predictions(
+                DatasetIdRequest.parse(r.query)
+            ),
+            ("POST", "/api/dataset/predictions/delete"): lambda r: s.delete_predictions(
+                PredictionSetRequest.parse(r.body)
             ),
             ("POST", "/api/training"): lambda r: s.start_training(
                 TrainingStartRequest.parse(r.body)

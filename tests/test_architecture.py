@@ -34,6 +34,9 @@ ALLOWED = {
     "generation": {"errors", "process"},
     # Runs ligandbench through whatever it is handed; it never imports the adapter.
     "training": {"errors"},
+    # Jobs that apply a registered model to a dataset: the store's file layout and training's
+    # process helpers, through whatever tool and registry it is handed.
+    "predictions": {"errors", "dataset", "training"},
     "buffer": {"errors"},
     "project": {"errors"},
     "dataset": {"errors"},
@@ -44,7 +47,7 @@ ALLOWED = {
     # The service sees tools only through its own protocols.
     "service": STORES | {"errors", "schemas", "pockets", "rowquery"},
     "web": {"errors", "schemas", "service"},
-    "server": SHARED | ADAPTERS | STORES | {"service", "web", "__init__"},
+    "server": SHARED | ADAPTERS | STORES | {"service", "web", "predictions", "__init__"},
     "__main__": {"server"},
     "__init__": set(),
 }
