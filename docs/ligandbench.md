@@ -145,6 +145,16 @@ is not a proof that none exists. Constraints are never relaxed, and a random spl
 is never substituted for a scaffold split. Either all five repeats come back or
 none do, and the first repeat that fails ends the search.
 
+**What is kept about eligibility.** The record does not restate the rules in
+words; it keeps what they were applied to. A row trains when its structure parses
+and its target is present, valid and exact, so the result holds the structure
+column and the target exactly as it was confirmed (`dataset.target`: column,
+kind, qualifier column, units, transform, positive class), the dataset's layout
+`format`, the structure identity policy and the `content_hash` of the source and
+choices, with `row_ids` for the rows used and `excluded` for the rest with their
+reasons. ligandbench's own package version is not recorded: `algorithm.version`
+and `rdkit` are what an assignment depends on.
+
 **Reproducibility.** Nothing depends on Python's `hash()`, an unseeded generator
 or set order. `repeat_seed(seed, r)` is the first six bytes (big-endian) of
 SHA-256 over the text `drughunter-split|<seed>|<r>`, so a repeat seed fits a JSON
@@ -175,7 +185,12 @@ algorithm          {version, candidates: 256, repeats: 5, target_percent: {train
                     validation: 10, test: 10}, tolerance_points: 5, min_rows: 2}
 rdkit              RDKit's version
 scaffold_policy    SCAFFOLD_POLICY ("murcko-v1"); only "scaffold" depends on it
-dataset            {content_hash, identity (as in dataset.json), task, classes, n_rows (all rows)}
+dataset            what the rows came from and which rules decided eligibility:
+                    {content_hash, identity (the structure identity policy), format (dataset.json's
+                    layout), structure_column, target (as dataset.json confirmed it: column, kind,
+                    positive_class, qualifier_column, transform, source_units, output_units),
+                    task, classes, n_rows}; n_rows counts every source row, excluded ones
+                    included (n_eligible below counts the rows that are split)
 n_eligible         training-eligible rows, which are the ones split
 n_groups           groups of the strategy among them
 row_ids            the eligible row ids, ascending: exactly the rows in every repeat
@@ -202,17 +217,19 @@ train, validation, test    the row ids in each subset, ascending
 repeat             the repeat that failed
 message            what the allocator found, in words
 candidates_tried   candidates built for it
-n_rows, n_groups   rows split and groups they form
+n_rows, n_groups   the eligible rows and the groups they form; n_rows is n_eligible, not
+                    dataset.n_rows (which counts every source row)
 group_size_counts  [[group size, how many groups], ...], largest size first
 largest_groups     up to ten, largest first: {key, n_rows, n_structures, class_counts};
                     key is the structure identity or the scaffold ("" is no ring)
-class_counts       {class: rows} for classification
+class_counts       {class: rows} for classification, {} for regression
 size_windows       {subset: {min, max}}: the rows each subset may have (min is at least 2;
                     min above max means no whole number of rows qualifies)
 failed_constraints the rules the nearest candidate broke, each {constraint, subset,
-                    candidates_violating, detail, ...}; constraint is "min_size",
-                    "size_tolerance" (adds size, allowed [fewest, most]) or
-                    "class_coverage" (adds class, class_total)
+                    candidates_violating, detail, ...}; constraint is "min_size"
+                    (adds size, the rows the subset had, and required, the 2 it needs),
+                    "size_tolerance" (adds size and allowed [fewest, most]) or
+                    "class_coverage" (adds class and class_total)
 nearest_candidate  {candidate, objective, sizes}: the candidate that broke fewest rules
 ```
 
