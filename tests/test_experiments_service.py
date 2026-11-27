@@ -701,6 +701,7 @@ def test_a_run_from_the_real_trainer_registers(tmp_path):
                 "structure_column": "SMILES",
                 "target_column": "Y",
                 "target_kind": "regression",
+                "qualifier_column": None,
                 "source_units": "",
                 "transform": "identity",
             }
