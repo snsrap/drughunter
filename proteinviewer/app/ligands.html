@@ -76,6 +76,43 @@
       <div class="sbody" id="sum-body" aria-busy="false"></div>
     </section>
 
+    <!-- Train a model on the open dataset: what it would be given, a seed and the strategy that
+         picks the hyperparameters, then the run's progress and, once done, its metrics for both
+         strategies side by side. Needs the dataset and nothing else -- not the ligand panel, not
+         the summary. features/training.js. -->
+    <section class="gtab trn" id="trn-panel" hidden aria-label="Train a model">
+      <div class="hd">
+        <button class="btn tog" type="button" id="trn-tog" aria-expanded="true" aria-controls="trn-body"
+                aria-label="Collapse the training panel">&#9662;</button>
+        <span class="eyebrow">Train a model</span>
+        <span class="eyebrow" id="trn-n">XGBoost</span>
+      </div>
+      <div class="tbody" id="trn-body">
+        <div class="tgrid">
+          <div class="tset">
+            <dl class="kv" id="trn-ds"></dl>
+            <form id="trn-form" novalidate>
+              <label class="fld"><span class="eyebrow">Seed</span>
+                <input type="text" id="trn-seed" inputmode="numeric" autocomplete="off" spellcheck="false"
+                       value="0" aria-describedby="trn-seed-err"></label>
+              <p class="pdbq-msg err" id="trn-seed-err" aria-live="polite"></p>
+              <fieldset class="fset" id="trn-strategy" aria-describedby="trn-help">
+                <legend class="eyebrow">Production selection strategy</legend>
+              </fieldset>
+              <p class="sub" id="trn-help"></p>
+              <div class="tbar">
+                <button class="btn solid" type="submit" id="trn-go">Train</button>
+                <button class="btn" type="button" id="trn-cancel" hidden>Cancel</button>
+              </div>
+              <p class="pdbq-msg" id="trn-reason" aria-live="polite"></p>
+            </form>
+          </div>
+          <div class="tstat" id="trn-status" aria-live="polite" aria-busy="false"></div>
+        </div>
+        <div class="tresult" id="trn-result"></div>
+      </div>
+    </section>
+
     <!-- The ligands of an uploaded dataset: a page of depictions at a time, sorted and
          filtered by the server, with every original column behind a click. -->
     <section class="gtab mol page" id="mtab" hidden aria-label="Ligand dataset">

@@ -322,6 +322,56 @@ table.gt tbody tr:last-child td{border-bottom:0}
   .sgrid{grid-template-columns:minmax(0,1fr)}
   .srow{grid-template-columns:minmax(0,9em) minmax(40px,1fr) 4em 4em}
 }
+/* ---------- training: the dataset's facts and the form beside the run's progress, then its metrics ---------- */
+.trn .tbody{max-height:56vh; overflow:auto; scrollbar-width:thin; padding:10px 12px}
+.trn.closed .tbody{display:none}
+.tgrid{display:grid; grid-template-columns:minmax(240px,340px) minmax(0,1fr); gap:14px 26px; align-items:start}
+.tset{display:flex; flex-direction:column; gap:9px; min-width:0}
+.tset form{display:flex; flex-direction:column; gap:8px}
+.tset .kv{grid-template-columns:9.5em minmax(0,1fr)}
+.tset .chk{flex-wrap:wrap; align-items:baseline; row-gap:0}
+.tbar{display:flex; gap:8px}
+.tstat{display:flex; flex-direction:column; gap:8px; min-width:0}
+.tline{margin:0; font-size:12.5px; color:var(--ink-2)}
+.tstate{display:inline-block; padding:0 7px; margin-right:4px; border:1px solid var(--line-2); border-radius:2px;
+  font:600 10.5px/1.7 "IBM Plex Mono",ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--ink)}
+.tstate.ok{border-color:var(--pass); color:var(--pass)}
+.tbar2{display:flex; align-items:center; gap:10px}
+.tprog{flex:1; min-width:80px; height:10px; accent-color:var(--accent)}
+.tpct{min-width:3em; text-align:right; font-size:12px}
+.telapsed{font-size:11.5px; color:var(--muted); white-space:nowrap}
+.tfail{display:flex; flex-direction:column; align-items:flex-start; gap:6px; font-size:12px; color:var(--fail)}
+.tfail.inline{margin-top:8px}
+.tfail b{color:var(--ink)}
+.tbtns{display:flex; flex-wrap:wrap; gap:8px}
+.tlines{margin:0; padding-left:18px; color:var(--ink-2); font-size:11.5px; line-height:1.5}
+.tresult:not(:empty){margin-top:14px; padding-top:12px; border-top:1px solid var(--line)}
+.trun{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.trid{user-select:all; padding:2px 7px; background:var(--panel-2); border:1px solid var(--line); border-radius:2px; font-size:12.5px; color:var(--ink); overflow-wrap:anywhere}
+.tgrid2{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-top:10px}
+.tkv{grid-template-columns:11em minmax(0,1fr)}
+.tscroll{overflow-x:auto}
+.ttab{border-collapse:collapse; font-size:12px; min-width:100%}
+.ttab th,.ttab td{padding:3px 12px 3px 0; text-align:left; white-space:nowrap; vertical-align:baseline}
+.ttab thead th{font:600 10px "IBM Plex Mono",ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line)}
+.ttab thead .tcol{color:var(--ink); border-bottom:1px solid var(--line-2)}
+.ttab thead .tcol.prod{border-bottom:2px solid var(--accent)}
+.ttab tbody th{font-weight:500; color:var(--ink-2)}
+.ttab td.mono{text-align:right; padding-right:14px; color:var(--ink)}
+.ttab td.tund{color:var(--muted); font-style:italic}
+.ttab .tdef{color:var(--muted); font-size:11px; padding-right:22px; white-space:normal}
+.ttab .tna{color:var(--muted); font-style:italic; padding-right:22px}
+.ttab td:not(.mono):not(.tdef):not(.tna){white-space:normal; color:var(--ink-2)}
+.twhy{display:block; font-size:10.5px; max-width:26em}
+.tprod{margin-left:4px; padding:0 5px; border-radius:2px; background:var(--accent-soft); color:var(--ink); font-size:9.5px; letter-spacing:.06em}
+.trep{margin-top:10px}
+.trep summary{cursor:pointer; color:var(--ink-2); font-size:12px}
+.trep .tscroll{margin-top:6px}
+.tcaveats{margin:12px 0 0; padding-left:18px; font-size:11px; line-height:1.5; color:var(--muted)}
+@media (max-width:900px){
+  .trn .tbody{max-height:none}
+  .tgrid{grid-template-columns:minmax(0,1fr)}
+}
 #dd-reg{display:flex; flex-direction:column; gap:9px}
 .dlg.dlg-wide{width:min(520px, calc(100vw - 32px))}
 

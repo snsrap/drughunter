@@ -184,6 +184,10 @@ export function pollFailed(task, err){
   return Object.assign({}, task, {failures});
 }
 
+/* After contact was lost, look again: the run may well still be going. */
+export const resume = task =>
+  task.phase === "lost" && task.run ? Object.assign({}, task, {phase: "tracking", failures: 0, error: null}) : task;
+
 export const cancelRequested = task =>
   task.phase === "tracking" && !task.cancelling ? Object.assign({}, task, {cancelling: true}) : task;
 /* A cancel that failed leaves the run as it was, with the reason, and can be retried. */
@@ -343,6 +347,7 @@ export function aggregateCell(agg, reasons){
     undefinedAll: none,
     partial: !none && nd < nt,
     why,
+    whyText: why ? "undefined in " + (nt - (nd || 0)) + " of " + nt + ": " + why : "",
     title: why,
   };
 }
