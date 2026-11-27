@@ -475,6 +475,23 @@ def test_a_tiny_dataset_is_unavailable_and_says_which_size_rule_it_fails(n):
             assert f["subset"] in SUBSETS and f["candidates_violating"] >= 1
 
 
+@pytest.mark.parametrize("n", [10, 11, 12, 13, 14, 15])
+def test_a_subset_of_one_row_is_refused_though_the_tolerance_alone_would_allow_it(n):
+    # Ten rows: 5% to 15% of ten is 0.5 to 1.5, so the tolerance gives validation and test
+    # exactly one row each and train eight. 8/1/1 is inside every window, but a subset needs
+    # two rows: the minimum size is a rule of its own, and the only one broken here.
+    assert split_module._tolerance(n)[1][0] == 1 and size_windows(n)[1][0] == 2
+    meta, rows = dataset([(mol(None, k + 2), float(k)) for k in range(n)], kind="regression")
+    result = split(meta, rows, strategy="random", seed=1)
+    assert result["status"] == "split_unavailable" and result["repeats"] == []
+    failed = result["unavailable"]["failed_constraints"]
+    assert {f["constraint"] for f in failed} == {"min_size"}, (
+        "the nearest candidate fits the tolerance"
+    )
+    assert all(f["size"] < 2 and f["required"] == 2 for f in failed)
+    assert all(f["candidates_violating"] >= 1 and f["subset"] != "train" for f in failed)
+
+
 def test_the_smallest_dataset_that_can_be_split_is_split():
     # twenty rows: 16 / 2 / 2 is within five points of 80/10/10 and has two in each
     meta, rows = dataset([(mol(None, k + 2), 0) for k in range(20)], kind="regression")
