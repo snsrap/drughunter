@@ -52,6 +52,22 @@ class FakeService:
     def project_status(self, project_id):
         raise NotFound("no such project %r" % project_id)
 
+    # -- ligand datasets
+    def upload_dataset(self, req):
+        return {"dataset_id": "ds-1", "state": "staged", "name": req.name}
+
+    def resolve_dataset(self, req):
+        return {"dataset_id": req.dataset_id, "config": dict(req.config)}
+
+    def cancel_dataset(self, req):
+        raise Conflict("dataset %s is already resolved" % req.dataset_id)
+
+    def dataset_status(self, req):
+        raise NotFound("no resolved dataset %s" % req.dataset_id)
+
+    def dataset_rows(self, req):
+        return {"offset": req.offset, "limit": req.limit, "depict": req.depict}
+
 
 class WebTest(unittest.TestCase):
     @classmethod
@@ -117,6 +133,42 @@ class WebTest(unittest.TestCase):
         # A save with nothing to save, and a project nobody has.
         self.assertEqual(self.api("POST", "/api/project/save", {"path": "~/out"})[0], 400)
         self.assertEqual(self.api("GET", "/api/project?id=nope")[0], 404)
+
+    def test_the_dataset_routes(self):
+        self.assertEqual(
+            self.api("POST", "/api/dataset/upload", {"name": "a/b.csv", "data": "x\n1"}),
+            (200, {"dataset_id": "ds-1", "state": "staged", "name": "b.csv"}),
+        )
+        code, body = self.api(
+            "POST",
+            "/api/dataset/resolve",
+            {"dataset_id": "ds-1", "structure_column": "S", "target_column": ""},
+        )
+        self.assertEqual((code, body["config"]), (200, {"structure_column": "S", "target": None}))
+        self.assertEqual(
+            self.api("POST", "/api/dataset/rows", {"dataset_id": "ds-1", "limit": 100}),
+            (200, {"offset": 0, "limit": 100, "depict": True}),
+        )
+        self.assertEqual(self.api("POST", "/api/dataset/cancel", {"dataset_id": "ds-1"})[0], 409)
+        self.assertEqual(self.api("GET", "/api/dataset?id=ds-1")[0], 404)
+
+    def test_dataset_requests_are_checked_at_the_edge(self):
+        for path, body in (
+            ("/api/dataset/upload", {"data": "  "}),
+            (
+                "/api/dataset/resolve",
+                {
+                    "dataset_id": "ds-1",
+                    "structure_column": "S",
+                    "target_column": "y",
+                    "target_kind": "regression",
+                },
+            ),
+            ("/api/dataset/rows", {"dataset_id": "ds-1", "limit": 101}),
+            ("/api/dataset/cancel", {}),
+        ):
+            self.assertEqual(self.api("POST", path, body)[0], 400, path)
+        self.assertEqual(self.api("GET", "/api/dataset")[0], 400)
 
     def test_errors_map_to_statuses(self):
         for token, code in (("busy", 502), ("missing", 503), ("late", 409)):

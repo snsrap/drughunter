@@ -26,12 +26,26 @@ __all__ = [
     "ScoreQuery",
     "ProjectRequest",
     "ProjectSaveRequest",
+    "DatasetUploadRequest",
+    "DatasetResolveRequest",
+    "DatasetIdRequest",
+    "DatasetRowsRequest",
     "DEFAULT_CUTOFF",
+    "DEFAULT_PAGE",
+    "MAX_PAGE",
 ]
 
 #: Residues within this of a site point make the pocket, Å. pocketbench's
 #: default too; sent with every run, so the two never have to agree silently.
 DEFAULT_CUTOFF = 6.0
+
+#: Rows of a dataset sent at once, by default and at most. A page is what the
+#: browser mounts and what gets drawn, so the ceiling is the server's.
+DEFAULT_PAGE = 50
+MAX_PAGE = 100
+
+TARGET_KINDS = ("regression", "classification")
+TRANSFORMS = ("identity", "pki")
 
 
 @dataclass(frozen=True)
@@ -293,4 +307,120 @@ class ProjectSaveRequest:
             validate.text(p, "path"),
             MappingProxyType(dict(session)) if session is not None else None,
             bool(p.get("overwrite")),
+        )
+
+
+@dataclass(frozen=True)
+class DatasetUploadRequest:
+    """``POST /api/dataset/upload``: keep a CSV, staged until its columns are
+    chosen. ``name`` is the file's own name, shown back to the user.
+    """
+
+    name: str
+    data: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetUploadRequest:
+        data = validate.text(p, "data")
+        if not data.strip():
+            raise BadRequest("the file is empty")
+        name = validate.text(p, "name", "dataset.csv").replace("\\", "/").rsplit("/", 1)[-1]
+        return cls(name.strip()[:200] or "dataset.csv", data)
+
+
+@dataclass(frozen=True)
+class DatasetResolveRequest:
+    """``POST /api/dataset/resolve``: the choices that turn a staged CSV (or a
+    ready dataset, afresh) into a dataset.
+
+    ``config`` is what ligandbench takes: the structure column, and a target --
+    or None, for a dataset used only for prediction. Which task a column is for
+    and what its qualifier column and units are cannot be inferred, so the
+    request says: ``qualifier_column`` must be present, null meaning none.
+    """
+
+    dataset_id: str
+    config: Mapping[str, Any]
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetResolveRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        structure = validate.text(p, "structure_column")
+        if not dataset_id or not structure:
+            raise BadRequest("name the dataset and its structure column")
+        column = validate.text(p, "target_column")
+        if not column:
+            return cls(dataset_id, {"structure_column": structure, "target": None})
+        kind = validate.text(p, "target_kind")
+        if kind not in TARGET_KINDS:
+            raise BadRequest("say whether %r is %s" % (column, " or ".join(TARGET_KINDS)))
+        if "qualifier_column" not in p:
+            raise BadRequest("confirm the qualifier column for %r, or send null for none" % column)
+        qualifier = p["qualifier_column"]
+        if qualifier is not None and (not isinstance(qualifier, str) or not qualifier):
+            raise BadRequest("qualifier_column must be a column name or null")
+        target: dict[str, Any] = {
+            "column": column,
+            "kind": kind,
+            "qualifier_column": qualifier,
+            "positive_class": validate.text(p, "positive_class") or None,
+        }
+        if kind == "regression":
+            if not isinstance(p.get("source_units"), str):
+                raise BadRequest("confirm the units of %r (an empty string for none)" % column)
+            transform = validate.choice(p, "transform", TRANSFORMS, "identity")
+            target.update(transform=transform, source_units=p["source_units"])
+        return cls(dataset_id, MappingProxyType({"structure_column": structure, "target": target}))
+
+
+@dataclass(frozen=True)
+class DatasetIdRequest:
+    """``POST /api/dataset/cancel`` and ``GET /api/dataset?id=...``."""
+
+    dataset_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetIdRequest:
+        dataset_id = validate.text(p, "dataset_id") or validate.text(p, "id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(dataset_id)
+
+
+@dataclass(frozen=True)
+class DatasetRowsRequest:
+    """``POST /api/dataset/rows``: one page of a dataset, sorted and filtered.
+
+    ``sort`` is ``{key, dir}`` and ``filters`` a list of ``{key, op, value}``;
+    both are checked against the dataset's columns where those are known
+    (see ``rowquery``). ``depict`` asks for each row's drawing too.
+    """
+
+    dataset_id: str
+    offset: int
+    limit: int
+    sort: Mapping[str, Any] | None
+    filters: tuple[Mapping[str, Any], ...]
+    depict: bool
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetRowsRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        sort = p.get("sort")
+        if sort is not None and not isinstance(sort, Mapping):
+            raise BadRequest("sort must be {key, dir}")
+        filters = p.get("filters") or []
+        if not isinstance(filters, (list, tuple)) or not all(
+            isinstance(f, Mapping) for f in filters
+        ):
+            raise BadRequest("filters must be a list of {key, op, value}")
+        return cls(
+            dataset_id,
+            validate.integer(p, "offset", 0, lo=0),
+            validate.integer(p, "limit", DEFAULT_PAGE, lo=1, hi=MAX_PAGE),
+            MappingProxyType(dict(sort)) if sort is not None else None,
+            tuple(MappingProxyType(dict(f)) for f in filters),
+            p.get("depict", True) is not False,
         )

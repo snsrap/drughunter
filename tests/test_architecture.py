@@ -15,9 +15,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PKG = ROOT / "proteinviewer"
 
 SHARED = {"errors", "validate", "config"}
-ADAPTERS = {"process", "pocketbench", "prep", "generation"}
+ADAPTERS = {"process", "pocketbench", "ligandbench", "prep", "generation"}
 # Files on disk: no knowledge of a tool or of HTTP.
-STORES = {"buffer", "project"}
+STORES = {"buffer", "project", "dataset"}
 
 # module -> the package modules it may import. There is no domain layer: what
 # was one -- parsing structures, the pocket model, the detectors -- is the
@@ -29,13 +29,17 @@ ALLOWED = {
     "config": set(),
     "process": {"errors"},
     "pocketbench": {"errors", "process", "validate"},
+    "ligandbench": {"errors", "process"},
     "prep": {"errors", "process"},
     "generation": {"errors", "process"},
     "buffer": {"errors"},
     "project": {"errors"},
+    "dataset": {"errors"},
+    # Pure: columns and rows in, a page out. It knows no molecule and no file.
+    "rowquery": {"errors"},
     "schemas": {"errors", "validate"},
     # The service sees tools only through its own protocols.
-    "service": STORES | {"errors", "schemas", "pockets"},
+    "service": STORES | {"errors", "schemas", "pockets", "rowquery"},
     "web": {"errors", "schemas", "service"},
     "server": SHARED | ADAPTERS | STORES | {"service", "web", "__init__"},
     "__main__": {"server"},

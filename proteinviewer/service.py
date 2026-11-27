@@ -13,17 +13,24 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import threading
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
+from . import rowquery
 from .buffer import BufferedStructure, PocketRun, StructureBuffer
-from .errors import BadRequest, Conflict, NotFound
+from .dataset import DatasetStore
+from .errors import BadRequest, Conflict, NotFound, ToolFailed
 from .pockets import residue_list, spheres_pdb
 from .project import Project, ProjectStore, csv_text, resolve_destination, safe_name
 from .schemas import (
     BufferRequest,
+    DatasetIdRequest,
+    DatasetResolveRequest,
+    DatasetRowsRequest,
+    DatasetUploadRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
@@ -44,6 +51,7 @@ __all__ = [
     "GenerationJob",
     "PoseScoring",
     "ScoringJob",
+    "LigandTools",
 ]
 
 log = logging.getLogger("proteinviewer")
@@ -53,7 +61,9 @@ log = logging.getLogger("proteinviewer")
 #: 4: /api/superpose; status lists additives and superposition; buffering no
 #: longer counts atoms (the server parses no structures).
 #: 5: /api/score-poses and /api/score-job; status says what can score a pose.
-API_VERSION = 5
+#: 6: /api/dataset/* (upload, resolve, cancel, rows); status says whether ligand
+#: datasets can be read.
+API_VERSION = 6
 
 #: The molecule-table columns written to a project's CSV, in table order. The
 #: depictions in the same rows are left out; they are in molecules.json.
@@ -77,6 +87,34 @@ MOLECULE_COLUMNS = (
     "scorer",
     "smiles",
 )
+
+
+#: What a page of rows carries: the row as stored, less nothing the page needs
+#: to show it whole (every source cell, why it cannot train, what it was made into).
+ROW_FIELDS = (
+    "row_id",
+    "record",
+    "cells",
+    "smiles",
+    "structure_error",
+    "target",
+    "target_source",
+    "qualifier",
+    "censored",
+    "prediction_eligible",
+    "training_eligible",
+    "exclusions",
+)
+
+
+def _row_view(row: Mapping[str, Any], id_index: int | None) -> dict:
+    """A stored row as the page gets it, with the name it is listed by: the
+    first non-structure text column, or the record number when that is blank.
+    """
+    out = {k: row[k] for k in ROW_FIELDS}
+    name = row["cells"][id_index].strip() if id_index is not None else ""
+    out["label"] = name or str(row["record"])
+    return out
 
 
 def merge_scores(
@@ -207,6 +245,18 @@ class Generator(Protocol):
     def get(self, job_id: str) -> GenerationJob | None: ...
 
 
+class LigandTools(Protocol):
+    """Reading ligand datasets: ligandbench (ligandbench.py)."""
+
+    def describe(self) -> dict: ...
+
+    def inspect(self, csv_path: str) -> dict: ...
+
+    def resolve(self, csv_path: str, config: Mapping[str, Any], out_dir: str) -> dict: ...
+
+    def depict(self, smiles: list[str]) -> dict: ...
+
+
 class ViewerService:
     def __init__(
         self,
@@ -218,8 +268,12 @@ class ViewerService:
         projects: ProjectStore | None = None,
         work_root: os.PathLike | str | None = None,
         version: str = "",
+        ligands: LigandTools | None = None,
+        datasets: DatasetStore | None = None,
     ):
         self.version = version
+        self.ligands = ligands
+        self.datasets = datasets
         self.buffer = buffer
         self.pockets = pockets
         self.prep = prep
@@ -256,6 +310,15 @@ class ViewerService:
                 "available": self.projects is not None,
                 "root": str(self.projects.root) if self.projects else "",
             },
+            "datasets": self._datasets_status(),
+        }
+
+    def _datasets_status(self) -> dict:
+        info = self.ligands.describe() if self.ligands else {}
+        return {
+            **{k: info.get(k, "") for k in ("version", "rdkit", "depiction")},
+            "available": bool(info.get("available")) and self.datasets is not None,
+            "root": str(self.datasets.root) if self.datasets else "",
         }
 
     def buffer_structure(self, req: BufferRequest) -> dict:
@@ -475,6 +538,132 @@ class ViewerService:
             out.update(sjob.payload())
             self._write_scores(sjob)
         return out
+
+    # -- ligand datasets ------------------------------------------------------
+    def _store(self) -> DatasetStore:
+        if self.datasets is None or self.ligands is None:
+            raise Conflict("this server has no dataset directory")
+        return self.datasets
+
+    def upload_dataset(self, req: DatasetUploadRequest) -> dict:
+        """Keep an uploaded CSV, staged, and say what is in it: its columns,
+        and which of them might hold structures. It cannot train until the
+        user has resolved it; abandoned, it expires after 24 hours.
+        """
+        store = self._store()
+        staged = store.stage(req.name, req.data)
+        dataset_id = staged["dataset_id"]
+        try:
+            found = self.ligands.inspect(str(store.source(dataset_id)[0]))
+        except Exception:
+            store.cancel(dataset_id)  # a file that cannot be read is not kept
+            raise
+        log.info("dataset %s staged: %s, %s rows", dataset_id, req.name, found.get("n_rows"))
+        return {
+            "dataset_id": dataset_id,
+            "state": "staged",
+            "name": req.name,
+            "n_rows": found.get("n_rows"),
+            "columns": found.get("columns", []),
+            "structure_candidates": found.get("structure_candidates", []),
+        }
+
+    def resolve_dataset(self, req: DatasetResolveRequest) -> dict:
+        """Apply the user's choices. A staged dataset becomes ready under its
+        own id; a ready one resolved again becomes a new dataset, so the old
+        id keeps meaning what it meant.
+        """
+        store = self._store()
+        source, name, state = store.source(req.dataset_id)
+        work = store.workdir()
+        try:
+            self.ligands.resolve(str(source), req.config, str(work))
+            meta = store.commit(
+                work,
+                name=name,
+                source=source,
+                staged_id=req.dataset_id if state == "staged" else None,
+            )
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        log.info(
+            "dataset %s ready: %s rows, %s trainable",
+            meta["dataset_id"],
+            meta["n_rows"],
+            meta["n_training_eligible"],
+        )
+        return self._dataset_view(meta)
+
+    def cancel_dataset(self, req: DatasetIdRequest) -> dict:
+        self._store().cancel(req.dataset_id)
+        return {"dataset_id": req.dataset_id, "state": "cancelled"}
+
+    def dataset_status(self, req: DatasetIdRequest) -> dict:
+        """A dataset by id: ready ones are reopened from disk after a restart."""
+        store = self._store()
+        try:
+            return self._dataset_view(store.get(req.dataset_id))
+        except NotFound:
+            staged = store.staged(req.dataset_id)
+            if staged is None:
+                raise
+            return {"dataset_id": req.dataset_id, "state": "staged", "name": staged["name"]}
+
+    def dataset_rows(self, req: DatasetRowsRequest) -> dict:
+        """One page of a ready dataset. Sorting and filtering happen before the
+        page is cut, and only the rows in it are drawn.
+        """
+        store = self._store()
+        meta = store.get(req.dataset_id)
+        columns = rowquery.schema(meta)
+        page, total = rowquery.run(
+            columns,
+            store.rows(req.dataset_id),
+            filters=rowquery.parse_filters(columns, req.filters),
+            sort=rowquery.parse_sort(columns, req.sort),
+            offset=req.offset,
+            limit=req.limit,
+        )
+        id_index = next(
+            (c["index"] for c in meta["columns"] if c["name"] == meta.get("id_column")), None
+        )
+        rows = [_row_view(r, id_index) for r in page]
+        if req.depict:
+            self._depict(meta, rows)
+        return {
+            "dataset_id": req.dataset_id,
+            "total": total,
+            "offset": req.offset,
+            "limit": req.limit,
+            "rows": rows,
+        }
+
+    def _dataset_view(self, meta: dict) -> dict:
+        return {
+            **meta,
+            "schema": [c.describe() for c in rowquery.schema(meta)],
+            "operators": {k: list(v) for k, v in rowquery.OPERATORS.items()},
+        }
+
+    def _depict(self, meta: dict, rows: list[dict]) -> None:
+        """Draw the rows on this page, from the cache where they were drawn
+        before. Never more than a page: a dataset is not drawn whole.
+        """
+        dataset_id, version = meta["dataset_id"], str(self.ligands.describe().get("depiction", ""))
+        wanted = [r for r in rows if r["smiles"]]
+        have = self.datasets.cached_depictions(dataset_id, version, [r["row_id"] for r in wanted])
+        todo = [r for r in wanted if r["row_id"] not in have]
+        if todo:
+            drawn = self.ligands.depict([r["smiles"] for r in todo]).get("svgs") or []
+            if len(drawn) != len(todo):
+                raise ToolFailed(
+                    "ligandbench drew %d of %d" % (len(drawn), len(todo)), "ligandbench"
+                )
+            made = {r["row_id"]: svg for r, svg in zip(todo, drawn) if svg}
+            self.datasets.put_depictions(dataset_id, version, made)
+            have.update(made)
+        for r in rows:
+            r["svg"] = have.get(r["row_id"], "")
 
     # -- the session's output directory -------------------------------------
     def create_project(self, req: ProjectRequest) -> dict:

@@ -26,8 +26,10 @@ from pathlib import Path
 
 from . import __version__
 from .buffer import StructureBuffer
-from .config import Settings, default_project_root
+from .config import Settings, default_dataset_root, default_project_root
+from .dataset import DatasetStore
 from .generation import NeatPocket, Scoring
+from .ligandbench import Ligandbench
 from .pocketbench import Pocketbench
 from .prep import QuickPrep
 from .project import ProjectStore
@@ -64,6 +66,8 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
         # What a project may not be saved into: the tree the runs write in.
         work_root=work_root,
         version=__version__,
+        ligands=Ligandbench(settings.ligandbench_python),
+        datasets=DatasetStore(settings.dataset_root or default_dataset_root()),
     )
 
 
@@ -82,10 +86,11 @@ def make_server(settings: Settings, service: ViewerService) -> ThreadingHTTPServ
 
 
 def tool_status_lines(service: ViewerService) -> list[str]:
-    return service.pockets.status_lines() + [
-        service.generator.status_line(),
-        service.prep.status_line(),
-    ]
+    return (
+        service.pockets.status_lines()
+        + [service.generator.status_line(), service.prep.status_line()]
+        + ([service.ligands.status_line()] if hasattr(service.ligands, "status_line") else [])
+    )
 
 
 def _print_tool_status(service: ViewerService) -> None:
@@ -149,7 +154,8 @@ def main(argv: list[str] | None = None) -> int:
             url = "http://%s:%d/" % (settings.host, settings.port)
             print("serving %s at %s  (ctrl-c to stop)" % (settings.app_dir, url))
             print("work directory: %s" % work_root)
-            print("projects: %s" % service.projects.root, flush=True)
+            print("projects: %s" % service.projects.root)
+            print("datasets: %s" % service.datasets.root, flush=True)
             # Probing the tools starts their interpreters (OpenMM takes a few
             # seconds to import), so it happens beside serving, not before.
             threading.Thread(

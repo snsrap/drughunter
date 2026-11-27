@@ -36,6 +36,10 @@ from .errors import (
 )
 from .schemas import (
     BufferRequest,
+    DatasetIdRequest,
+    DatasetResolveRequest,
+    DatasetRowsRequest,
+    DatasetUploadRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
@@ -100,6 +104,19 @@ class Api:
             ("POST", "/api/project"): lambda r: s.create_project(ProjectRequest.parse(r.body)),
             ("POST", "/api/project/save"): lambda r: s.save_project(
                 ProjectSaveRequest.parse(r.body)
+            ),
+            ("POST", "/api/dataset/upload"): lambda r: s.upload_dataset(
+                DatasetUploadRequest.parse(r.body)
+            ),
+            ("POST", "/api/dataset/resolve"): lambda r: s.resolve_dataset(
+                DatasetResolveRequest.parse(r.body)
+            ),
+            ("POST", "/api/dataset/cancel"): lambda r: s.cancel_dataset(
+                DatasetIdRequest.parse(r.body)
+            ),
+            ("GET", "/api/dataset"): lambda r: s.dataset_status(DatasetIdRequest.parse(r.query)),
+            ("POST", "/api/dataset/rows"): lambda r: s.dataset_rows(
+                DatasetRowsRequest.parse(r.body)
             ),
         }
 

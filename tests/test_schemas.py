@@ -3,6 +3,10 @@ import unittest
 from proteinviewer.errors import BadRequest
 from proteinviewer.schemas import (
     BufferRequest,
+    DatasetIdRequest,
+    DatasetResolveRequest,
+    DatasetRowsRequest,
+    DatasetUploadRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
@@ -66,6 +70,114 @@ class SchemaTest(unittest.TestCase):
     def test_job_query(self):
         q = JobQuery.parse({"id": "j", "mols": "1"})
         self.assertEqual((q.job_id, q.molecules, q.table), ("j", True, False))
+
+
+class DatasetSchemaTest(unittest.TestCase):
+    def test_upload_keeps_the_text_and_only_the_files_own_name(self):
+        r = DatasetUploadRequest.parse({"name": "C:\\data\\../ligands.csv", "data": "a\n1\n"})
+        self.assertEqual((r.name, r.data), ("ligands.csv", "a\n1\n"))
+        self.assertEqual(DatasetUploadRequest.parse({"data": "a"}).name, "dataset.csv")
+        for bad in ({}, {"data": "  \n"}, {"data": 5}):
+            with self.assertRaises(BadRequest, msg=bad):
+                DatasetUploadRequest.parse(bad)
+
+    def test_resolve_without_a_target_is_prediction_only(self):
+        r = DatasetResolveRequest.parse(
+            {"dataset_id": "ds-1", "structure_column": "SMILES", "target_column": ""}
+        )
+        self.assertEqual(r.config, {"structure_column": "SMILES", "target": None})
+        r = DatasetResolveRequest.parse({"dataset_id": "ds-1", "structure_column": "SMILES"})
+        self.assertIsNone(r.config["target"])
+
+    def test_resolve_a_regression_target_in_full(self):
+        r = DatasetResolveRequest.parse(
+            {
+                "dataset_id": "ds-1",
+                "structure_column": "SMILES",
+                "target_column": "Ki",
+                "target_kind": "regression",
+                "qualifier_column": None,
+                "source_units": "nM",
+                "transform": "pki",
+            }
+        )
+        self.assertEqual(
+            r.config["target"],
+            {
+                "column": "Ki",
+                "kind": "regression",
+                "qualifier_column": None,
+                "positive_class": None,
+                "transform": "pki",
+                "source_units": "nM",
+            },
+        )
+
+    def test_resolve_makes_the_user_confirm_what_cannot_be_inferred(self):
+        base = {"dataset_id": "ds-1", "structure_column": "S", "target_column": "y"}
+        for bad, match in (
+            ({}, "regression or classification"),
+            ({"target_kind": "ranking"}, "regression or classification"),
+            ({"target_kind": "regression"}, "confirm the qualifier"),
+            ({"target_kind": "regression", "qualifier_column": ""}, "column name or null"),
+            ({"target_kind": "regression", "qualifier_column": None}, "confirm the units"),
+            (
+                {
+                    "target_kind": "regression",
+                    "qualifier_column": None,
+                    "source_units": "nM",
+                    "transform": "log",
+                },
+                "unknown transform",
+            ),
+        ):
+            with self.assertRaisesRegex(BadRequest, match):
+                DatasetResolveRequest.parse({**base, **bad})
+        for bad in ({"structure_column": ""}, {"dataset_id": ""}):
+            with self.assertRaises(BadRequest):
+                DatasetResolveRequest.parse({**base, **bad})
+
+    def test_resolve_classification_needs_no_units(self):
+        r = DatasetResolveRequest.parse(
+            {
+                "dataset_id": "ds-1",
+                "structure_column": "S",
+                "target_column": "y",
+                "target_kind": "classification",
+                "qualifier_column": None,
+                "positive_class": "1",
+            }
+        )
+        self.assertEqual(r.config["target"]["positive_class"], "1")
+        self.assertNotIn("source_units", r.config["target"])
+
+    def test_id_comes_from_a_body_or_a_query(self):
+        self.assertEqual(DatasetIdRequest.parse({"dataset_id": "ds-1"}).dataset_id, "ds-1")
+        self.assertEqual(DatasetIdRequest.parse({"id": "ds-2"}).dataset_id, "ds-2")
+        with self.assertRaises(BadRequest):
+            DatasetIdRequest.parse({})
+
+    def test_rows_defaults_and_the_page_ceiling(self):
+        r = DatasetRowsRequest.parse({"dataset_id": "ds-1"})
+        self.assertEqual((r.offset, r.limit, r.sort, r.filters, r.depict), (0, 50, None, (), True))
+        self.assertEqual(DatasetRowsRequest.parse({"dataset_id": "d", "limit": 100}).limit, 100)
+        for bad in (
+            {"limit": 101},
+            {"limit": 0},
+            {"offset": -1},
+            {"offset": 1.5},
+            {"sort": "name"},
+            {"filters": {"key": "a"}},
+            {"filters": ["a"]},
+            {},
+        ):
+            with self.assertRaises(BadRequest, msg=bad):
+                DatasetRowsRequest.parse({"dataset_id": "ds-1", **bad} if bad else {})
+        r = DatasetRowsRequest.parse(
+            {"dataset_id": "d", "depict": False, "filters": [{"key": "a"}]}
+        )
+        self.assertFalse(r.depict)
+        self.assertEqual(r.filters[0]["key"], "a")
 
 
 if __name__ == "__main__":
