@@ -829,6 +829,68 @@ It does not follow the open dataset: records outlive it.
 `npm run e2e:registry` walks train -> register -> inspect -> rename and a note -> restart -> confirmed
 delete against the real backend (`?profile=tiny`).
 
+## Predicting with a registered model
+
+On `/ligands`, the ligand panel has a **Registered model** selector and **Predict entire
+dataset** (`js/features/predict.js`, logic in `js/model/prediction.js`, tested by `npm test`). The
+server side is `proteinviewer/predictions.py`; the science is
+[`ligandbench predict`](ligandbench.md#predicting-with-a-run).
+
+**Scope.** Always the whole dataset: the request is `{dataset_id, experiment_id}` and carries
+nothing of the page's filter, sort or page. When the job starts it captures the dataset's id and
+content hash and the experiment's id and model checksum (the sha256 the registry recorded), so a
+later filter, a dataset switch or a re-registration cannot change its input or attach its result
+to another dataset. The result is written under the dataset it was started for, keyed by row id.
+
+**The selector.** Lists the selectable experiments (`GET /api/experiments`, whose entries now carry
+`usable: {ok, reason}` and `versions`) with name, short id, model family, target/task/units and the
+labelled held-out metric from the registry (never prediction-vs-target agreement: the dataset may
+overlap training). A model whose files are missing, or that was trained with an RDKit, XGBoost or
+featuriser this server does not run, is disabled with the reason beside it. Nothing is chosen for
+the user.
+
+**Compatibility.** Starting a job checks the registry's record first (`409 Incompatible` before any
+job exists); the job then holds the experiment's lease, re-checks that the model file is the one
+captured, and `ligandbench predict` checks the artifacts themselves (checksums, schemas, versions,
+feature order and count) before it predicts anything. A failure ends the job with a message
+(`error_code`: `incompatible`, `experiment_unavailable` or `dataset_or_model_changed`) and writes
+nothing.
+
+**Jobs.** Background, bounded: the settings `prediction_limit` (2 running), `prediction_queue`
+(8 waiting). A second job for the same dataset and model is refused while one waits or runs. The
+experiment lease means a deletion waits (409, retryable) while a job is using the model; a model
+deleted before a queued job gets its turn ends that job with `experiment_unavailable`.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/dataset/predict` `{dataset_id, experiment_id}` | Start a job; answers its progress (`id`, `state`, `completed`/`total` rows, `dataset_id`, `dataset_hash`, `experiment_id`, `checksum`, `key`). |
+| `GET /api/dataset/predict?id=<job>` | The job's progress; 404 when the server no longer knows it. |
+| `POST /api/dataset/predict/cancel` `{id}` | Stop a queued or running job. Nothing is written. |
+| `GET /api/dataset/predictions?dataset_id=` | The dataset's columns (with the predictions'), the sets kept for it and its jobs. |
+| `POST /api/dataset/predictions/delete` `{dataset_id, key}` | Remove one kept set. |
+
+**Results.** Kept with the dataset, one file per model and artifact
+(`ready/<dataset>/predictions/pred_<experiment>_<checksum12>.json`), replaced whole: a rerun of the
+same model swaps its own columns in one rename, different models coexist, and a failed, cancelled
+or timed-out job writes nothing, so the last good columns stay. Every source row has an output by
+`row_id`: an unreadable structure or a feature failure has no number and its reason
+(`prediction_errors` on the row), and no prediction moves onto another row. Regression predicts in
+the model's target units (`pKi` stays `pKi`; nothing is inverse-transformed). Classification gives
+the predicted class and one numeric column per class, `p0`, `p1`, ... in the stored class order
+(each column's `meta.class` names its class). Column keys are `pred_<experiment uuid>_<checksum12>_<output>`;
+labels carry the experiment's name, short id and units.
+
+The columns are part of the dataset's query schema (`schema` entries of `kind: "prediction"`, with
+a `meta` of `set`, `output`, `units`, `experiment_name`, `source_deleted`), so sorting and filtering
+by one is the ordinary server-side sort and filter over all rows, before a page is cut. A
+set whose experiment was deleted stays, labelled *source model deleted*: it is what that model said
+at the time. Polling after a dataset switch is ignored by the page (a job names its dataset), and when
+a job ends the page reads back that dataset's columns, not whatever is open now.
+
+`npm run e2e:predict` walks train -> register -> a target-free dataset -> predict -> sort, filter
+and inspect by the prediction, a dataset opened while a job is being polled, and a deleted model,
+against the real backend.
+
 ## Preparing structures
 
 `Prepare` is backed by [quickprep](quickprep.md), the package beside this one
@@ -862,6 +924,7 @@ proteinviewer/               the server: Python standard library only
   project.py  pockets.py       a session's artifacts on disk, and pocket results as files
   dataset.py  rowquery.py      ligand datasets on disk, and sorting/filtering/paging their rows
   experiments.py               the experiment registry: SQLite metadata plus artifacts on disk
+  predictions.py               jobs that apply a registered model to a whole dataset
   schemas.py  service.py       parsed requests, and the use cases over them
   web.py                       HTTP: routing, status codes, the cross-site checks
   server.py                    composition root: picks the tools, wires, serves, cleans up
@@ -930,6 +993,7 @@ menu and, if it reports new numbers, show them in `js/features/pockets.js`.
 python3 -m unittest discover -s tests -t .   # server: about a second, no tools needed
 npm test                                     # the page's pure modules, Node 18+
 npm install && npm run e2e -- http://127.0.0.1:8000 /tmp/pv-ui --slow   # the whole UI
+npm run e2e:predict                          # a registered model on a dataset, real backend
 npm run e2e:registry                         # train -> register -> inspect -> rename -> delete, real backend
 npm run e2e:dataset                          # upload -> inspect -> summarise -> sort/filter a ligand CSV; starts its own server
 ```

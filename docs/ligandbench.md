@@ -18,6 +18,7 @@ ligandbench split DIR --strategy scaffold --seed 7  # five repeated holdouts of 
 ligandbench depict request.json                     # {"smiles": [...]} -> SVGs
 ligandbench summarize DIR                           # the dashboard's numbers for the dataset in DIR
 ligandbench train DIR --out RUN --seed 0 --production-strategy scaffold   # a QSAR run directory
+ligandbench predict RUN DIR --out OUT               # a run's model on every row of a dataset
 ```
 
 Every command prints one JSON object. The exit code says whose problem a
@@ -567,6 +568,30 @@ returns one dict per pair in order: `{"row_id", "value"}` (regression), `{"row_i
 never an exception for a row. It refuses a `features.json` whose featuriser this build
 does not implement; a different RDKit or numpy is not refused but listed in
 `Model.drift`.
+
+### Predicting with a run
+
+`ligandbench predict RUN DIR --out OUT` applies the model of a run directory to **every** row
+of the dataset in `DIR` (its `rows.json`) and writes `OUT/predictions.json`
+(`qsar-predictions-v1`: `target {kind, classes, positive_class}`, `n_rows`, `n_failed`, and
+`rows`, one output per source row in the dataset's order, each as `Model.predict` returns it).
+`OUT/progress.json` carries the row count while it works. A row whose structure did not parse
+(`structure_error` in `rows.json`) or whose features cannot be built has `{"row_id", "error"}`
+and no number; the others are unaffected. The dataset's own target, if it has one, plays no part.
+
+Before any inference `ligandbench.predict.check` refuses, with exit 2 and
+`{"error", "kind": "bad-input", "code": "incompatible"}` and nothing written:
+
+- a `run.json` whose schema is not one of `RUN_SCHEMAS` (`qsar-run-v1`) or whose status is not
+  `completed`;
+- a `model.json` or `features.json` that is missing or whose sha256 is not the one `run.json`
+  recorded;
+- an RDKit or XGBoost that is not the one `versions` recorded (v1 does not assume another
+  build computes the same numbers);
+- a featuriser version, parameter, column order or column count this build does not implement
+  exactly (`Featuriser.from_schema`), or a booster whose width is not the schema's.
+
+There is no fallback: a model is never run with default features.
 
 ### What is promised, and what is not
 

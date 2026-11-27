@@ -149,6 +149,22 @@
             <select id="mol-size" aria-label="Cards per page"></select></label>
         </span>
       </div>
+      <!-- Apply a registered model to this dataset: the whole of it, however it is filtered, sorted or
+           paged. The result is a column of the table below. features/predict.js. -->
+      <div class="mpredict" id="pr-panel" hidden>
+        <form id="pr-form" novalidate>
+          <label class="fld"><span class="eyebrow">Registered model</span>
+            <select id="pr-model" aria-describedby="pr-reason pr-note"></select></label>
+          <button class="btn solid" type="submit" id="pr-go">Predict entire dataset</button>
+          <button class="btn" type="button" id="pr-cancel" hidden>Cancel</button>
+          <button class="btn" type="button" id="pr-refresh" aria-label="Reload the list of models">&#8635;</button>
+        </form>
+        <p class="pdbq-msg" id="pr-reason" aria-live="polite"></p>
+        <p class="snote" id="pr-note"></p>
+        <div class="tstat" id="pr-status" aria-live="polite" aria-busy="false"></div>
+        <div id="pr-sets"></div>
+        <p class="pdbq-msg" id="pr-notice" aria-live="polite"></p>
+      </div>
       <div class="mfilter" id="mol-filter">
         <select id="mol-f-key" aria-label="Filter column"></select>
         <select id="mol-f-op" aria-label="Filter operator"></select>

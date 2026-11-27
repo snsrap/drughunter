@@ -101,3 +101,13 @@ export function experiments(all){ return request("/api/experiments" + (all ? "?a
 export function experiment(id){ return request("/api/experiments?id=" + encodeURIComponent(id)); }
 export function updateExperiment(body){ return post("/api/experiments/update", body); }
 export function deleteExperiment(id){ return post("/api/experiments/delete", {id}); }
+
+/* Applying a registered model to every row of a ready dataset: POST starts a job and answers
+   its progress (it names the dataset and experiment it was started for); GET polls it; cancel
+   stops a queued or running one. The dataset's predictions are its columns and the sets kept
+   for it; a set is removed by its key. */
+export function startPrediction(body){ return post("/api/dataset/predict", body); }
+export function predictionProgress(id){ return request("/api/dataset/predict?id=" + encodeURIComponent(id)); }
+export function cancelPrediction(id){ return post("/api/dataset/predict/cancel", {id}); }
+export function datasetPredictions(datasetId){ return request("/api/dataset/predictions?dataset_id=" + encodeURIComponent(datasetId)); }
+export function deletePredictions(datasetId, key){ return post("/api/dataset/predictions/delete", {dataset_id: datasetId, key}); }

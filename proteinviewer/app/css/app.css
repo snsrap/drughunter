@@ -514,3 +514,17 @@ button.info[aria-expanded=true]{background:var(--accent); border-color:var(--acc
 .treg{margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
 .regform{display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap}
 .regform .fld{flex:1; min-width:14em}
+
+/* ---------- applying a registered model: the selector above the molecules, its progress, and what is kept ---------- */
+.mpredict{display:flex; flex-direction:column; gap:7px; padding:8px 12px; border-bottom:1px solid var(--line)}
+.mpredict form{display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px}
+.mpredict .fld{flex:1; min-width:16em}
+.mpredict select{max-width:100%}
+.psets{margin:4px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px}
+.psets li{display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; font-size:12px}
+.psets .pname{color:var(--ink)}
+.psets .pnote{color:var(--muted); font-size:11.5px; margin-right:auto}
+.psets .pnote.gone{color:var(--fail)}
+.mpred{display:block; font-size:10.5px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mdetail table.pred .twhy{display:block; color:var(--muted); font-size:10.5px}
+.mdetail h4.eyebrow{margin:10px 0 3px}

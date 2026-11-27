@@ -12,6 +12,7 @@ import {$, esc, setMsg, note, fault, setHTML, attr} from "../core/dom.js";
 import * as api from "../core/api.js";
 import * as M from "../model/dataset.js";
 import {safeSvg} from "../model/svg.js";
+import * as P from "../model/prediction.js";
 
 const latest = M.makeLatest();
 let built = null;            /* what the cards were last built from */
@@ -47,6 +48,9 @@ async function load(){
   commit();
 }
 
+/* The same question again, for a page whose columns changed (a model's predictions arrived or went). */
+export function refresh(){ if (meta() && state.mol.query) load(); }
+
 function ask(query){
   state.mol.query = query;
   load();
@@ -57,7 +61,7 @@ export function render(st){
   const ds = st.dataset.ready, m = st.mol;
   $("mtab").hidden = !ds || !m.query;
   if (!ds || !m.query){ built = null; controlsFor = null; return; }
-  if (controlsFor !== ds.dataset_id) fillControls(ds);
+  if (controlsFor !== P.schemaKey(ds)) fillControls(ds);
 
   const q = m.query, page = m.page, info = M.pageInfo(page ? page.total : 0, q.offset, q.limit);
   $("mol-n").textContent = !page ? "" : page.total === ds.n_rows ? ds.n_rows + " rows"
@@ -97,7 +101,8 @@ function card(r, ds, sel){
     r.row_id + "' aria-pressed='" + (!!sel && sel.row_id === r.row_id) + "' title='" +
     attr(r.label + (r.training_eligible ? "" : " — not used for training")) + "'>" + inner +
     "<span class='mname'>" + esc(r.label) + "</span>" +
-    "<span class='mval mono'>" + esc(M.targetText(r, ds)) + "</span></button>";
+    "<span class='mval mono'>" + esc(M.targetText(r, ds)) + "</span>" +
+    P.cardPredictions(r, ds.schema).map(p => "<span class='mpred mono' title='" + attr(p.title) + "'>" + esc(p.label) + ": " + esc(p.text) + "</span>").join("") + "</button>";
 }
 
 function renderDetail(ds, row){
@@ -113,6 +118,7 @@ function renderDetail(ds, row){
              : "<div class='why'>" + esc(d.structureError || "no structure") + "</div>") +
     (d.model.length ? "<table>" + d.model.map(m =>
       "<tr class='key'><th>" + esc(m.label) + "</th><td>" + esc(m.value) + "</td></tr>").join("") + "</table>" : "") +
+    predictionTable(row, ds) +
     (d.trains ? "<div class='why ok'>Used for training.</div>"
       : "<div class='why'>Not used for training:<ul>" + d.reasons.map(r => "<li>" + esc(r) + "</li>").join("") + "</ul></div>") +
     "<table>" + (d.smiles ? "<tr><th>Canonical SMILES</th><td class='mono'>" + esc(d.smiles) + "</td></tr>" : "") +
@@ -121,10 +127,19 @@ function renderDetail(ds, row){
   $("mol-close").onclick = () => { state.mol.sel = null; commit(); };
 }
 
+/* What each registered model predicted for this row, apart from the measurements: labelled as
+   predictions, with a reason where a row could not be predicted. */
+function predictionTable(row, ds){
+  const rows = P.detailPredictions(row, ds.schema);
+  if (!rows.length) return "";
+  return "<h4 class='eyebrow'>Predictions (not measurements)</h4><table class='pred'>" + rows.map(r =>
+    "<tr><th>" + esc(r.label) + "</th><td class='mono'>" + esc(r.text) + (r.why ? "<span class='twhy'>" + esc(r.why) + "</span>" : "") + "</td></tr>").join("") + "</table>";
+}
+
 /* The sort and filter controls offer the dataset's own columns, typed by the
    server, so a number column offers comparisons and a text column offers search. */
 function fillControls(ds){
-  controlsFor = ds.dataset_id;
+  controlsFor = P.schemaKey(ds);
   const cols = ds.schema;
   $("mol-sort-key").innerHTML = cols.map(c => "<option value='" + attr(c.key) + "'>" + esc(c.label) + "</option>").join("");
   $("mol-f-key").innerHTML = $("mol-sort-key").innerHTML;
