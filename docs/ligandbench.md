@@ -342,6 +342,92 @@ assert so: `n_rows`, `n_parse_failures`, `n_training_eligible`, `exclusions`,
   number was meant) is *not* missing: it is filled, and is judged where it
   matters, as an `invalid_target` exclusion if it is the target.
 
+## Features
+
+`ligandbench.features` turns a structure identity (a row's `smiles`) into the
+vector the QSAR model sees. It is parsed exactly as `chem.py` and `scaffold.py`
+parse it -- plain `Chem.MolFromSmiles`, no salt stripping, no neutralisation.
+`FEATURISER_VERSION` (`morgan2048-desc7-v1`) names the definition and is bumped
+whenever the same molecule would give a different vector.
+
+A vector has 2055 float32 columns: 2048 binary Morgan bits (`morgan_0000` to
+`morgan_2047`, exactly 0.0 or 1.0), then seven descriptors in this order:
+
+| Column | RDKit function |
+| --- | --- |
+| `mol_wt` | `Descriptors.MolWt` |
+| `log_p` | `Crippen.MolLogP` |
+| `tpsa` | `rdMolDescriptors.CalcTPSA` |
+| `hbd` | `rdMolDescriptors.CalcNumHBD` |
+| `hba` | `rdMolDescriptors.CalcNumHBA` |
+| `rotatable_bonds` | `rdMolDescriptors.CalcNumRotatableBonds` |
+| `heavy_atoms` | `Mol.GetNumHeavyAtoms` |
+
+The Morgan generator is radius 2, `fpSize` 2048, `includeChirality` true (so
+enantiomers differ), `countSimulation` false, bit output, with RDKit's default
+atom and bond invariants written out (`useBondTypes`, `includeRingMembership`,
+`onlyNonzeroInvariants`, `numBitsPerFeature`) so a default that changes in a later
+RDKit cannot change the vector unnoticed. Nothing is fitted: no scaling, no
+imputation.
+
+`feature_schema()` is a JSON object holding all of that -- generator options,
+descriptor names and functions, dtype, the column names in order, the schema
+version, and the RDKit and numpy versions -- and is what a training run stores
+beside its model. `Featuriser.from_schema(schema)` rebuilds the featuriser and
+raises `BadInput` when this build implements something else (another version, or
+any parameter, descriptor, column or dtype differing). Dependency versions are
+recorded but do not refuse a schema; `Featuriser.dependency_drift(schema)` says
+which differ so a caller can warn.
+
+`Featuriser().featurise([(row_id, smiles), ...])` returns a `FeatureResult`:
+`matrix` (the rows that worked, in input order), `row_ids` (the same rows' ids)
+and `failures` (`[{"row_id", "reason"}]`: a structure that does not parse, or a
+descriptor that is not finite -- NaN, infinity, or too large for float32 -- named
+in the reason). It never raises for a row and never reorders. `require_all(result)`
+raises `BadInput` listing up to 20 failing row ids and "and N more"; training
+uses it, so a nonfinite descriptor stops the run with row ids, and inference can
+instead report failures per row.
+
+## Metrics
+
+`ligandbench.metrics` (numpy only) scores a set of predictions. Each function
+returns `{"values": {name: float or null}, "undefined": {name: reason}}`: a
+metric that cannot be computed is `null` with a reason, never NaN, infinity or a
+quiet zero, so a result is canonical JSON. Inputs that are not finite, of unequal
+length, or malformed (an unknown label, probabilities outside [0, 1] or rows that
+do not sum to one) raise `BadInput`; that is a bug upstream, not an undefined
+metric. Outputs are plain Python floats.
+
+- `regression_metrics(y_true, y_pred)`: `rmse`, `mae`, `r2`, `spearman`.
+- `classification_metrics(y_true, proba, classes, positive_class=None)`.
+  `classes` is the stable class order and `y_true` holds those labels.
+  Binary (two classes): `roc_auc`, `average_precision`, `balanced_accuracy`,
+  `log_loss`; `proba` is the positive-class probability vector, or an `[n, 2]`
+  matrix in `classes` order whose positive column is used; the positive class is
+  `positive_class`, default `classes[1]`. Multiclass: `roc_auc_ovr_macro`,
+  `average_precision_macro`, `balanced_accuracy`, `log_loss`; `proba` is `[n, k]`
+  in `classes` order and `positive_class` must be `None`.
+- `aggregate(values)`: `{"mean", "sd", "n_defined", "n_total"}` over the values
+  that are not `null`.
+
+`average_precision` is the metric called "PR-AUC" elsewhere; it is never labelled
+that, because the trapezoid area under a precision-recall curve is a different
+number.
+
+| Convention | Rule |
+| --- | --- |
+| Class decision | binary: probability `>= 0.5` is positive (exactly 0.5 is positive); multiclass: argmax, the first class winning an exact tie. Thresholds are never tuned. |
+| Log loss | natural log, mean over rows; each class probability (`p` and `1 - p` in the binary case) is clipped to `[1e-15, 1 - 1e-15]`, no renormalisation afterwards; at most 34.54 per row. Needs only one row. |
+| ROC-AUC | rank-sum (Mann-Whitney) form with average ranks: a positive and a negative with equal scores count one half. Undefined with no positive rows or no negative rows. |
+| Average precision | `sum (R_n - R_{n-1}) P_n` over distinct score thresholds, tied scores being one threshold (scikit-learn's step-wise definition, not the trapezoid). Undefined with no positive rows; with no negative rows it is defined (1.0). |
+| Balanced accuracy | mean per-class recall over all of `classes`. Undefined, naming the class, if any class has no row in `y_true`: it is not averaged over the classes present. |
+| Macro one-vs-rest (multiclass) | the plain mean over all classes of each class against the rest. Null, with a reason that names the first class that cannot contribute (no positive rows; for ROC-AUC also no negative rows), if any class cannot; never an average over a subset. |
+| RMSE, MAE | undefined only with no rows. |
+| R-squared | `1 - SS_res / SS_tot`; undefined when `y_true` is constant (`SS_tot` is 0), which includes one row. It can be negative. |
+| Spearman | Pearson correlation of average ranks; undefined with fewer than two rows or when either input is constant. |
+| No rows | every metric undefined, reason `no rows`. |
+| `aggregate` | `mean` over defined values; `sd` is the sample SD (ddof 1), `null` with fewer than two defined values; `mean` and `sd` are `null` with none. `n_defined` and `n_total` report how many counted. A value that is NaN or infinite raises `BadInput`. |
+
 ## Layout
 
 ```
@@ -354,5 +440,7 @@ ligandbench/
   resolve.py    choices -> rows, verdicts, metadata, content hash (RDKit)
   depict.py     2D depictions as SVG, versioned for caching (RDKit)
   summary.py    the dashboard's statistics from the rows and metadata (RDKit, for scaffolds)
+  features.py   the QSAR featuriser: Morgan bits and seven descriptors, its schema (RDKit, numpy)
+  metrics.py    regression and classification metrics, aggregation (numpy)
   cli.py        the commands above
 ```
