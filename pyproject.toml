@@ -18,9 +18,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
 requires-python = ">=3.10"
-# The viewer's server and pocketbench run on the standard library alone;
-# these are quickprep's. External tools (fpocket, lacuna, NEAT-POCKET) are
-# found at startup, not installed from here.
+# The viewer's server and pocketbench run on the standard library alone; these
+# are quickprep's, and rdkit is ligandbench's (the server never imports it: it
+# runs `python -m ligandbench`). External tools (fpocket, lacuna, NEAT-POCKET)
+# are found at startup, not installed from here.
 dependencies = [
     "openmm>=8.1",
     "pdbfixer>=1.9",
@@ -28,6 +29,7 @@ dependencies = [
     "propka>=3.5",
     "gemmi>=0.6",
     "numpy",
+    "rdkit",
 ]
 dynamic = ["version"]
 
@@ -46,6 +48,7 @@ Sponsor = "https://github.com/sponsors/snsrap"
 [project.scripts]
 proteinviewer = "proteinviewer.server:main"
 pocketbench = "pocketbench.cli:main"
+ligandbench = "ligandbench.cli:main"
 quickprep = "quickprep.prep:cli"
 
 # The version is the git tag (v1.2.0 -> 1.2.0), set by .github/workflows/release.yml.
@@ -54,14 +57,14 @@ quickprep = "quickprep.prep:cli"
 fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]
-include = ["proteinviewer*", "pocketbench*", "quickprep*", "pocketgen*"]
+include = ["proteinviewer*", "pocketbench*", "ligandbench*", "quickprep*", "pocketgen*"]
 
 [tool.setuptools.package-data]
 # The page: no build step, served from inside the installed package.
 proteinviewer = ["app/**/*"]
 
 [tool.coverage.run]
-source = ["pocketbench", "pocketgen", "proteinviewer", "quickprep"]
+source = ["ligandbench", "pocketbench", "pocketgen", "proteinviewer", "quickprep"]
 # Entry points, and the code that needs hardware or tools CI does not have.
 omit = ["*/__main__.py", "pocketgen/neat_pocket.py", "proteinviewer/server.py"]
 

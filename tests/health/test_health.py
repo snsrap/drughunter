@@ -46,7 +46,7 @@ import pytest
 
 pytestmark = pytest.mark.health
 
-PARTS = ("proteinviewer", "pocketbench", "quickprep")
+PARTS = ("proteinviewer", "pocketbench", "ligandbench", "quickprep")
 TOOLS = ("fpocket", "lacuna", "scorer", "neat-pocket", "weights")
 # The checkpoints pocketgen/neat_pocket.py loads unless a job names others.
 WEIGHTS = ("trained_models/neat_spindr", "trained_models/bond_predictor/bp_spindr")
@@ -138,6 +138,58 @@ def test_dependency(req, health_report):
 def test_part_imports(part):
     proc = run([sys.executable, "-c", "import " + part])
     assert proc.returncode == 0, "import %s failed:\n%s" % (part, tail(proc))
+
+
+# -- ligand datasets: the adapter and the store ------------------------------
+
+
+def test_ligandbench(health_report):
+    """The server reads ligand datasets by running ``python -m ligandbench``;
+    this is that call, in this interpreter, and it needs RDKit to answer.
+    """
+    proc = run([sys.executable, "-m", "ligandbench", "info"])
+    try:
+        info = json.loads(proc.stdout)
+    except ValueError:
+        health_report.append("ligandbench NOT RUNNING in %s" % sys.executable)
+        pytest.fail("ligandbench did not answer:\n%s" % tail(proc))
+    health_report.append("ligandbench %s  (RDKit %s)" % (info.get("version"), info.get("rdkit")))
+    assert proc.returncode == 0, info.get("error")
+
+
+def test_dataset_adapter_and_store(tmp_path, health_report):
+    """A dataset goes in through the adapter and the store and comes out of a
+    second store opened on the same directory, as it does after a restart.
+    """
+    from proteinviewer.dataset import DatasetStore
+    from proteinviewer.ligandbench import Ligandbench
+
+    tool, store = Ligandbench(), DatasetStore(tmp_path)
+    if not tool.available:
+        health_report.append("datasets    adapter cannot run ligandbench")
+        pytest.fail("the adapter cannot run ligandbench in %s" % tool.python)
+    staged = store.stage("health.csv", "name,smiles,y\nethanol,CCO,1.5\nbenzene,c1ccccc1,2.5\n")
+    source, name, _ = store.source(staged["dataset_id"])
+    assert tool.inspect(str(source))["structure_candidates"] == ["smiles"]
+    work = store.workdir()
+    config = {
+        "structure_column": "smiles",
+        "target": {
+            "column": "y",
+            "kind": "regression",
+            "qualifier_column": None,
+            "transform": "identity",
+            "source_units": "",
+        },
+    }
+    tool.resolve(str(source), config, str(work))
+    meta = store.commit(work, name=name, source=source, staged_id=staged["dataset_id"])
+    again = DatasetStore(tmp_path)
+    assert again.get(meta["dataset_id"])["content_hash"] == meta["content_hash"]
+    assert [r["smiles"] for r in again.rows(meta["dataset_id"])] == ["CCO", "c1ccccc1"]
+    svgs = tool.depict(["CCO"])["svgs"]
+    assert svgs and svgs[0].startswith("<svg")
+    health_report.append("datasets    adapter and store OK  (%s)" % store.root)
 
 
 # -- external tools, found the way the code finds them ----------------------

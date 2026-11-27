@@ -1,15 +1,16 @@
-"""drughunter is one distribution holding three packages: one thing on the
-outside, three on the inside. One version for all of them, and science code
+"""drughunter is one distribution holding four packages: one thing on the
+outside, four on the inside. One version for all of them, and science code
 that never reaches for the viewer.
 """
 
 import ast
 import importlib
+import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PARTS = ("proteinviewer", "pocketbench", "quickprep")
+PARTS = ("proteinviewer", "pocketbench", "ligandbench", "quickprep")
 
 
 def top_level_imports(path):
@@ -23,20 +24,35 @@ def top_level_imports(path):
 
 
 class PackagingTest(unittest.TestCase):
-    def test_the_three_packages_carry_one_version(self):
-        # All three read the installed distribution's version (the git tag).
+    def test_the_packages_carry_one_version(self):
+        # All of them read the installed distribution's version (the git tag).
         versions = {p: importlib.import_module(p).__version__ for p in PARTS}
         self.assertEqual(len(set(versions.values())), 1, versions)
 
     def test_science_never_imports_the_viewer(self):
-        # The viewer runs pocketbench and quickprep as commands and imports
-        # neither (test_architecture holds it to the standard library); this
-        # is the other direction.
-        for package in ("pocketbench", "quickprep"):
+        # The viewer runs pocketbench, ligandbench and quickprep as commands and
+        # imports none of them (test_architecture holds it to the standard
+        # library); this is the other direction.
+        for package in ("pocketbench", "ligandbench", "quickprep"):
             for path in sorted((ROOT / package).rglob("*.py")):
                 self.assertNotIn(
                     "proteinviewer", top_level_imports(path), str(path.relative_to(ROOT))
                 )
+
+    @unittest.skipUnless(sys.version_info >= (3, 11), "tomllib")
+    def test_every_package_is_discovered_and_rdkit_is_declared(self):
+        # ligandbench is run by the server, not imported, so nothing else would
+        # notice a package that was left out of the distribution or its dependency.
+        import tomllib
+
+        cfg = tomllib.loads((ROOT / "pyproject.toml").read_text())
+        include = cfg["tool"]["setuptools"]["packages"]["find"]["include"]
+        for part in (*PARTS, "pocketgen"):
+            self.assertIn(part + "*", include)
+        self.assertIn(
+            "rdkit", [d.split(">")[0].split("=")[0].strip() for d in cfg["project"]["dependencies"]]
+        )
+        self.assertIn("ligandbench", cfg["project"]["scripts"])
 
 
 if __name__ == "__main__":
