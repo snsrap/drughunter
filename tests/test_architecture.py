@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PKG = ROOT / "proteinviewer"
 
 SHARED = {"errors", "validate", "config"}
-ADAPTERS = {"process", "pocketbench", "ligandbench", "prep", "generation"}
+ADAPTERS = {"process", "pocketbench", "ligandbench", "prep", "generation", "training"}
 # Files on disk: no knowledge of a tool or of HTTP.
 STORES = {"buffer", "project", "dataset"}
 
@@ -32,6 +32,8 @@ ALLOWED = {
     "ligandbench": {"errors", "process"},
     "prep": {"errors", "process"},
     "generation": {"errors", "process"},
+    # Runs ligandbench through whatever it is handed; it never imports the adapter.
+    "training": {"errors"},
     "buffer": {"errors"},
     "project": {"errors"},
     "dataset": {"errors"},

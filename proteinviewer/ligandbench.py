@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -68,6 +69,7 @@ class Ligandbench:
             "rdkit": self.info.get("rdkit", ""),
             "depiction": self.info.get("depiction", ""),
             "summary": self.info.get("summary", ""),
+            "xgboost": self.info.get("xgboost", ""),
             "python": self.python or "",
         }
 
@@ -126,6 +128,91 @@ class Ligandbench:
         """
         return self._call(self._cmd("summarize", dataset_dir))
 
+    # -- training ----------------------------------------------------------
+    def training_unavailable(self) -> str | None:
+        """Why this installation cannot train, or None when it can.
+
+        ``ligandbench info`` reports the XGBoost it found beside RDKit's version;
+        an older ligandbench says nothing about it, which is "unknown" and not
+        "missing" -- so only a key that is there and empty counts against it.
+        Tighten this one function once every ligandbench reports it.
+        """
+        if not self.available:
+            return "ligandbench does not run in %s (it needs RDKit)" % (
+                self.python or "this Python"
+            )
+        if "xgboost" in self.info and not self.info["xgboost"]:
+            return "XGBoost is not installed in %s" % self.python
+        return None
+
+    def start_training(
+        self, dataset_dir: str, run_dir: str, seed: int, strategy: str, profile: str
+    ) -> subprocess.Popen:
+        """Start ``ligandbench train`` and return the running process; the caller
+        waits for it (``communicate``) and hands what it printed to
+        :meth:`training_outcome`.
+
+        The child leads its own process group, so cancelling it can end whatever it
+        started too, and it is held to one thread: the search is seeded and
+        single-threaded by contract, and BLAS pools would only add load beyond
+        what the server's limits count.
+        """
+        self._require()
+        env = dict(os.environ)
+        for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+            env[var] = "1"
+        cmd = self._cmd(
+            "train",
+            dataset_dir,
+            "--out",
+            run_dir,
+            "--seed",
+            str(seed),
+            "--production-strategy",
+            strategy,
+            "--profile",
+            profile,
+        )
+        try:
+            return subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            raise ToolFailed("ligandbench could not be started: %s" % exc, self.name) from exc
+
+    def training_outcome(self, returncode: int | None, stdout: str, stderr: str) -> dict:
+        """What a finished ``ligandbench train`` said: its JSON line, as a dict
+        whose ``status`` is ``completed`` or ``production_strategy_unavailable``.
+
+        Anything else raises, in the words of ``_call``: exit 2 is the user's
+        problem (:class:`BadRequest`), 3 a missing tool (:class:`ToolUnavailable`),
+        and a crash, a signal or output that is not JSON a failure of the tool's.
+        """
+        out = _last_json_object(stdout)
+        tail = output_tail(subprocess.CompletedProcess([], returncode or 0, stdout, stderr))
+        if returncode is not None and returncode < 0:
+            raise ToolFailed(
+                "ligandbench train was killed by signal %d. %s" % (-returncode, tail), self.name
+            )
+        if out is None:
+            raise ToolFailed(
+                "ligandbench train printed no result (exit %s): %s" % (returncode, tail), self.name
+            )
+        if returncode == 0:
+            return out
+        message = out.get("error") or tail
+        if returncode == 2:
+            raise BadRequest(message)
+        if returncode == 3:
+            raise ToolUnavailable(message, self.name)
+        raise ToolFailed(message, self.name)
+
     # -- plumbing ----------------------------------------------------------
     def _require(self) -> None:
         if not self.available:
@@ -153,3 +240,19 @@ class Ligandbench:
         if proc.returncode == 3:
             raise ToolUnavailable(message, self.name)
         raise ToolFailed(message, self.name)
+
+
+def _last_json_object(stdout: str) -> dict | None:
+    """The last line of ``stdout`` that is a JSON object: what a command prints
+    last is its answer, whatever a library wrote before it.
+    """
+    for line in reversed((stdout or "").strip().splitlines()):
+        line = line.strip()
+        if line.startswith("{") and line.endswith("}"):
+            try:
+                out = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(out, dict):
+                return out
+    return None
