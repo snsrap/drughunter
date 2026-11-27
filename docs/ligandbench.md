@@ -11,17 +11,18 @@ ProteinViewer's server runs it as a command and never imports it
 not need the viewer either; it is a command-line tool and a Python library.
 
 ```sh
-ligandbench info                                    # RDKit, depiction and summary versions
+ligandbench info                                    # RDKit, XGBoost, depiction and summary versions
 ligandbench inspect export.csv                      # columns, types, structure candidates
 ligandbench resolve export.csv --config c.json --out DIR   # rows.json + dataset.json
 ligandbench split DIR --strategy scaffold --seed 7  # five repeated holdouts of a resolved dataset
 ligandbench depict request.json                     # {"smiles": [...]} -> SVGs
 ligandbench summarize DIR                           # the dashboard's numbers for the dataset in DIR
+ligandbench train DIR --out RUN --seed 0 --production-strategy scaffold   # a QSAR run directory
 ```
 
 Every command prints one JSON object. The exit code says whose problem a
-failure is -- 2 a file or choice that cannot be used, 3 RDKit missing -- and
-the error is `{"error", "kind"}`.
+failure is -- 2 a file or choice that cannot be used, 3 RDKit missing (for
+`train`, XGBoost too) -- and the error is `{"error", "kind"}`.
 
 ## What it decides, and what it asks
 
@@ -428,6 +429,162 @@ number.
 | No rows | every metric undefined, reason `no rows`. |
 | `aggregate` | `mean` over defined values; `sd` is the sample SD (ddof 1), `null` with fewer than two defined values; `mean` and `sd` are `null` with none. `n_defined` and `n_total` report how many counted. A value that is NaN or infinite raises `BadInput`. |
 
+## Training runs
+
+`ligandbench train DIR --out RUN --seed N --production-strategy random|scaffold
+[--profile full|tiny]` tunes, evaluates and refits an XGBoost model on a ready
+dataset and writes everything into a run directory. `DIR` is a ready dataset's
+directory as the server keeps it: `source.csv`, `dataset.json` and `rows.json`
+(a directory without `source.csv` is refused: the run snapshots it). `RUN` must
+be an existing, empty directory (exit 2 otherwise). stdout is one JSON line:
+`{"status": "completed", "run": "run.json"}`, or `{"status":
+"production_strategy_unavailable", "strategy", "unavailable"}` -- an answer, exit
+0, with no `run.json` -- or, for input that cannot be used (a dataset without a
+target, a structure whose descriptors are not finite, naming the row ids), exit
+2; XGBoost missing is exit 3. The science is `ligandbench.train` (pure, over
+rows) and `ligandbench.model` (save and load); the command only writes files.
+
+### What is computed
+
+1. **Splits.** Both strategies are requested from the split generator with the
+   run's seed. The production strategy is frozen before anything is trained: if
+   its split is unavailable the run stops and answers so (it never switches to
+   the other strategy, and never because of how either looks on test). The other
+   strategy being unavailable is recorded in the run (`status:
+   "split_unavailable"` and the split's own `unavailable` object) and nothing
+   replaces it.
+2. **Features.** Every eligible row is featurised once (`Featuriser`, see
+   Features), and every strategy and repeat indexes that matrix by row id.
+3. **Tuning, per available strategy and repeat.** Every grid candidate is fitted
+   on the repeat's train rows only and scored on its validation rows: RMSE for
+   regression, log loss for classification. The lowest wins; exact ties go to
+   fewer trees, then a shallower tree, then a lower learning rate. The winner --
+   the booster fitted during tuning, not a refit -- is scored once on the test
+   rows with the metrics above (per repeat: `test` values, `undefined` reasons;
+   per strategy: `aggregate` over the five repeats, mean, sample SD, `n_defined`,
+   `n_total`). Test scores are recorded and read by nothing.
+4. **Production choice.** The candidate with the lowest *mean* validation loss over
+   the production strategy's five repeats (same tie-break) is refitted on exactly
+   all eligible rows (`splits.json[production].row_ids`; `n_refit_rows`) with a seed
+   of its own. Test scores take no part. Its metrics are those of the per-repeat
+   tuning procedure, not a fresh held-out test of this refit.
+
+`ligandbench.train.tune` receives the train and validation matrices and labels and
+no other rows, and `select` (the tie-break) sees validation losses only;
+`evaluate_test` is a separate function applied to the booster `tune` returned. The
+tests record what `tune` is given, replace every test score with an adversarial
+value and require byte-identical validation traces and the same production config,
+and recompute the production choice from the trace.
+
+### The grid and the profiles
+
+`full`, the fixed 12 candidates in this order (depth outermost, trees innermost):
+`max_depth` in {3, 6} x `learning_rate` in {0.05, 0.1} x `n_estimators` in {100, 300,
+600}. `tiny`, the search CI uses: two
+candidates, `max_depth` 3, `learning_rate` 0.1, `n_estimators` 10 and 20 -- they differ
+in trees so selection and the tie-break still run. The profile and the candidate list
+actually searched are recorded in `run.json` (`profile`, `grid`).
+
+Every candidate shares `subsample` 1, `colsample_bytree` 1, `tree_method` `hist`,
+`device` `cpu`, `nthread` 1 and no early stopping (`fixed_params`). Objectives:
+`reg:squarederror`, `binary:logistic`, `multi:softprob` (`num_class` = number of
+classes). A binary label is encoded 1 for the positive class and 0 for the other, so
+the model returns the positive-class probability; a multiclass label is its index in
+the dataset's class order. Class decisions are probability `>= 0.5` (binary) or
+argmax (multiclass); a threshold is never tuned. The seed of each fit is 31 bits of
+`SHA-256("drughunter-train|seed|strategy|repeat-or-production|candidate")`.
+
+### The run directory
+
+```
+RUN/
+  run.json               written last, atomically; its existence is "a completed run"
+  model.json             the production booster, XGBoost's native JSON
+  features.json          {"feature_schema": <Features schema>, "target": {...}}
+  splits.json            the split generator's result, verbatim: {"random": ..., "scaffold": ...}
+  validation_trace.json  every candidate's validation loss, and the production choice
+  scaffolds.json         {"scaffold_policy": "murcko-v1", "scaffolds": [sorted unique, "" included if present]}
+  dataset/               byte-exact copies of source.csv, dataset.json, rows.json
+  progress.json          transient; may remain, and is not in run.json["files"]
+```
+
+Every JSON file is canonical (sorted keys, compact, ASCII, no NaN) except
+`progress.json`; `run.json` is strict JSON. A run that cannot finish writes no
+`run.json`; one killed in the middle leaves whatever it had written and no
+`run.json`.
+
+`progress.json` is rewritten atomically: `{"state", "stage", "completed", "total"}`,
+`state` one of `splitting`, `featurizing`, `tuning`, `refitting`, `writing`, `done`.
+`completed` and `total` count fits (candidates x repeats x available strategies, plus
+the refit); `done` is written just before exit, after `run.json`.
+
+**`run.json`** (all keys; `S` is a strategy's record):
+
+| Key | Value |
+| --- | --- |
+| `schema` | `"qsar-run-v1"` |
+| `status` | `"completed"` |
+| `model_family` | `"xgboost"` |
+| `created_utc` | `"2026-01-31T12:00:00Z"`; the only field that differs between two identical runs |
+| `seed` | the seed asked for |
+| `profile` | `"full"` or `"tiny"` |
+| `grid` | the candidates searched, `[{max_depth, learning_rate, n_estimators}]`, in candidate order |
+| `fixed_params` | `{subsample, colsample_bytree, tree_method, device, nthread, early_stopping}` |
+| `objective` | the XGBoost objective |
+| `validation_loss` | `"rmse"` or `"log_loss"` |
+| `dataset` | `{id, content_hash, n_rows, n_eligible}`; `id` is the dataset directory's name |
+| `target` | `dataset.json`'s confirmed `target` (`column`, `kind`, `positive_class`, `qualifier_column`, `transform`, `source_units`, `output_units`) plus `task` (`regression` or `classification`), `units` (the output units), `classes` (list or `null`), `positive_class` (value or `null`) |
+| `production` | `{strategy, config, mean_validation_loss, n_refit_rows, tie_break}`; `tie_break` is `["n_estimators", "max_depth", "learning_rate"]` |
+| `strategies` | `{"random": S, "scaffold": S}` |
+| `feature_schema` | the `feature_schema` object `features.json` holds |
+| `versions` | `{ligandbench, rdkit, xgboost, numpy, python, scaffold_policy, split_algorithm, featuriser}` |
+| `files` | `{relative path: {"sha256", "bytes"}}` for every file in `RUN/` except `run.json` and `progress.json`, `dataset/` files included |
+
+`S` is `{status: "ok", unavailable: null, repeats: [...], aggregate: {...}}`, or
+`{status: "split_unavailable", unavailable: {<the split's unavailable object>},
+repeats: [], aggregate: {}}`. Each repeat is `{repeat, seed (the split's repeat seed),
+candidate (the winner's index in grid), config (the winner), validation: [{candidate,
+loss}] for every candidate, sizes: {train, validation, test}, test: {metric: value or
+null}, undefined: {metric: reason}}`. `aggregate` is `{metric: {mean, sd, n_defined,
+n_total}}` over the five repeats' defined values.
+
+`features.json["target"]` is the `run.json` `target` plus `kind` replaced by the model's
+reading (`regression`, `binary` or `multiclass`), `objective`, `num_class` (multiclass
+only, else `null`) and `label_encoding`.
+
+`validation_trace.json` is `{loss, profile, grid, tie_break, strategies, production}`.
+`strategies[name]` is `{status, repeats: [{repeat, selected, candidates: [{candidate,
+config, seed, loss}]}]}` (empty `repeats` when unavailable); `production` is `{strategy,
+candidates: [{candidate, config, validation_losses, mean_validation_loss}], selected,
+tie_break}`.
+
+### Loading a model
+
+`ligandbench.model.load_model(RUN)` returns a `Model`; `predict([(row_id, smiles), ...])`
+returns one dict per pair in order: `{"row_id", "value"}` (regression), `{"row_id",
+"probabilities": {class: p}, "predicted_class"}` (classification), or `{"row_id",
+"error"}` for a structure that does not parse or whose descriptors are not finite --
+never an exception for a row. It refuses a `features.json` whose featuriser this build
+does not implement; a different RDKit or numpy is not refused but listed in
+`Model.drift`.
+
+### What is promised, and what is not
+
+The same dataset, seed, profile, `ligandbench`, RDKit, NumPy and XGBoost versions give
+the same `run.json` (apart from `created_utc`) and bytes-identical `model.json`, in any
+process and under any `PYTHONHASHSEED` (tested across two processes). Across XGBoost
+versions the model file format is stable and reloadable, but nothing promises the same
+trees or predictions: the booster is a library's output. `versions` records what made a
+run.
+
+The numbers describe what they measured and no more. Mean +- SD over five repeats is
+variability across overlapping test sets, not independent replicates and not a
+confidence interval. The scores describe the tuning procedure -- choose by validation,
+test once -- not a new test of the refitted production model. The gap between random
+and scaffold describes these partitions of this dataset, not performance on all novel
+chemistry. A metric undefined on a small test subset is `null` with its reason, and is
+left out of the aggregate (see `n_defined`).
+
 ## Layout
 
 ```
@@ -442,5 +599,7 @@ ligandbench/
   summary.py    the dashboard's statistics from the rows and metadata (RDKit, for scaffolds)
   features.py   the QSAR featuriser: Morgan bits and seven descriptors, its schema (RDKit, numpy)
   metrics.py    regression and classification metrics, aggregation (numpy)
-  cli.py        the commands above
+  train.py      the tuning, evaluation and refit engine over rows (XGBoost, numpy)
+  model.py      save and load a trained model and its feature/target record
+  cli.py        the commands above, and the run directory `train` writes
 ```

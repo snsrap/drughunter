@@ -381,3 +381,21 @@ def test_the_cdd_export_trains_on_the_tiny_profile_through_the_command(tmp_path)
     assert [
         e["row_id"] for e in json.loads((out / "splits.json").read_text())["scaffold"]["excluded"]
     ] == [102, 103, 104, 105]
+
+
+# -- the documentation says what the code writes ---------------------------------------------------
+
+
+def test_the_documented_run_json_keys_are_the_keys_it_has(tmp_path):
+    import re
+
+    docs = (Path(__file__).resolve().parents[2] / "docs" / "ligandbench.md").read_text()
+    section = docs.split("**`run.json`**")[1].split("\n`S` is")[0]
+    documented = set(re.findall(r"^\| `([a-z_]+)` \|", section, flags=re.M))
+    directory, *_ = make_dataset(tmp_path)
+    out, code, *_ = train(tmp_path, directory)
+    assert code == 0
+    assert documented == set(json.loads((out / "run.json").read_text()))
+    layout = docs.split("### The run directory")[1].split("```")[1]
+    for name in TOP:
+        assert name in layout
