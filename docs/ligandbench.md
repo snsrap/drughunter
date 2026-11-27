@@ -14,6 +14,7 @@ not need the viewer either; it is a command-line tool and a Python library.
 ligandbench info                                    # RDKit version, depiction version
 ligandbench inspect export.csv                      # columns, types, structure candidates
 ligandbench resolve export.csv --config c.json --out DIR   # rows.json + dataset.json
+ligandbench split DIR --strategy scaffold --seed 7  # five repeated holdouts of a resolved dataset
 ligandbench depict request.json                     # {"smiles": [...]} -> SVGs
 ```
 
@@ -95,6 +96,141 @@ that is not a structure raises `BadInput`. `SCAFFOLD_POLICY` (`murcko-v1`) names
 this definition and is recorded beside anything derived from a scaffold; it
 changes whenever the answer for a molecule would.
 
+## Splits
+
+`ligandbench split DIR --strategy random|scaffold --seed N` makes five repeated
+holdouts of the dataset `resolve` wrote into `DIR`, each aimed at 80% train, 10%
+validation and 10% test. They are not five-fold cross-validation: the test sets
+of different repeats may overlap and a row need not be tested at all. Within one
+repeat every eligible row is in exactly one subset. The function behind it,
+`ligandbench.split.split(meta, rows, strategy=, seed=)`, takes the resolved
+metadata and rows, not a dataset id, and writes nothing; whoever calls it keeps
+the result.
+
+**Rows.** Only `training_eligible` rows are split. Every other row is listed in
+`excluded` with the `exclusions` it carried and never appears in a subset. A
+dataset without a target (`trainable` false) is refused (exit 2).
+
+**Groups.** A split moves whole groups and never takes a row out of one.
+Rows with the same structure identity (`smiles`) are always one group, so a
+duplicate never reaches the other side of its twin, and conflicting labels
+among duplicates do not separate them. The `random` strategy moves structure
+groups. The `scaffold` strategy moves groups of structure groups that share a
+`murcko_scaffold`, so a scaffold is on one side only; every acyclic molecule
+(scaffold `""`) is one group. A group is never broken to improve a proportion.
+
+**Valid.** A repeat is valid when every subset has at least two rows, each
+subset is within five percentage points of its target share (the ends included:
+for 100 rows train holds 75 to 85, validation and test 5 to 15), and, for
+classification, every class is in every subset. Group integrity comes first: a
+split that cannot meet these with whole groups is not made.
+
+**Allocator** (`ALGORITHM_VERSION` `group-greedy-v1`). For each repeat it builds
+up to 256 candidate allocations, larger groups first, and keeps the valid one
+with the smallest objective: the sum of squared deviations of each subset's row
+count from its target count, plus, for classification, the same for each class's
+count in each subset. Ties go to the lowest candidate number. A candidate that
+reaches the least objective any allocation could have ends the search at once,
+which cannot change the answer. Candidate 0 puts each group where it adds least
+to the objective (never past a subset's upper limit if another subset has room);
+later candidates sometimes take the second or third choice, with a chance that
+rises with the candidate number, and odd ones also prefer a subset still lacking
+a class the group holds, so a rare class can reach every subset. The result
+reports `candidates_tried` and the chosen `candidate`.
+
+**When no candidate is valid** the answer for that strategy is
+`status: "split_unavailable"` with no repeats and the reasons (below). It is an
+answer, not an error: exit 0, HTTP 200. The allocator found no valid split; that
+is not a proof that none exists. Constraints are never relaxed, and a random split
+is never substituted for a scaffold split. Either all five repeats come back or
+none do, and the first repeat that fails ends the search.
+
+**Reproducibility.** Nothing depends on Python's `hash()`, an unseeded generator
+or set order. `repeat_seed(seed, r)` is the first six bytes (big-endian) of
+SHA-256 over the text `drughunter-split|<seed>|<r>`, so a repeat seed fits a JSON
+number. In candidate `i` of a repeat, each group (named by its lowest row id `g`)
+draws from SHA-256 over `<repeat seed>|<i>|<g>`: bytes 0-7 order groups of equal
+size, byte 8 (modulo 100) below the candidate's noise percent (0 for candidate 0,
+otherwise `5 + 45*i//255`) makes it take another choice and byte 9 picks which,
+byte 16 breaks ties between subsets. The same dataset (`content_hash`), strategy,
+seed, RDKit and `ALGORITHM_VERSION` give the same result in any process, and
+the command prints it in canonical form: sorted keys, no spaces, ASCII only. Equal
+results are equal bytes. A different seed may give different assignments; it is
+not guaranteed to. The stored assignments, not a rerun, are the record of a split
+across software upgrades.
+
+### The result
+
+One JSON object. Counts and seeds are whole numbers (there are no floats), so
+re-serialising it with `json.dumps(result, sort_keys=True, separators=(",", ":"),
+ensure_ascii=True, allow_nan=False)` gives the same bytes `ligandbench split` printed.
+
+```text
+format             1; bumped when this layout changes
+status             "ok" | "split_unavailable"
+strategy           "random" | "scaffold"
+seed               the seed asked for (0 to 4294967295)
+repeat_seeds       the five repeat seeds, in repeat order
+algorithm          {version, candidates: 256, repeats: 5, target_percent: {train: 80,
+                    validation: 10, test: 10}, tolerance_points: 5, min_rows: 2}
+rdkit              RDKit's version
+scaffold_policy    SCAFFOLD_POLICY ("murcko-v1"); only "scaffold" depends on it
+dataset            {content_hash, identity (as in dataset.json), task, classes, n_rows (all rows)}
+n_eligible         training-eligible rows, which are the ones split
+n_groups           groups of the strategy among them
+row_ids            the eligible row ids, ascending: exactly the rows in every repeat
+excluded           [{row_id, reasons: [...]}], ascending: never in a subset
+repeats            five repeats when status is "ok", otherwise []
+unavailable        null when status is "ok", otherwise the object below
+```
+
+A repeat:
+
+```text
+repeat             0 to 4
+seed               this repeat's seed (= repeat_seeds[repeat])
+candidate          the candidate chosen; candidates_tried how many were built
+objective          100 x the sum of squared deviations (a whole number; 0 is perfect)
+sizes              {train, validation, test}: rows in each
+class_counts       {subset: {class: rows}} for classification, {} for regression
+train, validation, test    the row ids in each subset, ascending
+```
+
+`unavailable`, for the first repeat that failed:
+
+```text
+repeat             the repeat that failed
+message            what the allocator found, in words
+candidates_tried   candidates built for it
+n_rows, n_groups   rows split and groups they form
+group_size_counts  [[group size, how many groups], ...], largest size first
+largest_groups     up to ten, largest first: {key, n_rows, n_structures, class_counts};
+                    key is the structure identity or the scaffold ("" is no ring)
+class_counts       {class: rows} for classification
+size_windows       {subset: {min, max}}: the rows each subset may have (min is at least 2;
+                    min above max means no whole number of rows qualifies)
+failed_constraints the rules the nearest candidate broke, each {constraint, subset,
+                    candidates_violating, detail, ...}; constraint is "min_size",
+                    "size_tolerance" (adds size, allowed [fewest, most]) or
+                    "class_coverage" (adds class, class_total)
+nearest_candidate  {candidate, objective, sizes}: the candidate that broke fewest rules
+```
+
+`candidates_violating` counts, among the candidates of that repeat, how many broke
+that rule: a rule every candidate broke is the one to look at first (a group larger
+than any subset may hold; a class with fewer rows than subsets).
+
+### Through the server
+
+`POST /api/dataset/splits` takes `{"dataset_id", "strategy", "seed"}` -- `strategy`
+is `random` or `scaffold` and must be named; `seed` is a whole number from 0 and
+defaults to 0 -- and answers with the result above plus `"dataset_id"`, which the
+server adds (it is not in the command's output and not part of the canonical bytes).
+One strategy per request; ask twice for both. The server stores nothing: the caller
+keeps what it is given. A staged dataset (409), a dataset that is unknown (404) or
+has no target (400), a bad strategy or seed (400) and a ligandbench that is missing
+(503) or fails (502) are errors; `split_unavailable` is not.
+
 ## Layout
 
 ```
@@ -103,6 +239,7 @@ ligandbench/
   columns.py    what each column holds; structure candidates; qualifiers; standard library
   chem.py       structure identity (RDKit)
   scaffold.py   the Bemis-Murcko scaffold of an identity (RDKit)
+  split.py      groups, the seeded allocator, five repeated holdouts (RDKit via scaffold)
   resolve.py    choices -> rows, verdicts, metadata, content hash (RDKit)
   depict.py     2D depictions as SVG, versioned for caching (RDKit)
   cli.py        the commands above

@@ -6,6 +6,8 @@ has to be made up.
 """
 
 import json
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -216,6 +218,21 @@ def test_a_classification_dataset_is_split_with_every_class_in_every_subset(tmp_
                 set(c) == {"1", "0"} and min(c.values()) > 0
                 for c in repeat["class_counts"].values()
             )
+
+
+def test_the_server_returns_what_the_command_prints_and_the_bytes_survive_the_trip(tmp_path, tool):
+    svc = make(tmp_path, tool)
+    dataset_id = resolve_cdd(svc, upload(svc))["dataset_id"]
+    out = svc.dataset_splits(request(dataset_id, "scaffold", seed=8))
+    answer = {k: v for k, v in out.items() if k != "dataset_id"}  # the server's own addition
+    command = [sys.executable, "-m", "ligandbench", "split", str(tmp_path / "ready" / dataset_id)]
+    proc = subprocess.run(
+        [*command, "--strategy", "scaffold", "--seed", "8"], capture_output=True, text=True
+    )
+    canonical = json.dumps(
+        answer, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+    )
+    assert proc.returncode == 0 and proc.stdout.strip() == canonical
 
 
 def test_an_unknown_dataset_is_not_found(tmp_path, tool):

@@ -488,6 +488,7 @@ and which mode are all recorded in the project (see *The project directory*).
 | `POST /api/dataset/cancel` | `{dataset_id}`: delete a staged upload |
 | `GET /api/dataset?id=` | a dataset by id; a ready one is reopened from disk after a restart, a staged one comes back with its columns |
 | `POST /api/dataset/rows` | `{dataset_id, offset, limit, sort: {key, dir}, filters: [{key, op, value}]}` → `{total, rows}`: one page (default 50, at most 100), sorted and filtered before it is cut, with only that page's depictions |
+| `POST /api/dataset/splits` | `{dataset_id, strategy: "random"\|"scaffold", seed}` → five repeated 80/10/10 holdouts of a ready dataset with a target (`status: "ok"`, `repeats`), or `status: "split_unavailable"` with why (an answer, not an error), plus `dataset_id`. A staged dataset is 409, a target-free one 400. Nothing is stored; the result's fields are in [ligandbench.md](ligandbench.md#splits) |
 | `POST /api/project/save` | `{project, path, session, overwrite}` → `{path, files, bytes}`: write `session.json` into it, then copy it to `path` |
 
 `/api/pockets`, `/api/prep`, `/api/generate` and `/api/score-poses` each also take `project`: the
