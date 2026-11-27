@@ -80,6 +80,21 @@ with example record numbers, training- and prediction-eligible rows, exclusion
 counts, duplicates -- and a `content_hash`: SHA-256 of the source bytes and the
 resolved choices.
 
+## Scaffolds
+
+`ligandbench.scaffold.murcko_scaffold(smiles)` is the one definition of a
+scaffold, shared by the dashboard's counts and the scaffold split. It is the
+Bemis-Murcko scaffold of the whole molecule as given -- ring systems and the
+linkers between them, side chains removed -- as RDKit canonical SMILES.
+Stereochemistry is not part of it (`includeChirality=False`), so stereoisomers
+share a scaffold and a split cannot separate them. A molecule with no ring has
+the scaffold `""`, and every empty scaffold is one group. The input is not
+normalised (no salt stripping, largest fragment or neutralisation): fragments
+with no ring add nothing, and if none has a ring the scaffold is `""`. A string
+that is not a structure raises `BadInput`. `SCAFFOLD_POLICY` (`murcko-v1`) names
+this definition and is recorded beside anything derived from a scaffold; it
+changes whenever the answer for a molecule would.
+
 ## Layout
 
 ```
@@ -87,6 +102,7 @@ ligandbench/
   table.py      the CSV: quoted commas and newlines, BOM, duplicate/empty headers; standard library
   columns.py    what each column holds; structure candidates; qualifiers; standard library
   chem.py       structure identity (RDKit)
+  scaffold.py   the Bemis-Murcko scaffold of an identity (RDKit)
   resolve.py    choices -> rows, verdicts, metadata, content hash (RDKit)
   depict.py     2D depictions as SVG, versioned for caching (RDKit)
   cli.py        the commands above
