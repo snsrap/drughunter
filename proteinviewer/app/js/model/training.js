@@ -295,7 +295,7 @@ export const CAVEATS = [
   "The random/scaffold gap describes these partitions of this dataset, not a guarantee of performance on novel chemistry.",
 ];
 export const TEMPORARY_NOTE =
-  "A completed run is temporary until it is registered. Registration (a later feature) makes it durable; until then it can be lost when the server keeps too many runs or restarts.";
+  "A completed run is temporary until it is registered. Registering it makes it durable; until then it can be lost when the server keeps too many runs or restarts.";
 
 const METRICS = {
   regression: [["rmse", "RMSE"], ["mae", "MAE"], ["r2", "R²"], ["spearman", "Spearman ρ"]],

@@ -490,3 +490,27 @@ button.info[aria-expanded=true]{background:var(--accent); border-color:var(--acc
 .gt .moved:after{content:"\00a0!"}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+
+/* ---------- the experiment registry: a table, the opened record beside it, a Register control in the run ---------- */
+.reg .rbody{padding:10px 12px; display:flex; flex-direction:column; gap:10px; min-width:0}
+.reg.closed .rbody{display:none}
+.rtab td,.rtab th[scope=row]{white-space:normal}
+.rtab thead th{white-space:nowrap}
+.rtab tr.sel{background:var(--accent-soft)}
+.tsort,.tlink{all:unset; cursor:pointer; color:inherit; font:inherit; letter-spacing:inherit; text-transform:inherit}
+.tsort:disabled{cursor:not-allowed; opacity:.55}
+.tsort:focus-visible,.tlink:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.tlink{color:var(--ink); text-decoration:underline; text-underline-offset:2px}
+.tstate.bad{border-color:var(--fail); color:var(--fail)}
+.rdetail{border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:10px; min-width:0}
+.rdetail h3{margin:0; font-size:14px}
+.dhd{display:flex; align-items:center; gap:10px}
+.dhd .btn{margin-left:auto}
+.note-row{display:flex; gap:6px; margin-bottom:5px}
+.note-row .note-k{width:11em}
+.note-row .note-v{flex:1; min-width:0}
+.btn.danger{border-color:var(--fail); color:var(--fail)}
+.btn.solid.danger{background:var(--fail); color:var(--panel)}
+.treg{margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
+.regform{display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap}
+.regform .fld{flex:1; min-width:14em}

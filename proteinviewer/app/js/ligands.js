@@ -12,11 +12,12 @@ import * as dataset from "./features/dataset.js";
 import * as molecules from "./features/molecules.js";
 import * as summary from "./features/summary.js";
 import * as training from "./features/training.js";
+import * as registry from "./features/registry.js";
 import * as theme from "./features/theme.js";
 
-/* The summary, the training panel and the ligand panel each follow the open dataset on
+/* The registry does not follow the dataset: its records outlive it. The summary, the training panel and the ligand panel each follow the open dataset on
    their own; none reads anything of another. */
-const FEATURES = [dataset, summary, training, molecules];
+const FEATURES = [dataset, summary, training, registry, molecules];
 
 /* Ask once, on load, so a server that cannot read ligand files is said so before
    anyone chooses a file. */

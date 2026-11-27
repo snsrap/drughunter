@@ -49,6 +49,13 @@ function stop(cancelRun){
 }
 export function teardown(){ stop(false); }
 
+/* The completed run the panel shows, for the registry's Register control: its id and
+   record, or null while there is none (running, failed, expired, not yet read). */
+export function completedRun(){
+  return task.phase === "terminal" && task.result.status === "ready" && task.run
+    ? {id: task.run.id, record: task.result.data} : null;
+}
+
 /* ---------------- actions ---------------- */
 
 /* Start a run with the form as it stands. */
@@ -232,6 +239,7 @@ function result(run, progressDict){
   return "<div class='trun'><span class='eyebrow'>Run id</span> <code class='mono trid' id='trn-run-id'>" + esc(progressDict.id) + "</code>" +
     "<button class='btn' type='button' id='trn-copy' aria-label='Copy the run id'>Copy</button></div>" +
     "<p class='snote'>" + esc(T.TEMPORARY_NOTE) + "</p>" +
+    "<div class='treg' id='trn-register'></div>" +
     "<div class='tgrid2'>" +
       "<section class='ssec'><h3 class='eyebrow'>Production model</h3>" + kv(T.productionView(run)) + "</section>" +
       "<section class='ssec wide'><h3 class='eyebrow'>Metrics on the test sets</h3>" + metricsTable(m) + "</section>" +
@@ -240,9 +248,9 @@ function result(run, progressDict){
     "<ul class='tcaveats'>" + T.CAVEATS.map(c => "<li>" + esc(c) + "</li>").join("") + "</ul>";
 }
 
-const kv = rows => "<dl class='kv tkv'>" + rows.map(r => "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>").join("") + "</dl>";
+export const kv = rows => "<dl class='kv tkv'>" + rows.map(r => "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>").join("") + "</dl>";
 
-function metricsTable(m){
+export function metricsTable(m){
   const head = m.cols.map(c => "<th colspan='3' scope='colgroup' class='tcol" + (c.production ? " prod" : "") + "'>" + esc(c.label) +
     (c.production ? " <span class='tprod'>production</span>" : "") + "</th>").join("");
   const sub = m.cols.map(() => "<th scope='col'>Mean</th><th scope='col'>SD</th><th scope='col'>Defined</th>").join("");
@@ -261,7 +269,7 @@ function metricsTable(m){
     (m.unitsNote ? "<p class='snote'>" + esc(m.unitsNote) + "</p>" : "") + fails;
 }
 
-function repeatTable(r){
+export function repeatTable(r){
   if (!r.rows.length) return "";
   return "<details class='trep'><summary>Each repeat — " + esc(r.label) + "</summary><div class='tscroll'><table class='ttab'><thead><tr>" +
     "<th scope='col'>Repeat</th><th scope='col'>Chosen configuration</th>" + r.metrics.map(x => "<th scope='col'>" + esc(x.label) + "</th>").join("") +

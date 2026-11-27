@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import {
   validateName, suggestName, idleRegistration, registering, registered, registrationError, registrationView,
   health, headlineCell, groupsOf, metricSortable, sortRows, updateBody, normalizeNotes,
-  deleteConfirmation, deleteOutcome, provenanceRows, schemaRows, targetText, REPEAT_NOTE,
+  deleteConfirmation, deleteOutcome, provenanceRows, schemaRows, schemaValue, targetText, REPEAT_NOTE,
 } from "../../proteinviewer/app/js/model/registry.js";
 
 const H = (value, group = "regression|pKi|nM|scaffold|rmse", extra = {}) =>
@@ -155,4 +155,13 @@ test("the detail names where the files are without a server path, and the repeat
   assert.ok(s.some(r => r[0] === "feature n_bits" && r[1] === "2048"));
   assert.match(REPEAT_NOTE, /not an independent test of the final model/);
   assert.equal(targetText(E("a")), "pKi · regression · nM");
+});
+
+test("a long list of feature columns is shown as its count and ends, not in full", () => {
+  const cols = Array.from({length: 2048}, (_, i) => "morgan_" + String(i).padStart(4, "0"));
+  assert.equal(schemaValue(cols), "2048 items: morgan_0000 … morgan_2047");
+  assert.equal(schemaValue(["a", "b"]), "a, b");
+  assert.equal(schemaValue(2), "2");
+  const rows = schemaRows({task: "regression", feature_schema: {columns: cols}});
+  assert.ok(rows.every(r => String(r[1]).length < 80));
 });

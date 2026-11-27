@@ -266,6 +266,15 @@ export function schemaRows(rec){
   rows.push(["Task", rec.task || t.task || "—"]);
   if (t.units || t.transform) rows.push(["Units / transform", [t.units, t.transform].filter(Boolean).join(" · ")]);
   if (Array.isArray(t.classes)) rows.push(["Classes", t.classes.join(", ") + (t.positive_class !== null && t.positive_class !== undefined ? " (positive: " + t.positive_class + ")" : "")]);
-  Object.keys(fs).forEach(k => rows.push(["feature " + k, typeof fs[k] === "object" ? JSON.stringify(fs[k]) : String(fs[k])]));
+  Object.keys(fs).forEach(k => rows.push(["feature " + k, schemaValue(fs[k])]));
   return rows;
+}
+
+/* A feature schema value as one short line: a long list of column names is its count, first and last. */
+export function schemaValue(v){
+  if (Array.isArray(v)){
+    if (v.length <= 6 && v.every(x => typeof x !== "object")) return v.join(", ");
+    return v.length + " items: " + [v[0], "…", v[v.length - 1]].map(x => typeof x === "object" ? JSON.stringify(x) : String(x)).join(" ");
+  }
+  return v !== null && typeof v === "object" ? JSON.stringify(v) : String(v);
 }

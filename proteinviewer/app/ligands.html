@@ -113,6 +113,26 @@
       </div>
     </section>
 
+    <!-- The registered experiments: every completed run that was kept, its headline metric
+         (only ever ordered among scores of the same kind), and, opened, both strategies' reports,
+         the selected configuration, provenance and artifact health. Rename and notes are the only
+         edits; delete is permanent and asks first. Independent of the open dataset.
+         features/registry.js. -->
+    <section class="gtab reg" id="reg-panel" aria-label="Experiment registry">
+      <div class="hd">
+        <button class="btn tog" type="button" id="reg-tog" aria-expanded="true" aria-controls="reg-main"
+                aria-label="Collapse the registry panel">&#9662;</button>
+        <span class="eyebrow">Experiment registry</span>
+        <span class="eyebrow" id="reg-n"></span>
+        <span class="sp"><button class="btn" type="button" id="reg-refresh">Refresh</button></span>
+      </div>
+      <div class="rbody" id="reg-main">
+        <div class="pdbq-msg" id="reg-msg" aria-live="polite"></div>
+        <div id="reg-body" aria-busy="false"></div>
+        <aside class="rdetail" id="reg-detail" hidden aria-label="Experiment detail"></aside>
+      </div>
+    </section>
+
     <!-- The ligands of an uploaded dataset: a page of depictions at a time, sorted and
          filtered by the server, with every original column behind a click. -->
     <section class="gtab mol page" id="mtab" hidden aria-label="Ligand dataset">
@@ -213,6 +233,21 @@
       <span class="eyebrow" id="dd-busy"></span>
       <button class="btn" type="button" id="dd-cancel">Cancel</button>
       <button class="btn solid" type="submit" id="dd-go" disabled>Use this dataset</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Deleting an experiment: names it and says what goes. A deletion that does not finish is
+     shown as unfinished, with the parts, and can be repeated. features/registry.js. -->
+<dialog class="dlg dlg-wide" id="regdlg" aria-labelledby="rd-title">
+  <form method="dialog" onsubmit="return false">
+    <h2 class="dlg-h" id="rd-title"></h2>
+    <p class="dlg-note" id="rd-body"></p>
+    <p class="pdbq-msg" id="rd-msg" aria-live="assertive"></p>
+    <div class="dlg-bar">
+      <span class="eyebrow"></span>
+      <button class="btn" type="button" id="rd-cancel">Cancel</button>
+      <button class="btn solid danger" type="button" id="rd-go">Delete permanently</button>
     </div>
   </form>
 </dialog>

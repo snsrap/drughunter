@@ -732,8 +732,8 @@ and changes nothing it finds: it deletes no orphan and finishes no registration.
 registry that cannot open (a database from a newer version, an unwritable
 directory) does **not** stop the viewer: every `/api/experiments*` route answers
 **503** with the reason, `GET /api/status` says `experiments.available: false`, and
-everything else works. All routes are JSON; the page that reads them is a separate
-piece of work.
+everything else works. All routes are JSON; the Ligands page reads them (see
+[The registry panel](#the-registry-panel)).
 
 | Route | Does |
 | --- | --- |
@@ -758,8 +758,9 @@ characters on one line; `run_id` is the id `POST /api/training` returned.
 aggregate and per-repeat test scores), `production` (the chosen config and its
 selection), `target`, `feature_schema`, `versions`, `checksums`, the whole `run.json`
 as `run`, and `artifact_path` -- the experiment's own path *relative to the registry*
-(`artifacts/<uuid>`). The list carries the summary (no `run`, `metrics` or `splits`) and a
-`selectable` flag. Nothing in a response names an absolute directory of the server:
+(`artifacts/<uuid>`). The list carries the summary (no `run`, `metrics` or `splits`), a
+`selectable` flag and a `headline` (below). A single record has no `selectable` flag: only the
+listing checks that the files are in place. Nothing in a response names an absolute directory of the server:
 the registry root and the run's directory are replaced by `<registry>` and `<run>` in
 messages and in a record's `state_detail`. (`GET /api/status` is the exception: it
 reports the registry root, as it does for projects and datasets.)
@@ -793,6 +794,40 @@ selectable, problems (ready rows whose files are not in place), healthy, startup
 `healthy` is the cheap check (no unfinished registration or deletion, every ready
 experiment's files present at their recorded size); checksums and orphans are
 `GET /api/experiments/health`.
+
+### The registry panel
+
+On `/ligands`, `js/features/registry.js` (logic in `js/model/registry.js`, tested by `npm test`).
+It does not follow the open dataset: records outlive it.
+
+- **Register.** Under a completed run in the training panel: a name (suggested from the target,
+  1-200 characters, one line) and **Register**, which submits the run id. The server supplies the
+  initiator and the UTC time. A repeat shows "already registered as ..." (the first name is kept);
+  an expired run (404) says to train again; a refused run (409), an unavailable registry (503) and a
+  failed copy are worded apart, and a failed copy can be retried.
+- **Table.** Name, model, initiator, created, dataset, target/task/units, production strategy, the
+  headline metric and a status. Ordinary columns sort with the experiment id as the tie-break.
+  The **headline** is computed by the server (`headline` on each list entry): scaffold test RMSE
+  (regression) or balanced accuracy (classification), else the random strategy's and labelled as a
+  fallback; it carries the repeats defined (`n_defined` of `n_total`) and says `undefined` or
+  `unavailable` instead of inventing a number. Its `group` (task, target, units, strategy, metric) is
+  the rule for sorting: the metric column sorts only when every row shown has the same group, and is
+  otherwise disabled with the reason. No score is ever ranked against an unlike one.
+- **Status.** Only a `ready` record whose files are present is healthy. Missing or changed files,
+  an unfinished registration, a failed one and a pending deletion are each shown, with why.
+- **Detail.** Both strategies' reports, the selected production configuration, each repeat's chosen
+  configuration, target and feature schema, provenance (versions, dataset, registry-relative artifact
+  path) and the state. Repeat metrics are labelled as evaluating the tuning procedure, not an
+  independent test of the final refit.
+- **Edit.** The name and up to 32 notes are the only editable parts; the request carries only what
+  changed. Everything else is read-only.
+- **Delete.** A dialog names the experiment and says its metadata, model and preserved dataset
+  snapshot are removed for good. Only a `complete` report is success; a delete that waits on a use
+  (409) or could not remove something (500) is shown with its parts and the record stays, as
+  *Deletion unfinished*, until it is repeated.
+
+`npm run e2e:registry` walks train -> register -> inspect -> rename and a note -> restart -> confirmed
+delete against the real backend (`?profile=tiny`).
 
 ## Preparing structures
 
@@ -841,7 +876,7 @@ proteinviewer/               the server: Python standard library only
                                    scope, reading a structure file, the session snapshot,
                                    a ligand dataset's dialog and queries, safe SVG
     js/scene.js                  the 3D stage (3Dmol), drawn in keyed layers
-    js/features/                 one module per panel: its view, its controls, its actions
+    js/features/                 one module per panel (registry.js: the experiment registry): its view, its controls, its actions
 tests/                       the server's tests; tests/js via npm test; tests/e2e walkthrough
 ```
 
@@ -895,6 +930,7 @@ menu and, if it reports new numbers, show them in `js/features/pockets.js`.
 python3 -m unittest discover -s tests -t .   # server: about a second, no tools needed
 npm test                                     # the page's pure modules, Node 18+
 npm install && npm run e2e -- http://127.0.0.1:8000 /tmp/pv-ui --slow   # the whole UI
+npm run e2e:registry                         # train -> register -> inspect -> rename -> delete, real backend
 npm run e2e:dataset                          # upload -> inspect -> summarise -> sort/filter a ligand CSV; starts its own server
 ```
 
