@@ -4,6 +4,7 @@
     inspect CSV                         columns, types, structure candidates
     resolve CSV --config F --out DIR    rows and metadata, written into DIR
     depict  REQUEST                     SVGs for the SMILES a JSON file lists
+    summarize DIR                       the dashboard's numbers for a resolved dataset in DIR
 
 Every command prints one JSON object. The exit code says whose problem a
 failure is -- 2 a file or choice that cannot be used, 3 RDKit missing -- and the
@@ -47,8 +48,16 @@ def _rdkit():
 def cmd_info(a) -> int:
     chem = _rdkit()
     from .depict import DEPICTION_VERSION
+    from .summary import SUMMARY_VERSION
 
-    _out({"version": __version__, "rdkit": chem.require_rdkit(), "depiction": DEPICTION_VERSION})
+    _out(
+        {
+            "version": __version__,
+            "rdkit": chem.require_rdkit(),
+            "depiction": DEPICTION_VERSION,
+            "summary": SUMMARY_VERSION,
+        }
+    )
     return 0
 
 
@@ -105,6 +114,32 @@ def cmd_depict(a) -> int:
     return 0
 
 
+def _read_json(path: Path) -> dict:
+    try:
+        payload = json.loads(_read(str(path)))
+    except ValueError as exc:
+        raise BadInput("%s is not JSON: %s" % (path, exc)) from None
+    if not isinstance(payload, dict):
+        raise BadInput("%s is not a ligandbench dataset file" % path)
+    return payload
+
+
+def cmd_summarize(a) -> int:
+    _rdkit()
+    from .summary import summarize
+
+    base = Path(a.directory)
+    meta, rows = _read_json(base / "dataset.json"), _read_json(base / "rows.json").get("rows")
+    try:
+        summary = summarize(meta, rows)
+    except (KeyError, TypeError, AttributeError):
+        raise BadInput(
+            "%s is not a ligandbench dataset (dataset.json and rows.json)" % base
+        ) from None
+    _out(summary)
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="ligandbench", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -121,6 +156,9 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser("depict", help="SVG depictions of the SMILES in a JSON file")
     p.add_argument("request")
     p.set_defaults(run=cmd_depict)
+    p = sub.add_parser("summarize", help="the dashboard's statistics for a resolved dataset")
+    p.add_argument("directory", help="the directory resolve wrote dataset.json and rows.json into")
+    p.set_defaults(run=cmd_summarize)
     return ap
 
 
