@@ -723,6 +723,77 @@ copy the database *first*, so every row in the backup has its files). Restore
 both, start the server and read the startup health. `staging/` need not be
 backed up.
 
+### The experiment routes
+
+The server opens the registry at startup (`PV_EXPERIMENT_DIR`, else
+`~/.local/share/proteinviewer/experiments`), prints its health in the startup
+lines -- `experiments: <root>  (N ready; P pending, D deleting, X problem, O orphan items)` --
+and changes nothing it finds: it deletes no orphan and finishes no registration. A
+registry that cannot open (a database from a newer version, an unwritable
+directory) does **not** stop the viewer: every `/api/experiments*` route answers
+**503** with the reason, `GET /api/status` says `experiments.available: false`, and
+everything else works. All routes are JSON; the page that reads them is a separate
+piece of work.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/experiments` `{run_id, name}` | Register a completed training run; returns the record. |
+| `GET /api/experiments` | `{experiments: [...]}`, the selectable ones, newest first. `?all=true` lists every record, whatever its state. |
+| `GET /api/experiments?id=<uuid>` | One experiment, in any state, with both strategies' reports and the production model's facts. |
+| `POST /api/experiments/update` `{id, name?, annotations?}` | Rename and/or replace the annotations; returns the record. |
+| `POST /api/experiments/delete` `{id}` | Delete for good; returns the per-part report. |
+| `GET /api/experiments/health` | What is wrong, changing nothing. `?deep=false` skips re-hashing the files. |
+| `POST /api/experiments/recover` | Finish what can be finished provably (see above). Only ever by request. |
+
+**Registering.** The service pins the run (`Training.pin`), has the store copy it,
+and releases the pin on success and on failure alike, so a failed copy leaves the run
+still in the job list and still registrable. The request is idempotent on `run_id`: a
+repeat returns the same record with a **200** (the first call is a 200 too; there is no
+201, and a second name does not rename), also after the job itself has been evicted.
+`initiator` is the store's default (the server's OS user, or `local`). `name` is 1-200
+characters on one line; `run_id` is the id `POST /api/training` returned.
+
+**Records.** What the store returns (see the registry section): the row's facts,
+`splits`, `metrics` (both strategies, each with its status, `unavailable` reason,
+aggregate and per-repeat test scores), `production` (the chosen config and its
+selection), `target`, `feature_schema`, `versions`, `checksums`, the whole `run.json`
+as `run`, and `artifact_path` -- the experiment's own path *relative to the registry*
+(`artifacts/<uuid>`). The list carries the summary (no `run`, `metrics` or `splits`) and a
+`selectable` flag. Nothing in a response names an absolute directory of the server:
+the registry root and the run's directory are replaced by `<registry>` and `<run>` in
+messages and in a record's `state_detail`. (`GET /api/status` is the exception: it
+reports the registry root, as it does for projects and datasets.)
+
+**Updating.** `annotations` replaces the whole set (up to 32 notes, keys 1-64
+characters, values up to 2000); a field left out is left alone, and at least one must be
+given. Any other field is a **400** naming it: the model, target, splits, metrics, run
+id and the rest are facts of the run (register a new run to change them). An experiment
+that is `deleting` or `failed` cannot be edited (409).
+
+**Deleting.** The response is the store's per-part report: `artifact_dir` and
+`staging_dir` (`removed`, `already_absent`, `failed`, `skipped`), `row` (`removed`,
+`retained`, `failed`), `leases`, `errors` and `complete`. A deletion that completes is a
+200. One still waiting on an active use after `lease_timeout` is a **409** whose body is
+`{"error": ..., "report": {...}}`: the record stays `deleting`, not selectable, and the
+request can be repeated once the use ends. One that could not remove a file or the row
+is a **500** with the same shape (and the record still `deleting`).
+
+**Statuses.**
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Malformed request: bad `run_id`, `name`, `id` (not a uuid), annotations, an immutable field, nothing to change. |
+| 404 | No such training run (unknown, evicted, gone with a restart, and not registered before) or no such experiment. |
+| 409 | The run is not completed (queued, running, failed, cancelled) or its directory does not match its `run.json` / is not a completed `qsar-run-v1` run; the experiment is `deleting` or `failed` and cannot be edited; a delete waiting on a lease. |
+| 500 | The registry's own trouble, with a message and no stack trace: a copy or rename that failed (the message says what was kept, and `recover` finishes a verified one), a deletion that could not remove something, an unreadable or corrupt database (`GET /api/experiments/health` says more). |
+| 503 | The registry did not open at startup; the reason is in the body. |
+
+`GET /api/status` carries `experiments`: `{available, reason, root, counts (per state),
+selectable, problems (ready rows whose files are not in place), healthy, startup}`.
+`healthy` is the cheap check (no unfinished registration or deletion, every ready
+experiment's files present at their recorded size); checksums and orphans are
+`GET /api/experiments/health`.
+
 ## Preparing structures
 
 `Prepare` is backed by [quickprep](quickprep.md), the package beside this one

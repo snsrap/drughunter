@@ -7,6 +7,11 @@ from proteinviewer.schemas import (
     DatasetResolveRequest,
     DatasetRowsRequest,
     DatasetUploadRequest,
+    ExperimentHealthQuery,
+    ExperimentIdRequest,
+    ExperimentQuery,
+    ExperimentRegisterRequest,
+    ExperimentUpdateRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
@@ -178,6 +183,58 @@ class DatasetSchemaTest(unittest.TestCase):
         )
         self.assertFalse(r.depict)
         self.assertEqual(r.filters[0]["key"], "a")
+
+    UUID = "123e4567-e89b-42d3-a456-426614174000"
+
+    def test_registration_names_a_run_and_a_name(self):
+        r = ExperimentRegisterRequest.parse({"run_id": " run-0123456789ab ", "name": "  A  "})
+        self.assertEqual((r.run_id, r.name), ("run-0123456789ab", "A"))
+        for bad in (
+            {},
+            {"run_id": "run-1"},
+            {"name": "x"},
+            {"run_id": "run 1", "name": "x"},
+            {"run_id": "r" * 129, "name": "x"},
+            {"run_id": "run-1", "name": "x" * 201},
+            {"run_id": "run-1", "name": "two\nlines"},
+            {"run_id": 5, "name": "x"},
+        ):
+            with self.assertRaises(BadRequest, msg=bad):
+                ExperimentRegisterRequest.parse(bad)
+
+    def test_an_experiment_is_named_by_a_uuid(self):
+        self.assertEqual(ExperimentQuery.parse({}), ExperimentQuery("", False))
+        self.assertEqual(
+            ExperimentQuery.parse({"id": self.UUID.upper(), "all": "true"}).experiment_id, self.UUID
+        )
+        self.assertTrue(ExperimentQuery.parse({"all": "1"}).everything)
+        self.assertEqual(ExperimentIdRequest.parse({"id": self.UUID}).experiment_id, self.UUID)
+        for bad in ({}, {"id": "../x"}, {"id": self.UUID + "0"}):
+            with self.assertRaises(BadRequest, msg=bad):
+                ExperimentIdRequest.parse(bad)
+        with self.assertRaises(BadRequest):
+            ExperimentQuery.parse({"all": "sometimes"})
+
+    def test_an_update_changes_a_name_or_annotations_and_nothing_else(self):
+        r = ExperimentUpdateRequest.parse({"id": self.UUID, "name": "n"})
+        self.assertEqual((r.name, r.annotations), ("n", None))
+        r = ExperimentUpdateRequest.parse({"id": self.UUID, "annotations": {}})
+        self.assertEqual((r.name, dict(r.annotations)), (None, {}))
+        for bad in (
+            {"id": self.UUID},
+            {"id": self.UUID, "task": "classification"},
+            {"id": self.UUID, "name": "n", "target": {}},
+            {"id": self.UUID, "state": "ready"},
+            {"id": self.UUID, "other": 1},
+            {"id": self.UUID, "annotations": []},
+            {"id": self.UUID, "annotations": {"k": 1}},
+        ):
+            with self.assertRaises(BadRequest, msg=bad):
+                ExperimentUpdateRequest.parse(bad)
+
+    def test_health_is_deep_unless_told_otherwise(self):
+        self.assertTrue(ExperimentHealthQuery.parse({}).deep)
+        self.assertFalse(ExperimentHealthQuery.parse({"deep": "false"}).deep)
 
 
 if __name__ == "__main__":

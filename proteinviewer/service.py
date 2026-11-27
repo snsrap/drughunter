@@ -10,19 +10,23 @@ protocols below, so tests hand in fakes.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 import shutil
+import sqlite3
 import threading
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
 from . import rowquery
 from .buffer import BufferedStructure, PocketRun, StructureBuffer
 from .dataset import DatasetStore
-from .errors import BadRequest, Conflict, NotFound, ToolFailed, ToolUnavailable
+from .errors import BadRequest, Conflict, NotFound, ToolFailed, ToolUnavailable, ViewerError
+from .experiments import STATES as EXPERIMENT_STATES
+from .experiments import ExperimentStore, StoreError
 from .pockets import residue_list, spheres_pdb
 from .project import Project, ProjectStore, csv_text, resolve_destination, safe_name
 from .schemas import (
@@ -33,6 +37,11 @@ from .schemas import (
     DatasetSplitRequest,
     DatasetSummaryRequest,
     DatasetUploadRequest,
+    ExperimentHealthQuery,
+    ExperimentIdRequest,
+    ExperimentQuery,
+    ExperimentRegisterRequest,
+    ExperimentUpdateRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
@@ -57,6 +66,8 @@ __all__ = [
     "ScoringJob",
     "LigandTools",
     "Trainer",
+    "DeleteIncomplete",
+    "DeleteFailed",
 ]
 
 log = logging.getLogger("proteinviewer")
@@ -293,6 +304,29 @@ class Trainer(Protocol):
 
     def cancel(self, run_id: str) -> dict: ...
 
+    def pin(self, run_id: str) -> contextlib.AbstractContextManager[Path]: ...
+
+
+class DeleteIncomplete(Conflict):
+    """A deletion that is waiting on something in use. ``report`` says, part by
+    part, what was and was not removed; the record is left ``deleting`` and the
+    request can be made again.
+    """
+
+    def __init__(self, message: str, report: dict):
+        super().__init__(message)
+        self.report = report
+
+
+class DeleteFailed(ViewerError):
+    """A deletion that could not remove something it owns (the server's problem,
+    not the client's). Reported like :class:`DeleteIncomplete`; retryable.
+    """
+
+    def __init__(self, message: str, report: dict):
+        super().__init__(message)
+        self.report = report
+
 
 class ViewerService:
     def __init__(
@@ -308,9 +342,15 @@ class ViewerService:
         ligands: LigandTools | None = None,
         datasets: DatasetStore | None = None,
         training: Trainer | None = None,
+        experiments: ExperimentStore | None = None,
+        experiments_error: str = "",
     ):
         self.version = version
         self.training = training
+        # None when the registry could not be opened; then the experiment routes
+        # answer 503 with ``experiments_error`` and nothing else is affected.
+        self.experiments = experiments
+        self.experiments_error = experiments_error
         self.ligands = ligands
         self.datasets = datasets
         self.buffer = buffer
@@ -354,6 +394,7 @@ class ViewerService:
             },
             "datasets": self._datasets_status(),
             "training": self.training.describe() if self.training else {"available": False},
+            "experiments": self._experiments_status(),
         }
 
     def _datasets_status(self) -> dict:
@@ -802,6 +843,198 @@ class ViewerService:
 
     def cancel_training(self, q: TrainingQuery) -> dict:
         return self._trainer().cancel(q.run_id)
+
+    # -- experiments -----------------------------------------------------------
+    def _registry(self) -> ExperimentStore:
+        if self.experiments is None:
+            raise ToolUnavailable(
+                "the experiment registry is not available: %s"
+                % (self.experiments_error or "it was not configured"),
+                "experiments",
+            )
+        return self.experiments
+
+    def _clean(self, value: Any, store: ExperimentStore, *paths: Any) -> Any:
+        """``value`` with the server's directories taken out of every string in it: the
+        registry root and the run directory a message may name. What is sent over HTTP
+        shows an experiment's own relative path and nothing absolute.
+        """
+        roots = {str(store.root), os.path.realpath(store.root)}
+        hidden = [(r, "<registry>") for r in roots] + [(str(p), "<run>") for p in paths]
+        hidden = sorted((h for h in hidden if len(h[0]) > 1), key=lambda h: -len(h[0]))
+
+        def scrub(v: Any) -> Any:
+            if isinstance(v, str):
+                for path, label in hidden:
+                    v = v.replace(path, label)
+                return v
+            if isinstance(v, dict):
+                return {k: scrub(x) for k, x in v.items()}
+            if isinstance(v, (list, tuple)):
+                return [scrub(x) for x in v]
+            return v
+
+        return scrub(value)
+
+    @contextlib.contextmanager
+    def _guarded(self, store: ExperimentStore, *paths: Any) -> Iterator[None]:
+        """Registry failures as a client sees them: the error's own meaning and
+        message (a 404, 409 or 400 from the store keep theirs), no server path in
+        it, and the registry's own trouble -- an unreadable or corrupt database, a
+        full disk -- as a ``StoreError`` with a message, never a stack trace.
+        """
+        try:
+            yield
+        except ViewerError as exc:
+            exc.args = tuple(self._clean(a, store, *paths) for a in exc.args)
+            raise
+        except (sqlite3.Error, OSError) as exc:
+            log.exception("experiment registry")
+            raise StoreError(
+                "the experiment registry could not be used (%s); check it with "
+                "/api/experiments/health"
+                % self._clean("%s: %s" % (type(exc).__name__, exc), store, *paths)
+            ) from exc
+
+    def _experiments_status(self) -> dict:
+        store = self.experiments
+        if store is None:
+            return {"available": False, "reason": self.experiments_error or "not configured"}
+        try:
+            rows = store.list(selectable_only=False)
+        except (sqlite3.Error, OSError, ViewerError) as exc:
+            return {
+                "available": False,
+                "root": str(store.root),
+                "reason": self._clean("%s: %s" % (type(exc).__name__, exc), store),
+            }
+        counts = {state: 0 for state in EXPERIMENT_STATES}
+        for row in rows:
+            counts[row["state"]] = counts.get(row["state"], 0) + 1
+        selectable = sum(1 for row in rows if row["selectable"])
+        problems = sum(1 for row in rows if row["state"] == "ready" and not row["selectable"])
+        started = store.startup_health or {}
+        orphans = started.get("orphans") or {}
+        return {
+            "available": True,
+            "reason": "",
+            "root": str(store.root),
+            "counts": counts,
+            "selectable": selectable,
+            "problems": problems,
+            # Cheap and lock-free: the rows and their files' presence. The full
+            # check (checksums, orphans) is GET /api/experiments/health.
+            "healthy": problems == 0
+            and not (counts["pending"] or counts["failed"] or counts["deleting"]),
+            "startup": {
+                "ok": bool(started.get("ok", True)),
+                "orphans": len(orphans.get("artifacts", [])) + len(orphans.get("staging", [])),
+            },
+        }
+
+    def register_experiment(self, req: ExperimentRegisterRequest) -> dict:
+        """Keep a completed training run: pin it against eviction, copy it into the
+        registry, release the pin (on success and on failure alike). Idempotent on the
+        run id: a repeat returns the same record, also once the job itself has been
+        evicted. A run that is not completed is a 409 (running, failed, cancelled), an
+        unknown or evicted one a 404.
+        """
+        store = self._registry()
+        trainer = self._trainer()
+        with self._guarded(store):
+            try:
+                with trainer.pin(req.run_id) as run_dir:
+                    record = self._copy_run(store, run_dir, req)
+            except NotFound:
+                record = self._registered_run(store, req.run_id)
+                if record is None:
+                    raise
+            log.info("experiment %s: run %s registered as %r", record["id"], req.run_id, req.name)
+            return self._clean(record, store)
+
+    def _copy_run(
+        self, store: ExperimentStore, run_dir: Path, req: ExperimentRegisterRequest
+    ) -> dict:
+        """The copy, with the pin held by the caller. What the store refuses of the run
+        itself (a bad ``run.json``, files that do not match it) is the run not being
+        registrable (409): the request was checked at the edge.
+        """
+        with self._guarded(store, run_dir):
+            try:
+                return store.register(run_dir, req.run_id, req.name)
+            except BadRequest as exc:
+                raise Conflict("run %s cannot be registered: %s" % (req.run_id, exc)) from exc
+
+    def _registered_run(self, store: ExperimentStore, run_id: str) -> dict | None:
+        """The ready experiment already made from ``run_id``, if there is one."""
+        for row in store.list(selectable_only=False):
+            if row["source_run_id"] == run_id and row["state"] == "ready":
+                return store.get(row["id"])
+        return None
+
+    def experiments_view(self, q: ExperimentQuery) -> dict:
+        """One experiment (``id``), in any state, with both strategies' reports and the
+        production model's facts; or the list of the selectable ones (``all`` lists
+        every record, whatever its state).
+        """
+        store = self._registry()
+        with self._guarded(store):
+            if q.experiment_id:
+                return self._clean(store.get(q.experiment_id), store)
+            rows = store.list(selectable_only=not q.everything)
+            return {"experiments": self._clean(rows, store)}
+
+    def update_experiment(self, req: ExperimentUpdateRequest) -> dict:
+        """Change an experiment's name and/or annotations (the whole set is replaced).
+        Everything else is a fact of the run and was refused at the edge.
+        """
+        store = self._registry()
+        with self._guarded(store):
+            if req.name is not None:
+                store.rename(req.experiment_id, req.name)
+            if req.annotations is not None:
+                store.set_annotations(req.experiment_id, dict(req.annotations))
+            return self._clean(store.get(req.experiment_id), store)
+
+    def delete_experiment(self, req: ExperimentIdRequest) -> dict:
+        """Remove an experiment for good, and report each part apart. One that is in
+        use past the wait is a 409 and one whose files or row could not be removed a
+        500; both leave it ``deleting`` and the call can simply be made again.
+        """
+        store = self._registry()
+        with self._guarded(store):
+            report = self._clean(store.delete(req.experiment_id), store)
+        log.info("experiment %s: delete %s", req.experiment_id, report["state"])
+        if report["complete"]:
+            return report
+        if report["leases"] and report["row"] == "retained" and report["artifact_dir"] == "skipped":
+            raise DeleteIncomplete(
+                "experiment %s is in use: %s; it stays 'deleting', so try again when "
+                "the use has ended" % (req.experiment_id, "; ".join(report["errors"])),
+                report,
+            )
+        raise DeleteFailed(
+            "experiment %s was not completely deleted (%s); it stays 'deleting' and the "
+            "request can be repeated" % (req.experiment_id, "; ".join(report["errors"])),
+            report,
+        )
+
+    def experiments_health(self, q: ExperimentHealthQuery) -> dict:
+        """What is wrong with the registry, changing nothing (``deep=false`` skips
+        re-hashing every file).
+        """
+        store = self._registry()
+        with self._guarded(store):
+            return self._clean(store.health(deep=q.deep), store)
+
+    def recover_experiments(self) -> dict:
+        """Finish what can be finished provably: a verified half-done registration, a
+        deletion nothing is using. Everything else is kept and named; orphans are
+        never touched. Only ever called by a request, never on its own.
+        """
+        store = self._registry()
+        with self._guarded(store):
+            return self._clean(store.recover(), store)
 
     def _dataset_view(self, meta: dict) -> dict:
         return {
