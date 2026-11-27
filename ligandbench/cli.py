@@ -4,6 +4,7 @@
     inspect CSV                         columns, types, structure candidates
     resolve CSV --config F --out DIR    rows and metadata, written into DIR
     depict  REQUEST                     SVGs for the SMILES a JSON file lists
+    split   DIR --strategy S --seed N   five repeated holdouts of a resolved dataset
 
 Every command prints one JSON object. The exit code says whose problem a
 failure is -- 2 a file or choice that cannot be used, 3 RDKit missing -- and the
@@ -105,6 +106,41 @@ def cmd_depict(a) -> int:
     return 0
 
 
+def _json_object(path: Path, what: str) -> dict:
+    try:
+        found = json.loads(_read(str(path)))
+    except ValueError as exc:
+        raise BadInput("%s is not JSON: %s" % (path, exc)) from None
+    if not isinstance(found, dict):
+        raise BadInput("%s must hold a JSON object (%s)" % (path, what))
+    return found
+
+
+def cmd_split(a) -> int:
+    """Five repeated holdouts of the dataset ``resolve`` wrote into DIR.
+
+    Prints the result in canonical form (sorted keys, no spaces, ASCII), so the
+    same dataset, strategy, seed and versions print the same bytes every time.
+    An unavailable split is an answer (``status``), not an error.
+    """
+    _rdkit()
+    from .split import canonical_json, split
+
+    if a.strategy is None:
+        raise BadInput("say which strategy: random or scaffold")
+    try:
+        seed = int(a.seed)
+    except ValueError:
+        raise BadInput("the seed must be a whole number, not %r" % a.seed) from None
+    directory = Path(a.dataset)
+    meta = _json_object(directory / "dataset.json", "the dataset's metadata")
+    rows = _json_object(directory / "rows.json", "the dataset's rows").get("rows")
+    if not isinstance(rows, list):
+        raise BadInput("%s has no list of rows" % (directory / "rows.json"))
+    print(canonical_json(split(meta, rows, strategy=a.strategy, seed=seed)))
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="ligandbench", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -121,6 +157,13 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser("depict", help="SVG depictions of the SMILES in a JSON file")
     p.add_argument("request")
     p.set_defaults(run=cmd_depict)
+    p = sub.add_parser("split", help="five repeated holdouts of a resolved dataset")
+    p.add_argument("dataset", help="the directory resolve wrote rows.json and dataset.json into")
+    # Not argparse's own choices or type: a bad value is a JSON error with exit 2, as every
+    # other refusal is, not a usage message.
+    p.add_argument("--strategy", help="random or scaffold")
+    p.add_argument("--seed", default="0", help="a whole number; the same seed, the same split")
+    p.set_defaults(run=cmd_split)
     return ap
 
 
