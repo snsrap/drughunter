@@ -42,6 +42,11 @@ from .schemas import (
     DatasetSplitRequest,
     DatasetSummaryRequest,
     DatasetUploadRequest,
+    ExperimentHealthQuery,
+    ExperimentIdRequest,
+    ExperimentQuery,
+    ExperimentRegisterRequest,
+    ExperimentUpdateRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
@@ -141,6 +146,22 @@ class Api:
             ("POST", "/api/training/cancel"): lambda r: s.cancel_training(
                 TrainingQuery.parse(r.body)
             ),
+            ("POST", "/api/experiments"): lambda r: s.register_experiment(
+                ExperimentRegisterRequest.parse(r.body)
+            ),
+            ("GET", "/api/experiments"): lambda r: s.experiments_view(
+                ExperimentQuery.parse(r.query)
+            ),
+            ("POST", "/api/experiments/update"): lambda r: s.update_experiment(
+                ExperimentUpdateRequest.parse(r.body)
+            ),
+            ("POST", "/api/experiments/delete"): lambda r: s.delete_experiment(
+                ExperimentIdRequest.parse(r.body)
+            ),
+            ("GET", "/api/experiments/health"): lambda r: s.experiments_health(
+                ExperimentHealthQuery.parse(r.query)
+            ),
+            ("POST", "/api/experiments/recover"): lambda r: s.recover_experiments(),
         }
 
     def handle(self, method: str, path: str, req: ApiRequest) -> tuple[int, dict]:
@@ -150,7 +171,13 @@ class Api:
         try:
             return 200, route(req)
         except ViewerError as exc:
-            return status_for(exc), {"error": str(exc)}
+            body: dict[str, Any] = {"error": str(exc)}
+            # An error may carry the report of what it did before it stopped (a delete
+            # that removed some parts and not others), which the client needs to see.
+            report = getattr(exc, "report", None)
+            if isinstance(report, dict):
+                body["report"] = report
+            return status_for(exc), body
         except Exception as exc:  # a bug, not the client's fault
             log.exception("api error on %s %s", method, path)
             return 500, {"error": "internal error: %s: %s" % (type(exc).__name__, exc)}
