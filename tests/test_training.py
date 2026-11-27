@@ -552,6 +552,7 @@ def test_the_real_ligandbench_trains_a_tiny_run_end_to_end(tmp_path):
                 "structure_column": "SMILES",
                 "target_column": "Y",
                 "target_kind": "regression",
+                "qualifier_column": None,
                 "source_units": "",
                 "transform": "identity",
             }
