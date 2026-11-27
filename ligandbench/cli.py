@@ -107,8 +107,9 @@ def cmd_depict(a) -> int:
 
 
 def _json_object(path: Path, what: str) -> dict:
+    data = _read(str(path))  # its own error: "cannot read ..." is not "is not JSON"
     try:
-        found = json.loads(_read(str(path)))
+        found = json.loads(data)
     except ValueError as exc:
         raise BadInput("%s is not JSON: %s" % (path, exc)) from None
     if not isinstance(found, dict):
@@ -133,6 +134,11 @@ def cmd_split(a) -> int:
     except ValueError:
         raise BadInput("the seed must be a whole number, not %r" % a.seed) from None
     directory = Path(a.dataset)
+    if not directory.is_dir():
+        raise BadInput(
+            "cannot read the dataset directory %s: it is not a directory (it should hold the "
+            "rows.json and dataset.json that resolve wrote)" % directory
+        )
     meta = _json_object(directory / "dataset.json", "the dataset's metadata")
     rows = _json_object(directory / "rows.json", "the dataset's rows").get("rows")
     if not isinstance(rows, list):

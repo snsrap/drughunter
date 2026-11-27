@@ -893,6 +893,7 @@ def test_the_command_exits_two_with_the_reason_for_what_cannot_be_used(tmp_path)
         ((directory, "--seed", "1"), "strategy"),
         ((bare_dir, "--strategy", "random", "--seed", "1"), "no target"),
         ((tmp_path / "missing", "--strategy", "random", "--seed", "1"), "cannot read"),
+        ((tmp_path / "empty", "--strategy", "random", "--seed", "1"), "cannot read"),
         ((broken, "--strategy", "random", "--seed", "1"), "not JSON"),
     ]
     for args, message in cases:
@@ -900,3 +901,23 @@ def test_the_command_exits_two_with_the_reason_for_what_cannot_be_used(tmp_path)
         assert code == 2, args
         answer = json.loads(out)
         assert answer["kind"] == "bad-input" and message in answer["error"], (args, answer)
+
+
+def test_a_dataset_directory_or_file_that_cannot_be_read_is_not_called_not_json(tmp_path):
+    (tmp_path / "empty").mkdir()
+    for directory, unreadable in (
+        (tmp_path / "missing", "the dataset directory"),
+        (tmp_path / "empty", "dataset.json"),
+    ):
+        code, out, _ = run_split(directory, "--strategy", "random", "--seed", "1")
+        error = json.loads(out)["error"]
+        assert code == 2 and error.startswith("cannot read ") and unreadable in error, error
+        assert "not JSON" not in error and str(directory) in error
+    # rows.json missing beside a good dataset.json is named too
+    meta, rows = scaffold_dataset()
+    partial = tmp_path / "partial"
+    partial.mkdir()
+    (partial / "dataset.json").write_text(json.dumps(meta))
+    code, out, _ = run_split(partial, "--strategy", "random", "--seed", "1")
+    error = json.loads(out)["error"]
+    assert code == 2 and error.startswith("cannot read ") and "rows.json" in error, error
