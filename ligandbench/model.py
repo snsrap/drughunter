@@ -55,7 +55,9 @@ def save(directory: os.PathLike | str, booster, features: Mapping[str, Any]) -> 
     os.replace(tmp, out / MODEL_FILE)
     _replace_json(
         out / FEATURES_FILE,
-        json.dumps(features, sort_keys=True, ensure_ascii=True, allow_nan=False),
+        json.dumps(
+            features, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+        ),
     )
 
 
