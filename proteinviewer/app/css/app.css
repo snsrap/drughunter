@@ -202,6 +202,183 @@ table.gt tbody tr[aria-selected=true]{background:var(--accent-soft)}
 .gt .num{text-align:right}
 table.gt tbody tr:last-child td{border-bottom:0}
 
+/* ---------- the pages: the viewer and the ligands ---------- */
+.nav{display:flex; gap:2px}
+.nav a{padding:3px 11px; border-radius:2px; color:var(--ink-2); text-decoration:none; font-size:13px}
+.nav a:hover{background:var(--panel-2); color:var(--ink)}
+.nav a[aria-current=page]{background:var(--accent-soft); color:var(--ink); font-weight:600}
+.pdbq-msg a{color:var(--accent)}
+.sub a{color:var(--accent)}
+
+/* What the ligands page shows until a dataset is open: the way to load one. */
+.prompt{
+  flex:1; min-height:0; display:grid; place-content:center; justify-items:center; gap:12px;
+  padding:30px; text-align:center; background:var(--panel);
+  border:2px dashed var(--line-2); border-radius:10px;
+}
+.prompt h2{font:600 22px/1.2 "IBM Plex Sans Condensed","IBM Plex Sans",sans-serif; letter-spacing:.005em}
+.prompt p{margin:0; max-width:46ch; color:var(--ink-2)}
+.prompt .sub{margin:0}
+.prompt .btn{padding:8px 20px; font-size:14px}
+.prompt .pdbq-msg{max-width:60ch; -webkit-line-clamp:6}
+
+/* ---------- ligand dataset: the rail summary, and the grid of molecules ---------- */
+.kv{display:grid; grid-template-columns:6.4em minmax(0,1fr); gap:3px 10px; margin:0; font-size:12px}
+.kv dt{color:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.08em;
+  text-transform:uppercase; padding-top:2px}
+.kv dd{margin:0; color:var(--ink); overflow-wrap:anywhere}
+.mol .mfilter{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px 10px;
+  border-bottom:1px solid var(--line)}
+.mol .mfilter select,.mol .mfilter input{width:auto; min-width:0}
+.mol .mfilter input{flex:0 1 160px}
+.mol .hd select{width:auto}
+/* On its own page the panel is the page: it takes the height, and the cards the room. */
+.mol.page{flex:1; min-height:0}
+.mol.page .mbody{flex:1; height:auto}
+.mol .chips{display:flex; flex-wrap:wrap; gap:4px}
+.chip{border:1px solid var(--line-2); background:var(--panel-2); color:var(--ink); border-radius:999px;
+  padding:1px 9px; font:inherit; font-size:11.5px; cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip:after{content:"\00a0\00d7"; color:var(--muted)}
+.mol #mol-msg{padding:5px 10px; border-bottom:1px solid var(--line)}
+.mol.closed .mfilter,.mol.closed .mbody,.mol.closed .mpager,.mol.closed #mol-msg{display:none}
+/* The body has a height of its own, so a long detail scrolls inside its column
+   instead of stretching the panel and squeezing the 3D stage above it. */
+.mbody{display:flex; height:320px; min-height:0}
+.mscroll{flex:1; min-width:0; overflow:auto; scrollbar-width:thin}
+.mgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; padding:8px}
+.mcard{display:flex; flex-direction:column; gap:2px; padding:5px; text-align:left; color:var(--ink);
+  background:var(--panel); border:1px solid var(--line); border-radius:3px; font:inherit; cursor:pointer}
+.mcard:hover{border-color:var(--line-2); background:var(--sunk)}
+.mcard[aria-pressed=true]{background:var(--accent-soft); border-color:var(--accent)}
+.mdepict{display:block; height:104px; color:var(--ink)}
+.mdepict svg{width:100%; height:100%}
+.mcard .mname{font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mcard .mval{font-size:11px; color:var(--ink-2); min-height:1.4em}
+.mcard.bad .mdepict{display:grid; place-items:center; text-align:center; font-size:11px; color:var(--fail);
+  background:var(--fail-soft); border-radius:2px; padding:6px}
+.mcard.out .mval{color:var(--muted)}
+.mdetail{flex:none; width:300px; overflow:auto; padding:9px 11px; border-left:1px solid var(--line);
+  font-size:12px; scrollbar-width:thin}
+.mdetail h3{font:600 13px/1.3 "IBM Plex Sans Condensed",sans-serif; display:flex; gap:8px; justify-content:space-between}
+.mdetail .mdepict.big{height:150px; margin:6px 0}
+.mdetail table{border-collapse:collapse; width:100%; margin:6px 0; table-layout:fixed}
+.mdetail th{width:38%; text-align:left; font-weight:500; color:var(--muted); vertical-align:top;
+  padding:2px 8px 2px 0; overflow-wrap:anywhere}
+.mdetail td{overflow-wrap:anywhere; padding:2px 0}
+.mdetail tr.key td,.mdetail tr.key th{color:var(--ink); font-weight:600}
+.mdetail .why{margin:6px 0 0; padding:5px 8px; background:var(--fail-soft); border-radius:2px; color:var(--ink)}
+.mdetail .why.ok{background:var(--pass-soft)}
+.mdetail ul{margin:3px 0 0; padding-left:16px}
+.mpager{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 10px;
+  border-top:1px solid var(--line)}
+.mpager .mono{font-size:11.5px; color:var(--ink-2)}
+@media (max-width:900px){
+  .mbody,.mol.page .mbody{flex-direction:column; height:auto; flex:none}
+  .mscroll{flex:none; height:260px}
+  .mdetail{width:auto; max-height:320px; border-left:0; border-top:1px solid var(--line)}
+}
+/* ---------- the dataset summary: tables of counts, a histogram or class bars, missing cells ---------- */
+/* Its body has a height of its own, so a long list of columns scrolls inside the panel instead of
+   pushing the ligands off the page. */
+.sum .sbody{max-height:48vh; overflow:auto; scrollbar-width:thin; padding:10px 12px}
+.sum.closed .sbody,.sum.closed #sum-msg{display:none}
+#sum-msg{padding:6px 10px}
+.sgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px 24px}
+.ssec{min-width:0}
+.ssec.wide{grid-column:1/-1}
+.ssec h3{margin-bottom:5px}
+.ssec h4{font:600 12px/1.3 "IBM Plex Sans Condensed","IBM Plex Sans",sans-serif; margin:10px 0 3px}
+.stab{border-collapse:collapse; width:100%; font-size:12px}
+.stab th{text-align:left; font-weight:500; color:var(--ink-2); padding:2px 10px 2px 0}
+.stab td{padding:2px 0; vertical-align:baseline}
+.stab td.mono{text-align:right; padding-right:12px; color:var(--ink); font-weight:600; white-space:nowrap}
+.stab td:last-child{color:var(--muted); font-size:11px}
+.snote{margin:5px 0 0; font-size:11px; line-height:1.4; color:var(--muted)}
+.shist{display:block; width:100%; max-width:480px; height:auto; margin-top:6px}
+.sbar{fill:var(--accent)}
+.sbar:hover{fill:var(--ink-2)}
+.saxis{stroke:var(--line-2); stroke-width:1}
+.stick{fill:var(--muted); font:11px "IBM Plex Mono",ui-monospace,monospace}
+.slabel{max-width:480px; text-align:center; font-size:11px; color:var(--ink-2)}
+.sstats{display:flex; flex-wrap:wrap; gap:4px 18px; margin:8px 0 0}
+.sstats div{display:flex; gap:6px; align-items:baseline}
+.sstats dt{font:600 10px "IBM Plex Mono",ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+.sstats dd{margin:0; font-size:12px}
+.sbars{display:flex; flex-direction:column; gap:3px; margin-top:5px}
+.srow{display:grid; grid-template-columns:minmax(0,15em) minmax(60px,1fr) 4.5em 4.5em; align-items:center; gap:8px; font-size:12px}
+.sname{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.strack{height:8px; background:var(--panel-2); border-radius:2px; overflow:hidden}
+.sfill{display:block; height:100%; background:var(--accent)}
+.srow .mono{text-align:right}
+.sshare{text-align:right; font-size:11px; color:var(--muted)}
+.srow.none .sname,.srow.none .mono{color:var(--muted)}
+.sempty{display:flex; flex-direction:column; gap:3px; padding:14px; font-size:12px; color:var(--ink-2);
+  background:var(--panel-2); border:1px dashed var(--line-2); border-radius:3px}
+.sempty b{font-size:14px; color:var(--ink)}
+.sfail{display:flex; flex-wrap:wrap; align-items:center; gap:10px; font-size:12px; color:var(--fail)}
+@media (max-width:900px){
+  .sum .sbody{max-height:none}
+  .sgrid{grid-template-columns:minmax(0,1fr)}
+  .srow{grid-template-columns:minmax(0,9em) minmax(40px,1fr) 4em 4em}
+}
+/* ---------- training: the dataset's facts and the form beside the run's progress, then its metrics ---------- */
+.trn .tbody{padding:10px 12px}   /* the column scrolls, not the panel */
+.trn.closed .tbody{display:none}
+.tgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px 26px; align-items:start}
+.tset{display:flex; flex-direction:column; gap:9px; min-width:0}
+.tset form{display:flex; flex-direction:column; gap:8px}
+.tgrid > .kv{grid-template-columns:8.5em minmax(0,1fr)}
+.tset .chk{flex-wrap:wrap; align-items:baseline; row-gap:0}
+.tbar{display:flex; gap:8px}
+.tstat{display:flex; flex-direction:column; gap:8px; min-width:0}
+.tline{margin:0; font-size:12.5px; color:var(--ink-2)}
+.tstate{display:inline-block; padding:0 7px; margin-right:4px; border:1px solid var(--line-2); border-radius:2px;
+  font:600 10.5px/1.7 "IBM Plex Mono",ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--ink)}
+.tstate.ok{border-color:var(--pass); color:var(--pass)}
+.tbar2{display:flex; align-items:center; gap:10px}
+.tprog{flex:1; min-width:80px; height:10px; accent-color:var(--accent)}
+.tpct{min-width:3em; text-align:right; font-size:12px}
+.telapsed{font-size:11.5px; color:var(--muted); white-space:nowrap}
+.tfail{display:flex; flex-direction:column; align-items:flex-start; gap:6px; font-size:12px; color:var(--fail)}
+.tfail.inline{margin-top:8px}
+.tfail b{color:var(--ink)}
+.tbtns{display:flex; flex-wrap:wrap; gap:8px}
+.tlines{margin:0; padding-left:18px; color:var(--ink-2); font-size:11.5px; line-height:1.5}
+.tresult:not(:empty){margin-top:14px; padding-top:12px; border-top:1px solid var(--line)}
+.trun{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.trid{user-select:all; padding:2px 7px; background:var(--panel-2); border:1px solid var(--line); border-radius:2px; font-size:12.5px; color:var(--ink); overflow-wrap:anywhere}
+.tgrid2{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-top:10px}
+.tkv{grid-template-columns:11em minmax(0,1fr)}
+.tscroll{overflow-x:auto}
+.ttab{border-collapse:collapse; font-size:12px; width:auto; max-width:100%}
+.ttab th,.ttab td{padding:3px 12px 3px 0; text-align:left; white-space:nowrap; vertical-align:baseline}
+.ttab thead th{font:600 10px "IBM Plex Mono",ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line)}
+.ttab thead .tcol{color:var(--ink); border-bottom:1px solid var(--line-2)}
+.ttab thead .tcol.prod{border-bottom:2px solid var(--accent)}
+.ttab tbody th{font-weight:500; color:var(--ink-2)}
+.ttab td.mono{text-align:right; padding-right:14px; color:var(--ink)}
+.ttab td.tund{color:var(--muted); font-style:italic}
+.ttab .tdef{color:var(--muted); font-size:11px; padding-right:22px; white-space:normal}
+.ttab .tna{color:var(--muted); font-style:italic; padding-right:22px}
+.ttab td:not(.mono):not(.tdef):not(.tna){white-space:normal; color:var(--ink-2)}
+.twhy{display:block; font-size:10.5px; max-width:26em}
+.tprod{margin-left:4px; padding:0 5px; border-radius:2px; background:var(--accent-soft); color:var(--ink); font-size:9.5px; letter-spacing:.06em}
+.trep{margin-top:10px}
+.trep summary{cursor:pointer; color:var(--ink-2); font-size:12px}
+.trep .tscroll{margin-top:6px}
+.tcaveats{margin:12px 0 0; padding-left:18px; font-size:11px; line-height:1.5; color:var(--muted)}
+/* Beside the summary and the training panel the ligands keep a page of their own: the column scrolls
+   rather than squeezing them away. */
+.center:has(> #trn-panel){overflow-y:auto; scrollbar-width:thin}
+.center > .mol.page{min-height:380px}
+@media (max-width:900px){
+  .center:has(> #trn-panel){overflow-y:visible}
+  .tgrid{grid-template-columns:minmax(0,1fr)}
+}
+#dd-reg{display:flex; flex-direction:column; gap:9px}
+.dlg.dlg-wide{width:min(520px, calc(100vw - 32px))}
+
 /* ---------- structure tree: chains and their residues, ligands, waters ---------- */
 .tree{max-height:52vh; overflow:auto; scrollbar-width:thin; margin:0 -5px; font-size:12.5px; line-height:1.35; user-select:none}
 .tn{display:flex; align-items:center; padding-left:calc(var(--d) * 13px)}
@@ -313,3 +490,41 @@ button.info[aria-expanded=true]{background:var(--accent); border-color:var(--acc
 .gt .moved:after{content:"\00a0!"}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+
+/* ---------- the experiment registry: a table, the opened record beside it, a Register control in the run ---------- */
+.reg .rbody{padding:10px 12px; display:flex; flex-direction:column; gap:10px; min-width:0}
+.reg.closed .rbody{display:none}
+.rtab td,.rtab th[scope=row]{white-space:normal}
+.rtab thead th{white-space:nowrap}
+.rtab tr.sel{background:var(--accent-soft)}
+.tsort,.tlink{all:unset; cursor:pointer; color:inherit; font:inherit; letter-spacing:inherit; text-transform:inherit}
+.tsort:disabled{cursor:not-allowed; opacity:.55}
+.tsort:focus-visible,.tlink:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.tlink{color:var(--ink); text-decoration:underline; text-underline-offset:2px}
+.tstate.bad{border-color:var(--fail); color:var(--fail)}
+.rdetail{border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:10px; min-width:0}
+.rdetail h3{margin:0; font-size:14px}
+.dhd{display:flex; align-items:center; gap:10px}
+.dhd .btn{margin-left:auto}
+.note-row{display:flex; gap:6px; margin-bottom:5px}
+.note-row .note-k{width:11em}
+.note-row .note-v{flex:1; min-width:0}
+.btn.danger{border-color:var(--fail); color:var(--fail)}
+.btn.solid.danger{background:var(--fail); color:var(--panel)}
+.treg{margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
+.regform{display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap}
+.regform .fld{flex:1; min-width:14em}
+
+/* ---------- applying a registered model: the selector above the molecules, its progress, and what is kept ---------- */
+.mpredict{display:flex; flex-direction:column; gap:7px; padding:8px 12px; border-bottom:1px solid var(--line)}
+.mpredict form{display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px}
+.mpredict .fld{flex:1; min-width:16em}
+.mpredict select{max-width:100%}
+.psets{margin:4px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px}
+.psets li{display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; font-size:12px}
+.psets .pname{color:var(--ink)}
+.psets .pnote{color:var(--muted); font-size:11.5px; margin-right:auto}
+.psets .pnote.gone{color:var(--fail)}
+.mpred{display:block; font-size:10.5px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mdetail table.pred .twhy{display:block; color:var(--muted); font-size:10.5px}
+.mdetail h4.eyebrow{margin:10px 0 3px}

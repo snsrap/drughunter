@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ligands · DrugHunter</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;450;600&display=swap">
+<script>try{ var t = localStorage.getItem("pv-theme");
+     if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); }catch(e){}</script>
+<!-- Absolute paths: this page is served at /ligands and at /ligands/<dataset id>. -->
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app">
+
+<header class="top">
+  <h1>DrugHunter <small id="version"></small></h1>
+  <nav class="nav" aria-label="Pages">
+    <a href="/">Viewer</a>
+    <a href="/ligands" aria-current="page">Ligands</a>
+  </nav>
+  <div class="end">
+    <div class="seg theme" id="theme" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<main class="main" id="main">
+
+  <!-- ============ control rail ============ -->
+  <div class="rail">
+    <section class="mod">
+      <div class="hd"><span class="eyebrow">Load a dataset</span><span class="eyebrow">CSV</span></div>
+      <div class="bd">
+        <button class="btn wide" type="button" id="ds-open">Open CSV&hellip;</button>
+        <div class="sub">A .csv of ligands (.gz too): a column of SMILES, and perhaps a measured
+          target. Drop one anywhere on the page.</div>
+        <input type="file" id="ds-file" hidden accept=".csv,.gz" aria-label="Ligand CSV file to open">
+        <div class="pdbq-msg" id="ds-msg" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- What was read, and what can be used. -->
+    <section class="mod" id="mod-data" hidden>
+      <div class="hd"><span class="eyebrow">Ligand dataset</span><span class="eyebrow" id="ds-n"></span></div>
+      <div class="bd">
+        <dl class="kv" id="ds-sum"></dl>
+      </div>
+    </section>
+  </div>
+
+  <div class="center">
+    <!-- What the page shows until a dataset is open: the way to load one. -->
+    <section class="prompt" id="ds-prompt" aria-labelledby="ds-prompt-h">
+      <h2 id="ds-prompt-h">Load your ligand dataset</h2>
+      <p>Choose a CSV of molecules. You will say which column holds the structures and what, if
+        anything, is measured &mdash; nothing is guessed.</p>
+      <div><button class="btn solid" type="button" id="ds-open-big">Choose a CSV file&hellip;</button></div>
+      <p class="sub">or drop it anywhere on this page</p>
+      <div class="pdbq-msg" id="ds-prompt-msg" aria-live="polite"></div>
+    </section>
+
+    <!-- What the dataset looks like, in numbers: counts and the populations they are of, the
+         target's distribution, duplicates, scaffolds and missing cells. One request, drawn from
+         bins and counts; it does not wait for, or need, the ligand panel below. features/summary.js. -->
+    <section class="gtab sum" id="sum-panel" hidden aria-label="Dataset summary">
+      <div class="hd">
+        <button class="btn tog" type="button" id="sum-tog" aria-expanded="true" aria-controls="sum-body"
+                aria-label="Collapse the summary panel">&#9662;</button>
+        <span class="eyebrow">Dataset summary</span>
+        <span class="eyebrow" id="sum-n"></span>
+      </div>
+      <div class="pdbq-msg" id="sum-msg" aria-live="polite"></div>
+      <div class="sbody" id="sum-body" aria-busy="false"></div>
+    </section>
+
+    <!-- Train a model on the open dataset: what it would be given, a seed and the strategy that
+         picks the hyperparameters, then the run's progress and, once done, its metrics for both
+         strategies side by side. Needs the dataset and nothing else -- not the ligand panel, not
+         the summary. features/training.js. -->
+    <section class="gtab trn" id="trn-panel" hidden aria-label="Train a model">
+      <div class="hd">
+        <button class="btn tog" type="button" id="trn-tog" aria-expanded="true" aria-controls="trn-body"
+                aria-label="Collapse the training panel">&#9662;</button>
+        <span class="eyebrow">Train a model</span>
+        <span class="eyebrow" id="trn-n">XGBoost</span>
+      </div>
+      <div class="tbody" id="trn-body">
+        <div class="tgrid">
+          <dl class="kv" id="trn-ds"></dl>
+          <div class="tset">
+            <form id="trn-form" novalidate>
+              <label class="fld"><span class="eyebrow">Seed</span>
+                <input type="text" id="trn-seed" inputmode="numeric" autocomplete="off" spellcheck="false"
+                       value="0" aria-describedby="trn-seed-err"></label>
+              <p class="pdbq-msg err" id="trn-seed-err" aria-live="polite"></p>
+              <fieldset class="fset" id="trn-strategy" aria-describedby="trn-help">
+                <legend class="eyebrow">Production selection strategy</legend>
+              </fieldset>
+              <p class="sub" id="trn-help"></p>
+              <div class="tbar">
+                <button class="btn solid" type="submit" id="trn-go">Train</button>
+                <button class="btn" type="button" id="trn-cancel" hidden>Cancel</button>
+              </div>
+              <p class="pdbq-msg" id="trn-reason" aria-live="polite"></p>
+            </form>
+          </div>
+          <div class="tstat" id="trn-status" aria-live="polite" aria-busy="false"></div>
+        </div>
+        <div class="tresult" id="trn-result"></div>
+      </div>
+    </section>
+
+    <!-- The registered experiments: every completed run that was kept, its headline metric
+         (only ever ordered among scores of the same kind), and, opened, both strategies' reports,
+         the selected configuration, provenance and artifact health. Rename and notes are the only
+         edits; delete is permanent and asks first. Independent of the open dataset.
+         features/registry.js. -->
+    <section class="gtab reg" id="reg-panel" aria-label="Experiment registry">
+      <div class="hd">
+        <button class="btn tog" type="button" id="reg-tog" aria-expanded="true" aria-controls="reg-main"
+                aria-label="Collapse the registry panel">&#9662;</button>
+        <span class="eyebrow">Experiment registry</span>
+        <span class="eyebrow" id="reg-n"></span>
+        <span class="sp"><button class="btn" type="button" id="reg-refresh">Refresh</button></span>
+      </div>
+      <div class="rbody" id="reg-main">
+        <div class="pdbq-msg" id="reg-msg" aria-live="polite"></div>
+        <div id="reg-body" aria-busy="false"></div>
+        <aside class="rdetail" id="reg-detail" hidden aria-label="Experiment detail"></aside>
+      </div>
+    </section>
+
+    <!-- The ligands of an uploaded dataset: a page of depictions at a time, sorted and
+         filtered by the server, with every original column behind a click. -->
+    <section class="gtab mol page" id="mtab" hidden aria-label="Ligand dataset">
+      <div class="hd">
+        <button class="btn tog" type="button" id="mol-tog" aria-expanded="true" aria-controls="mol-body"
+                aria-label="Collapse the ligand panel">&#9662;</button>
+        <span class="eyebrow">Ligands</span>
+        <span class="eyebrow" id="mol-n"></span>
+        <span class="sp">
+          <label class="chk">Sort
+            <select id="mol-sort-key" aria-label="Sort by"></select></label>
+          <button class="btn" type="button" id="mol-sort-dir" aria-label="Sort direction"></button>
+          <label class="chk">Per page
+            <select id="mol-size" aria-label="Cards per page"></select></label>
+        </span>
+      </div>
+      <!-- Apply a registered model to this dataset: the whole of it, however it is filtered, sorted or
+           paged. The result is a column of the table below. features/predict.js. -->
+      <div class="mpredict" id="pr-panel" hidden>
+        <form id="pr-form" novalidate>
+          <label class="fld"><span class="eyebrow">Registered model</span>
+            <select id="pr-model" aria-describedby="pr-reason pr-note"></select></label>
+          <button class="btn solid" type="submit" id="pr-go">Predict entire dataset</button>
+          <button class="btn" type="button" id="pr-cancel" hidden>Cancel</button>
+          <button class="btn" type="button" id="pr-refresh" aria-label="Reload the list of models">&#8635;</button>
+        </form>
+        <p class="pdbq-msg" id="pr-reason" aria-live="polite"></p>
+        <p class="snote" id="pr-note"></p>
+        <div class="tstat" id="pr-status" aria-live="polite" aria-busy="false"></div>
+        <div id="pr-sets"></div>
+        <p class="pdbq-msg" id="pr-notice" aria-live="polite"></p>
+      </div>
+      <div class="mfilter" id="mol-filter">
+        <select id="mol-f-key" aria-label="Filter column"></select>
+        <select id="mol-f-op" aria-label="Filter operator"></select>
+        <input type="text" id="mol-f-val" aria-label="Filter value" autocomplete="off" spellcheck="false">
+        <button class="btn" type="button" id="mol-f-add">Add filter</button>
+        <span class="chips" id="mol-chips"></span>
+      </div>
+      <div class="pdbq-msg" id="mol-msg" aria-live="polite"></div>
+      <div class="mbody" id="mol-body">
+        <div class="mscroll" id="mol-scroll">
+          <div class="mgrid" id="mol-grid" role="group" aria-label="Ligands on this page"></div>
+        </div>
+        <aside class="mdetail" id="mol-detail" hidden aria-label="Ligand detail"></aside>
+      </div>
+      <div class="mpager">
+        <button class="btn" type="button" id="mol-prev">&larr; Previous</button>
+        <span class="mono" id="mol-range"></span>
+        <button class="btn" type="button" id="mol-next">Next &rarr;</button>
+      </div>
+    </section>
+  </div>
+</main>
+</div>
+
+<div class="dropzone" id="dropzone" hidden><div>Drop a ligand CSV</div></div>
+
+<!-- A ligand CSV: which column holds the structures, and what the target is. Nothing is
+     guessed -- a column's numbers do not say which task is meant, nor its name its units.
+     features/dataset.js drives it. -->
+<dialog class="dlg dlg-wide" id="datadlg" aria-labelledby="dd-title">
+  <form method="dialog" id="dd-form">
+    <h2 class="dlg-h" id="dd-title">Set up the ligand dataset</h2>
+    <p class="dlg-sub" id="dd-sub"></p>
+
+    <label class="fld"><span class="eyebrow">Structure column</span>
+      <select id="dd-structure"></select></label>
+    <p class="dlg-note" id="dd-struct-note" hidden></p>
+
+    <label class="fld"><span class="eyebrow">Target</span>
+      <select id="dd-target"></select></label>
+
+    <fieldset class="fset" id="dd-kind-wrap" hidden>
+      <legend class="eyebrow">Task</legend>
+      <label class="chk"><input type="radio" name="dd-kind" value="regression">
+        Regression — predict a number <span class="aside" id="dd-kind-reg"></span></label>
+      <label class="chk"><input type="radio" name="dd-kind" value="classification">
+        Classification — predict a class <span class="aside" id="dd-kind-cls"></span></label>
+    </fieldset>
+
+    <div id="dd-reg" hidden>
+      <label class="fld"><span class="eyebrow">Qualifier column
+          <button class="info" type="button" aria-expanded="false" aria-controls="dd-tip-qual"
+                  aria-label="About the qualifier column">i</button></span>
+        <select id="dd-qualifier"></select></label>
+      <p class="tip" id="dd-tip-qual" hidden>
+        A qualifier says a value is a bound, not a measurement: <b>&lt;</b>, <b>&gt;</b>,
+        <b>&le;</b>, <b>&ge;</b>. Blank or <b>=</b> is exact. A bound is kept and shown but
+        never trained on as if it were a number. A bound written in the value itself
+        (<b>&gt;10000</b>) counts the same.
+      </p>
+      <label class="fld"><span class="eyebrow">Units of the target</span>
+        <select id="dd-units"></select></label>
+      <fieldset class="fset">
+        <legend class="eyebrow">Transform</legend>
+        <label class="chk"><input type="radio" name="dd-transform" value="identity" checked>
+          Use the values as they are</label>
+        <label class="chk"><input type="radio" name="dd-transform" value="pki">
+          pKi = 9 &minus; log<sub>10</sub>(Ki in nM) <span class="aside" id="dd-pki-aside"></span></label>
+      </fieldset>
+    </div>
+
+    <label class="fld" id="dd-cls" hidden><span class="eyebrow">Positive class</span>
+      <select id="dd-positive"></select></label>
+
+    <p class="dlg-note">Every value in the structure column is read as SMILES.
+      Molecules are identified by RDKit's canonical isomeric SMILES; nothing is stripped,
+      neutralised or normalised.</p>
+
+    <p class="pdbq-msg err" id="dd-errors" aria-live="polite"></p>
+    <p class="pdbq-msg err" id="dd-msg" aria-live="assertive"></p>
+    <div class="dlg-bar">
+      <span class="eyebrow" id="dd-busy"></span>
+      <button class="btn" type="button" id="dd-cancel">Cancel</button>
+      <button class="btn solid" type="submit" id="dd-go" disabled>Use this dataset</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Deleting an experiment: names it and says what goes. A deletion that does not finish is
+     shown as unfinished, with the parts, and can be repeated. features/registry.js. -->
+<dialog class="dlg dlg-wide" id="regdlg" aria-labelledby="rd-title">
+  <form method="dialog" onsubmit="return false">
+    <h2 class="dlg-h" id="rd-title"></h2>
+    <p class="dlg-note" id="rd-body"></p>
+    <p class="pdbq-msg" id="rd-msg" aria-live="assertive"></p>
+    <div class="dlg-bar">
+      <span class="eyebrow"></span>
+      <button class="btn" type="button" id="rd-cancel">Cancel</button>
+      <button class="btn solid danger" type="button" id="rd-go">Delete permanently</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="/js/ligands.js"></script>
+</body>
+</html>

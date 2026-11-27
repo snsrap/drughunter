@@ -2,7 +2,7 @@
    here, so errors come back as one kind of Error with a readable message. */
 
 /* The response shape this page expects; see proteinviewer/service.py. */
-export const API_VERSION = 5;
+export const API_VERSION = 7;
 
 export class StaleServerError extends Error {}
 
@@ -21,7 +21,12 @@ async function request(url, init){
     throw new Error("server returned HTTP " + r.status + ", not JSON");
   }
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  if (!r.ok){
+    const err = new Error(j.error || ("HTTP " + r.status));
+    err.status = r.status;     /* a caller can tell a vanished run (404) from a refusal */
+    if (j.report) err.report = j.report;   /* a delete that did not finish says which parts did */
+    throw err;
+  }
   return j;
 }
 
@@ -66,3 +71,43 @@ export function job(id, opts){
   return request("/api/job?id=" + encodeURIComponent(id) +
                  (opts.molecules ? "&mols=1" : "") + (opts.table ? "&table=1" : ""));
 }
+
+/* Ligand datasets. An upload is staged until its columns are chosen:
+   upload -> {dataset_id, state: "staged", columns, n_rows, structure_candidates}, then
+   resolve with the choices -> the dataset, ready. Cancel removes a staged one.
+   Rows come a page at a time, sorted and filtered by the server. */
+export function datasetUpload(name, data){ return post("/api/dataset/upload", {name, data}); }
+export function datasetResolve(body){ return post("/api/dataset/resolve", body); }
+export function datasetCancel(id){ return post("/api/dataset/cancel", {dataset_id: id}); }
+export function dataset(id){ return request("/api/dataset?id=" + encodeURIComponent(id)); }
+export function datasetRows(body){ return post("/api/dataset/rows", body); }
+/* The dashboard's statistics for a ready dataset: one answer of counts, bins and
+   class counts, never rows. The server computes it once and keeps it. */
+export function datasetSummary(id){ return request("/api/dataset/summary?id=" + encodeURIComponent(id)); }
+
+/* Training: POST starts a job and answers its progress dict; GET polls it; the
+   completed run's record is its own request, and cancel stops a queued or running
+   one. A run is known by the id the first answer gives. */
+export function startTraining(body){ return post("/api/training", body); }
+export function trainingProgress(id){ return request("/api/training?id=" + encodeURIComponent(id)); }
+export function trainingRun(id){ return request("/api/training/run?id=" + encodeURIComponent(id)); }
+export function cancelTraining(id){ return post("/api/training/cancel", {id}); }
+
+/* The experiment registry: register a completed run by its id and a name; list
+   (selectable ones, or every record with all=true); read one record in full; rename
+   and edit annotations; delete for good (answers the per-part report). */
+export function registerExperiment(runId, name){ return post("/api/experiments", {run_id: runId, name}); }
+export function experiments(all){ return request("/api/experiments" + (all ? "?all=true" : "")); }
+export function experiment(id){ return request("/api/experiments?id=" + encodeURIComponent(id)); }
+export function updateExperiment(body){ return post("/api/experiments/update", body); }
+export function deleteExperiment(id){ return post("/api/experiments/delete", {id}); }
+
+/* Applying a registered model to every row of a ready dataset: POST starts a job and answers
+   its progress (it names the dataset and experiment it was started for); GET polls it; cancel
+   stops a queued or running one. The dataset's predictions are its columns and the sets kept
+   for it; a set is removed by its key. */
+export function startPrediction(body){ return post("/api/dataset/predict", body); }
+export function predictionProgress(id){ return request("/api/dataset/predict?id=" + encodeURIComponent(id)); }
+export function cancelPrediction(id){ return post("/api/dataset/predict/cancel", {id}); }
+export function datasetPredictions(datasetId){ return request("/api/dataset/predictions?dataset_id=" + encodeURIComponent(datasetId)); }
+export function deletePredictions(datasetId, key){ return post("/api/dataset/predictions/delete", {dataset_id: datasetId, key}); }

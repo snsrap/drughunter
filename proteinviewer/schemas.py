@@ -7,6 +7,7 @@ unusable. The service below only ever sees these, never raw dicts.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -26,12 +27,49 @@ __all__ = [
     "ScoreQuery",
     "ProjectRequest",
     "ProjectSaveRequest",
+    "DatasetUploadRequest",
+    "DatasetResolveRequest",
+    "DatasetIdRequest",
+    "DatasetRowsRequest",
+    "DatasetSplitRequest",
+    "DatasetSummaryRequest",
+    "TrainingStartRequest",
+    "TrainingQuery",
+    "ExperimentRegisterRequest",
+    "ExperimentQuery",
+    "ExperimentIdRequest",
+    "ExperimentUpdateRequest",
+    "ExperimentHealthQuery",
     "DEFAULT_CUTOFF",
+    "DEFAULT_PAGE",
+    "MAX_PAGE",
 ]
 
 #: Residues within this of a site point make the pocket, Å. pocketbench's
 #: default too; sent with every run, so the two never have to agree silently.
 DEFAULT_CUTOFF = 6.0
+
+#: Rows of a dataset sent at once, by default and at most. A page is what the
+#: browser mounts and what gets drawn, so the ceiling is the server's.
+DEFAULT_PAGE = 50
+MAX_PAGE = 100
+
+TARGET_KINDS = ("regression", "classification")
+TRANSFORMS = ("identity", "pki")
+SPLIT_STRATEGIES = ("random", "scaffold")
+#: ``tiny`` is the small search CI runs; ``full`` is the real one.
+TRAINING_PROFILES = ("full", "tiny")
+#: Seeds are whole numbers from 0 to this: ligandbench's own limit, and what a
+#: browser and a command line both carry without loss.
+MAX_SEED = 2**32 - 1
+
+
+def _seed(p: Mapping[str, Any]) -> int:
+    """A whole number from 0 to ``MAX_SEED``; 0 when left out."""
+    seed = validate.integer(p, "seed", 0, lo=0)
+    if seed > MAX_SEED:  # not validate's own hi=, which prints it as 4.29497e+09
+        raise BadRequest("seed must be at most %d" % MAX_SEED)
+    return seed
 
 
 @dataclass(frozen=True)
@@ -294,3 +332,434 @@ class ProjectSaveRequest:
             MappingProxyType(dict(session)) if session is not None else None,
             bool(p.get("overwrite")),
         )
+
+
+@dataclass(frozen=True)
+class DatasetUploadRequest:
+    """``POST /api/dataset/upload``: keep a CSV, staged until its columns are
+    chosen. ``name`` is the file's own name, shown back to the user.
+    """
+
+    name: str
+    data: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetUploadRequest:
+        data = validate.text(p, "data")
+        if not data.strip():
+            raise BadRequest("the file is empty")
+        name = validate.text(p, "name", "dataset.csv").replace("\\", "/").rsplit("/", 1)[-1]
+        return cls(name.strip()[:200] or "dataset.csv", data)
+
+
+@dataclass(frozen=True)
+class DatasetResolveRequest:
+    """``POST /api/dataset/resolve``: the choices that turn a staged CSV (or a
+    ready dataset, afresh) into a dataset.
+
+    ``config`` is what ligandbench takes: the structure column, and a target --
+    or None, for a dataset used only for prediction. Which task a column is for
+    and what its qualifier column and units are cannot be inferred, so the
+    request says: ``qualifier_column`` must be present, null meaning none.
+    """
+
+    dataset_id: str
+    config: Mapping[str, Any]
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetResolveRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        structure = validate.text(p, "structure_column")
+        if not dataset_id or not structure:
+            raise BadRequest("name the dataset and its structure column")
+        column = validate.text(p, "target_column")
+        if not column:
+            return cls(dataset_id, {"structure_column": structure, "target": None})
+        kind = validate.text(p, "target_kind")
+        if kind not in TARGET_KINDS:
+            raise BadRequest("say whether %r is %s" % (column, " or ".join(TARGET_KINDS)))
+        if "qualifier_column" not in p:
+            raise BadRequest("confirm the qualifier column for %r, or send null for none" % column)
+        qualifier = p["qualifier_column"]
+        if qualifier is not None and (not isinstance(qualifier, str) or not qualifier):
+            raise BadRequest("qualifier_column must be a column name or null")
+        target: dict[str, Any] = {
+            "column": column,
+            "kind": kind,
+            "qualifier_column": qualifier,
+            "positive_class": validate.text(p, "positive_class") or None,
+        }
+        if kind == "regression":
+            if not isinstance(p.get("source_units"), str):
+                raise BadRequest("confirm the units of %r (an empty string for none)" % column)
+            transform = validate.choice(p, "transform", TRANSFORMS, "identity")
+            target.update(transform=transform, source_units=p["source_units"])
+        return cls(dataset_id, MappingProxyType({"structure_column": structure, "target": target}))
+
+
+@dataclass(frozen=True)
+class DatasetIdRequest:
+    """``POST /api/dataset/cancel`` and ``GET /api/dataset?id=...``."""
+
+    dataset_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetIdRequest:
+        dataset_id = validate.text(p, "dataset_id") or validate.text(p, "id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(dataset_id)
+
+
+@dataclass(frozen=True)
+class DatasetRowsRequest:
+    """``POST /api/dataset/rows``: one page of a dataset, sorted and filtered.
+
+    ``sort`` is ``{key, dir}`` and ``filters`` a list of ``{key, op, value}``;
+    both are checked against the dataset's columns where those are known
+    (see ``rowquery``). ``depict`` asks for each row's drawing too.
+    """
+
+    dataset_id: str
+    offset: int
+    limit: int
+    sort: Mapping[str, Any] | None
+    filters: tuple[Mapping[str, Any], ...]
+    depict: bool
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetRowsRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        sort = p.get("sort")
+        if sort is not None and not isinstance(sort, Mapping):
+            raise BadRequest("sort must be {key, dir}")
+        filters = p.get("filters") or []
+        if not isinstance(filters, (list, tuple)) or not all(
+            isinstance(f, Mapping) for f in filters
+        ):
+            raise BadRequest("filters must be a list of {key, op, value}")
+        return cls(
+            dataset_id,
+            validate.integer(p, "offset", 0, lo=0),
+            validate.integer(p, "limit", DEFAULT_PAGE, lo=1, hi=MAX_PAGE),
+            MappingProxyType(dict(sort)) if sort is not None else None,
+            tuple(MappingProxyType(dict(f)) for f in filters),
+            p.get("depict", True) is not False,
+        )
+
+
+@dataclass(frozen=True)
+class DatasetSplitRequest:
+    """``POST /api/dataset/splits``: five repeated holdouts of a ready dataset by
+    one strategy. ``strategy`` must be named; ``seed`` is a whole number from 0
+    (0 when left out) and is echoed back, since it is what makes the split repeatable.
+    """
+
+    dataset_id: str
+    strategy: str
+    seed: int
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetSplitRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        if not validate.text(p, "strategy"):
+            raise BadRequest("say which strategy: %s" % " or ".join(SPLIT_STRATEGIES))
+        strategy = validate.choice(p, "strategy", SPLIT_STRATEGIES, "")
+        return cls(dataset_id, strategy, _seed(p))
+
+
+@dataclass(frozen=True)
+class DatasetSummaryRequest:
+    """``GET /api/dataset/summary?id=...``: the statistics of a ready dataset."""
+
+    dataset_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetSummaryRequest:
+        dataset_id = validate.text(p, "dataset_id") or validate.text(p, "id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(dataset_id)
+
+
+@dataclass(frozen=True)
+class TrainingStartRequest:
+    """``POST /api/training``: train a model on a ready dataset.
+
+    ``seed`` is a whole number from 0 (0 when left out), as for a split.
+    ``production_strategy`` names the split whose validation scores choose the
+    model that is refitted on every eligible row; it is fixed before any test
+    score exists and defaults to ``scaffold``. ``profile`` is the search: ``full``
+    unless a test asks for ``tiny``.
+    """
+
+    dataset_id: str
+    seed: int
+    production_strategy: str
+    profile: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> TrainingStartRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(
+            dataset_id,
+            _seed(p),
+            validate.choice(p, "production_strategy", SPLIT_STRATEGIES, "scaffold"),
+            validate.choice(p, "profile", TRAINING_PROFILES, "full"),
+        )
+
+
+@dataclass(frozen=True)
+class TrainingQuery:
+    """``GET /api/training?id=...``, ``GET /api/training/run?id=...`` and
+    ``POST /api/training/cancel`` (the id in the body, as ``id``).
+    """
+
+    run_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> TrainingQuery:
+        run_id = validate.text(p, "id") or validate.text(p, "run_id")
+        if not run_id:
+            raise BadRequest("name the training run")
+        return cls(run_id)
+
+
+# -- applying a registered model to a dataset -----------------------------------
+_PREDICTION_KEY = re.compile(r"^pred_[0-9a-f]{32}_[0-9a-f]{12}$")
+
+
+@dataclass(frozen=True)
+class PredictionStartRequest:
+    """``POST /api/dataset/predict``: apply a registered experiment's model to every row
+    of a ready dataset. There is nothing else to choose: the whole dataset, whatever the
+    page is filtered to, and the model exactly as it was trained.
+    """
+
+    dataset_id: str
+    experiment_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> PredictionStartRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(dataset_id, _experiment_id({"id": p.get("experiment_id")}, required=True))
+
+
+@dataclass(frozen=True)
+class PredictionQuery:
+    """``GET /api/dataset/predict?id=...`` and ``POST /api/dataset/predict/cancel``."""
+
+    job_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> PredictionQuery:
+        job_id = validate.text(p, "id") or validate.text(p, "job_id")
+        if not job_id:
+            raise BadRequest("name the prediction job")
+        return cls(job_id)
+
+
+@dataclass(frozen=True)
+class PredictionSetRequest:
+    """``POST /api/dataset/predictions/delete``: one kept set of predictions."""
+
+    dataset_id: str
+    key: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> PredictionSetRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        key = validate.text(p, "key")
+        if not key or not _PREDICTION_KEY.match(key):
+            raise BadRequest("name the set of predictions by its key")
+        return cls(dataset_id, key)
+
+
+# -- the experiment registry --------------------------------------------------
+#: What a training run id looks like (``run-`` and twelve hex digits today); the
+#: shape is checked loosely so a change in how runs are named does not break it.
+_RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+#: The shape of an experiment id, a uuid. The registry checks the rest (version
+#: and variant) and answers 404 for a well-formed id it never made.
+_EXPERIMENT_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+#: Facts of a run. They cannot be edited; a request that tries says so by name
+#: rather than silently ignoring them. (The registry's database refuses them too.)
+IMMUTABLE_FIELDS = frozenset(
+    {
+        "source_run_id",
+        "run_id",
+        "model_family",
+        "initiator",
+        "created_utc",
+        "updated_utc",
+        "run_created_utc",
+        "dataset_id",
+        "dataset_hash",
+        "task",
+        "target_column",
+        "target",
+        "production_strategy",
+        "production",
+        "artifact_path",
+        "splits",
+        "repeat_configs",
+        "feature_schema",
+        "metrics",
+        "validation_trace",
+        "versions",
+        "checksums",
+        "run",
+        "state",
+        "state_detail",
+    }
+)
+NAME_MAX = 200
+ANNOTATIONS_MAX = 32
+ANNOTATION_KEY_MAX = 64
+ANNOTATION_VALUE_MAX = 2000
+_TRUE = ("1", "true", "yes", "on")
+_FALSE = ("0", "false", "no", "off")
+
+
+def _experiment_id(p: Mapping[str, Any], *, required: bool) -> str:
+    v = validate.text(p, "id").strip().lower()
+    if not v:
+        if required:
+            raise BadRequest("name the experiment (its id)")
+        return ""
+    if not _EXPERIMENT_ID.match(v):
+        raise BadRequest("an experiment id is a uuid, like 123e4567-e89b-42d3-a456-426614174000")
+    return v
+
+
+def _name(p: Mapping[str, Any]) -> str:
+    v = validate.text(p, "name").strip()
+    if not v:
+        raise BadRequest("name the experiment: the name must be some text")
+    if len(v) > NAME_MAX or any(ord(c) < 32 or ord(c) == 127 for c in v):
+        raise BadRequest("the name must be at most %d characters on one line" % NAME_MAX)
+    return v
+
+
+def _annotations(value: Any) -> Mapping[str, str]:
+    if not isinstance(value, Mapping):
+        raise BadRequest("annotations must be an object of text notes")
+    if len(value) > ANNOTATIONS_MAX:
+        raise BadRequest("annotations are at most %d notes" % ANNOTATIONS_MAX)
+    for k, v in value.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            raise BadRequest("annotations are text keys with text values")
+        if not k.strip() or len(k) > ANNOTATION_KEY_MAX or len(v) > ANNOTATION_VALUE_MAX:
+            raise BadRequest(
+                "an annotation key is 1-%d characters and its value at most %d"
+                % (ANNOTATION_KEY_MAX, ANNOTATION_VALUE_MAX)
+            )
+    return MappingProxyType(dict(value))
+
+
+def _flag(p: Mapping[str, Any], key: str, default: bool) -> bool:
+    v = p.get(key)
+    if v is None or v == "":
+        return default
+    if isinstance(v, bool):
+        return v
+    word = str(v).strip().lower()
+    if word in _TRUE:
+        return True
+    if word in _FALSE:
+        return False
+    raise BadRequest("%s must be true or false" % key)
+
+
+@dataclass(frozen=True)
+class ExperimentRegisterRequest:
+    """``POST /api/experiments``: keep a completed training run, under a name."""
+
+    run_id: str
+    name: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> ExperimentRegisterRequest:
+        run_id = validate.text(p, "run_id").strip()
+        if not run_id:
+            raise BadRequest("name the training run to register (run_id)")
+        if not _RUN_ID.match(run_id):
+            raise BadRequest("%r is not a training run id" % run_id[:80])
+        return cls(run_id, _name(p))
+
+
+@dataclass(frozen=True)
+class ExperimentQuery:
+    """``GET /api/experiments``: every selectable experiment, or with ``id`` one
+    experiment in any state. ``all=true`` lists every record, whatever its state
+    (what a registry page shows beside the failures).
+    """
+
+    experiment_id: str  # "" for the list
+    everything: bool
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> ExperimentQuery:
+        return cls(_experiment_id(p, required=False), _flag(p, "all", False))
+
+
+@dataclass(frozen=True)
+class ExperimentIdRequest:
+    """``POST /api/experiments/delete``: the experiment, by id."""
+
+    experiment_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> ExperimentIdRequest:
+        return cls(_experiment_id(p, required=True))
+
+
+@dataclass(frozen=True)
+class ExperimentUpdateRequest:
+    """``POST /api/experiments/update``: ``name`` and/or ``annotations`` of one
+    experiment. A field that is left out is left alone; ``annotations`` replaces
+    the whole set of notes. Nothing else can be changed: the model, target,
+    splits and metrics are facts of the run, and asking for one is refused by name.
+    """
+
+    experiment_id: str
+    name: str | None
+    annotations: Mapping[str, str] | None
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> ExperimentUpdateRequest:
+        for key in p:
+            if key in IMMUTABLE_FIELDS:
+                raise BadRequest(
+                    "%r is a fact of the training run and cannot be changed; register a new "
+                    "run to get a different one (only name and annotations can be edited)" % key
+                )
+            if key not in ("id", "name", "annotations"):
+                raise BadRequest("unknown field %r (only name and annotations can be edited)" % key)
+        experiment_id = _experiment_id(p, required=True)
+        name = _name(p) if p.get("name") is not None else None
+        notes = _annotations(p["annotations"]) if p.get("annotations") is not None else None
+        if name is None and notes is None:
+            raise BadRequest("say what to change: name and/or annotations")
+        return cls(experiment_id, name, notes)
+
+
+@dataclass(frozen=True)
+class ExperimentHealthQuery:
+    """``GET /api/experiments/health``: ``deep=false`` skips re-hashing every file."""
+
+    deep: bool
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> ExperimentHealthQuery:
+        return cls(_flag(p, "deep", True))

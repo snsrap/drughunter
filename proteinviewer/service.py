@@ -10,29 +10,52 @@ protocols below, so tests hand in fakes.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
+import shutil
+import sqlite3
 import threading
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
+from . import rowquery
 from .buffer import BufferedStructure, PocketRun, StructureBuffer
-from .errors import BadRequest, Conflict, NotFound
+from .dataset import DatasetStore
+from .errors import BadRequest, Conflict, NotFound, ToolFailed, ToolUnavailable, ViewerError
+from .experiments import STATES as EXPERIMENT_STATES
+from .experiments import ExperimentStore, StoreError
 from .pockets import residue_list, spheres_pdb
 from .project import Project, ProjectStore, csv_text, resolve_destination, safe_name
 from .schemas import (
     BufferRequest,
+    DatasetIdRequest,
+    DatasetResolveRequest,
+    DatasetRowsRequest,
+    DatasetSplitRequest,
+    DatasetSummaryRequest,
+    DatasetUploadRequest,
+    ExperimentHealthQuery,
+    ExperimentIdRequest,
+    ExperimentQuery,
+    ExperimentRegisterRequest,
+    ExperimentUpdateRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
+    PredictionQuery,
+    PredictionSetRequest,
+    PredictionStartRequest,
     PrepRequest,
     ProjectRequest,
     ProjectSaveRequest,
     ScoreQuery,
     ScoreRequest,
     SuperposeRequest,
+    TrainingQuery,
+    TrainingStartRequest,
 )
 
 __all__ = [
@@ -44,6 +67,10 @@ __all__ = [
     "GenerationJob",
     "PoseScoring",
     "ScoringJob",
+    "LigandTools",
+    "Trainer",
+    "DeleteIncomplete",
+    "DeleteFailed",
 ]
 
 log = logging.getLogger("proteinviewer")
@@ -53,7 +80,9 @@ log = logging.getLogger("proteinviewer")
 #: 4: /api/superpose; status lists additives and superposition; buffering no
 #: longer counts atoms (the server parses no structures).
 #: 5: /api/score-poses and /api/score-job; status says what can score a pose.
-API_VERSION = 5
+#: 6: /api/dataset/* (upload, resolve, cancel, rows); status says whether ligand
+#: datasets can be read.
+API_VERSION = 7
 
 #: The molecule-table columns written to a project's CSV, in table order. The
 #: depictions in the same rows are left out; they are in molecules.json.
@@ -77,6 +106,53 @@ MOLECULE_COLUMNS = (
     "scorer",
     "smiles",
 )
+
+
+#: What a page of rows carries: the row as stored, less nothing the page needs
+#: to show it whole (every source cell, why it cannot train, what it was made into).
+ROW_FIELDS = (
+    "row_id",
+    "record",
+    "cells",
+    "smiles",
+    "structure_error",
+    "target",
+    "target_source",
+    "qualifier",
+    "censored",
+    "prediction_eligible",
+    "training_eligible",
+    "exclusions",
+)
+
+
+def _row_view(row: Mapping[str, Any], id_index: int | None) -> dict:
+    """A stored row as the page gets it, with the name it is listed by: the
+    first non-structure text column, or the record number when that is blank.
+    """
+    out = {k: row[k] for k in ROW_FIELDS}
+    name = row["cells"][id_index].strip() if id_index is not None else ""
+    out["label"] = name or str(row["record"])
+    return out
+
+
+def _attach_predictions(rows: list[dict], sets: list[dict]) -> None:
+    """Each row of a page with its predictions (by output key) and, for a set that could not
+    predict it, the reason: joined by row id, so a number is on the row it was made for.
+    """
+    if not sets:
+        return
+    for row in rows:
+        rid = str(row["row_id"])
+        found: dict[str, Any] = {}
+        why: dict[str, str] = {}
+        for kept in sets:
+            if rid in kept["values"]:
+                found.update(kept["values"][rid])
+            elif rid in kept["errors"]:
+                why[kept["key"]] = kept["errors"][rid]
+        row["predictions"] = found
+        row["prediction_errors"] = why
 
 
 def merge_scores(
@@ -207,6 +283,83 @@ class Generator(Protocol):
     def get(self, job_id: str) -> GenerationJob | None: ...
 
 
+class LigandTools(Protocol):
+    """Reading ligand datasets: ligandbench (ligandbench.py)."""
+
+    def describe(self) -> dict: ...
+
+    def inspect(self, csv_path: str) -> dict: ...
+
+    def resolve(self, csv_path: str, config: Mapping[str, Any], out_dir: str) -> dict: ...
+
+    def depict(self, smiles: list[str]) -> dict: ...
+
+    def split(self, dataset_dir: str, strategy: str, seed: int) -> dict: ...
+    def summarize(self, dataset_dir: str) -> dict: ...
+
+    def training_unavailable(self) -> str | None: ...
+
+    def start_training(
+        self, dataset_dir: str, run_dir: str, seed: int, strategy: str, profile: str
+    ) -> Any: ...
+
+    def training_outcome(self, returncode: int | None, stdout: str, stderr: str) -> dict: ...
+
+    def prediction_unavailable(self) -> str | None: ...
+
+    def model_compatibility(
+        self, versions: Mapping[str, Any] | None, schema: str | None
+    ) -> str | None: ...
+
+    def start_prediction(self, run_dir: str, dataset_dir: str, out_dir: str) -> Any: ...
+
+    def prediction_outcome(self, returncode: int | None, stdout: str, stderr: str) -> dict: ...
+
+
+class Trainer(Protocol):
+    """Training jobs on ready datasets: the registry in training.py."""
+
+    def describe(self) -> dict: ...
+
+    def start(
+        self,
+        dataset_id: str,
+        dataset_dir: str,
+        seed: int,
+        production_strategy: str,
+        profile: str = "full",
+    ) -> dict: ...
+
+    def progress(self, run_id: str) -> dict: ...
+
+    def run(self, run_id: str) -> dict: ...
+
+    def cancel(self, run_id: str) -> dict: ...
+
+    def pin(self, run_id: str) -> contextlib.AbstractContextManager[Path]: ...
+
+
+class DeleteIncomplete(Conflict):
+    """A deletion that is waiting on something in use. ``report`` says, part by
+    part, what was and was not removed; the record is left ``deleting`` and the
+    request can be made again.
+    """
+
+    def __init__(self, message: str, report: dict):
+        super().__init__(message)
+        self.report = report
+
+
+class DeleteFailed(ViewerError):
+    """A deletion that could not remove something it owns (the server's problem,
+    not the client's). Reported like :class:`DeleteIncomplete`; retryable.
+    """
+
+    def __init__(self, message: str, report: dict):
+        super().__init__(message)
+        self.report = report
+
+
 class ViewerService:
     def __init__(
         self,
@@ -218,8 +371,24 @@ class ViewerService:
         projects: ProjectStore | None = None,
         work_root: os.PathLike | str | None = None,
         version: str = "",
+        ligands: LigandTools | None = None,
+        datasets: DatasetStore | None = None,
+        training: Trainer | None = None,
+        experiments: ExperimentStore | None = None,
+        experiments_error: str = "",
+        predictions: Any = None,
     ):
         self.version = version
+        self.training = training
+        # Background jobs applying a registered model to a dataset (predictions.py); None
+        # when there is no registry or no dataset directory to work with.
+        self.predictions = predictions
+        # None when the registry could not be opened; then the experiment routes
+        # answer 503 with ``experiments_error`` and nothing else is affected.
+        self.experiments = experiments
+        self.experiments_error = experiments_error
+        self.ligands = ligands
+        self.datasets = datasets
         self.buffer = buffer
         self.pockets = pockets
         self.prep = prep
@@ -236,6 +405,9 @@ class ViewerService:
         self._score_jobs: dict[str, tuple[str, str]] = {}
         self._scores_written: set[str] = set()
         self._lock = threading.Lock()
+        # One summary at a time per dataset: the first request computes it and the
+        # ones that arrived meanwhile read what it kept.
+        self._summary_locks: dict[str, threading.Lock] = {}
 
     def status(self) -> dict:
         """Which tools this server can run. Probing some of them starts an
@@ -256,6 +428,20 @@ class ViewerService:
                 "available": self.projects is not None,
                 "root": str(self.projects.root) if self.projects else "",
             },
+            "datasets": self._datasets_status(),
+            "training": self.training.describe() if self.training else {"available": False},
+            "experiments": self._experiments_status(),
+            "predictions": self.predictions.describe()
+            if self.predictions
+            else {"available": False},
+        }
+
+    def _datasets_status(self) -> dict:
+        info = self.ligands.describe() if self.ligands else {}
+        return {
+            **{k: info.get(k, "") for k in ("version", "rdkit", "depiction")},
+            "available": bool(info.get("available")) and self.datasets is not None,
+            "root": str(self.datasets.root) if self.datasets else "",
         }
 
     def buffer_structure(self, req: BufferRequest) -> dict:
@@ -475,6 +661,595 @@ class ViewerService:
             out.update(sjob.payload())
             self._write_scores(sjob)
         return out
+
+    # -- ligand datasets ------------------------------------------------------
+    def _store(self) -> DatasetStore:
+        if self.datasets is None or self.ligands is None:
+            raise Conflict("this server has no dataset directory")
+        return self.datasets
+
+    def upload_dataset(self, req: DatasetUploadRequest) -> dict:
+        """Keep an uploaded CSV, staged, and say what is in it: its columns,
+        and which of them might hold structures. It cannot train until the
+        user has resolved it; abandoned, it expires after 24 hours.
+        """
+        store = self._store()
+        staged = store.stage(req.name, req.data)
+        dataset_id = staged["dataset_id"]
+        try:
+            found = self.ligands.inspect(str(store.source(dataset_id)[0]))
+        except Exception:
+            store.cancel(dataset_id)  # a file that cannot be read is not kept
+            raise
+        view = {
+            "n_rows": found.get("n_rows"),
+            "columns": found.get("columns", []),
+            "structure_candidates": found.get("structure_candidates", []),
+        }
+        store.annotate(dataset_id, **view)
+        log.info("dataset %s staged: %s, %s rows", dataset_id, req.name, view["n_rows"])
+        return {"dataset_id": dataset_id, "state": "staged", "name": req.name, **view}
+
+    def resolve_dataset(self, req: DatasetResolveRequest) -> dict:
+        """Apply the user's choices. A staged dataset becomes ready under its
+        own id; a ready one resolved again becomes a new dataset, so the old
+        id keeps meaning what it meant.
+        """
+        store = self._store()
+        source, name, state = store.source(req.dataset_id)
+        work = store.workdir()
+        try:
+            self.ligands.resolve(str(source), req.config, str(work))
+            meta = store.commit(
+                work,
+                name=name,
+                source=source,
+                staged_id=req.dataset_id if state == "staged" else None,
+            )
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        log.info(
+            "dataset %s ready: %s rows, %s trainable",
+            meta["dataset_id"],
+            meta["n_rows"],
+            meta["n_training_eligible"],
+        )
+        return self._dataset_view(meta)
+
+    def cancel_dataset(self, req: DatasetIdRequest) -> dict:
+        self._store().cancel(req.dataset_id)
+        return {"dataset_id": req.dataset_id, "state": "cancelled"}
+
+    def dataset_status(self, req: DatasetIdRequest) -> dict:
+        """A dataset by id: a ready one is reopened from disk after a restart, and a
+        staged one comes back with its columns, still waiting to be resolved.
+        """
+        store = self._store()
+        try:
+            return self._dataset_view(store.get(req.dataset_id))
+        except NotFound:
+            staged = store.staged(req.dataset_id)
+            if staged is None:
+                raise
+            return {
+                "dataset_id": req.dataset_id,
+                "state": "staged",
+                "name": staged["name"],
+                "n_rows": staged.get("n_rows"),
+                "columns": staged.get("columns", []),
+                "structure_candidates": staged.get("structure_candidates", []),
+            }
+
+    def dataset_rows(self, req: DatasetRowsRequest) -> dict:
+        """One page of a ready dataset. Sorting and filtering happen before the
+        page is cut, and only the rows in it are drawn.
+        """
+        store = self._store()
+        meta = store.get(req.dataset_id)
+        extra, sets = self._prediction_columns(req.dataset_id)
+        columns = rowquery.schema(meta, extra)
+        page, total = rowquery.run(
+            columns,
+            store.rows(req.dataset_id),
+            filters=rowquery.parse_filters(columns, req.filters),
+            sort=rowquery.parse_sort(columns, req.sort),
+            offset=req.offset,
+            limit=req.limit,
+        )
+        id_index = next(
+            (c["index"] for c in meta["columns"] if c["name"] == meta.get("id_column")), None
+        )
+        rows = [_row_view(r, id_index) for r in page]
+        _attach_predictions(rows, sets)
+        if req.depict:
+            self._depict(meta, rows)
+        return {
+            "dataset_id": req.dataset_id,
+            "total": total,
+            "offset": req.offset,
+            "limit": req.limit,
+            "rows": rows,
+        }
+
+    def dataset_splits(self, req: DatasetSplitRequest) -> dict:
+        """Five repeated holdouts of a ready dataset, by one strategy and seed.
+
+        Only a resolved dataset with a target can be split: a staged one has to
+        be resolved first, and one without a target is not for training. The
+        split is made by ligandbench from the dataset's stored rows; what comes
+        back is its result -- ``ok`` with the repeats, or ``split_unavailable``
+        with why, which is an answer and not an error -- with the dataset's id
+        added. Nothing is stored: the caller keeps the result it is given.
+        """
+        store = self._store()
+        try:
+            meta = store.get(req.dataset_id)
+        except NotFound:
+            if store.staged(req.dataset_id) is not None:
+                raise Conflict(
+                    "dataset %s is staged, not resolved: choose its structure column and "
+                    "target (resolve it) before splitting it" % req.dataset_id
+                ) from None
+            raise
+        if not meta.get("trainable"):
+            raise BadRequest(
+                "dataset %s has no target, so it cannot be split for training; resolve it "
+                "again with a target column" % req.dataset_id
+            )
+        # A ready dataset is a directory: source.csv beside the rows.json and
+        # dataset.json that ligandbench reads.
+        directory = store.source(req.dataset_id)[0].parent
+        out = self.ligands.split(str(directory), req.strategy, req.seed)
+        log.info(
+            "dataset %s: %s split, seed %d: %s",
+            req.dataset_id,
+            req.strategy,
+            req.seed,
+            out.get("status"),
+        )
+        return {"dataset_id": req.dataset_id, **out}
+
+    def dataset_summary(self, req: DatasetSummaryRequest) -> dict:
+        """The dashboard's statistics for a ready dataset, in one answer: counts
+        with their populations, duplicates, the target's histogram or class
+        counts, scaffold concentration and missing cells. No row is in it.
+
+        A ready dataset never changes, so what ligandbench computes is kept
+        beside it, under the summary version ligandbench reports, and every
+        later request -- from any page, after a restart -- reads that. A new
+        version of the summary computes again and leaves the old file alone.
+        """
+        store = self._store()
+        store.get(req.dataset_id)  # a staged or unknown id is NotFound here, as for its rows
+        version = str(self.ligands.describe().get("summary", ""))
+        with self._summary_locks.setdefault(req.dataset_id, threading.Lock()):
+            summary = store.cached_summary(req.dataset_id, version)
+            if summary is None:
+                summary = self.ligands.summarize(str(store.directory(req.dataset_id)))
+                store.put_summary(req.dataset_id, version, summary)
+        return {"dataset_id": req.dataset_id, **summary}
+
+    # -- training ------------------------------------------------------------
+    def _trainer(self) -> Trainer:
+        if self.training is None:
+            raise ToolUnavailable("this server cannot train models", "ligandbench")
+        return self.training
+
+    def start_training(self, req: TrainingStartRequest) -> dict:
+        """Queue a training run on a ready dataset; returns its progress, with the
+        run's ``id``. Only a resolved dataset with a target can train: a staged one
+        has to be resolved first (409), one without a target is refused (400), and
+        both are refused before any process starts. A missing ligandbench or XGBoost
+        is a 503, a full queue a 409.
+        """
+        trainer = self._trainer()
+        store = self._store()
+        try:
+            meta = store.get(req.dataset_id)
+        except NotFound:
+            if store.staged(req.dataset_id) is not None:
+                raise Conflict(
+                    "dataset %s is staged, not resolved: choose its structure column and "
+                    "target (resolve it) before training on it" % req.dataset_id
+                ) from None
+            raise
+        if not meta.get("trainable"):
+            raise BadRequest(
+                "dataset %s has no target, so it cannot be trained on; resolve it "
+                "again with a target column" % req.dataset_id
+            )
+        started = trainer.start(
+            req.dataset_id,
+            str(store.directory(req.dataset_id)),
+            req.seed,
+            req.production_strategy,
+            req.profile,
+        )
+        log.info(
+            "training %s: dataset %s, seed %d, %s production strategy, %s profile",
+            started.get("id"),
+            req.dataset_id,
+            req.seed,
+            req.production_strategy,
+            req.profile,
+        )
+        return started
+
+    def training_status(self, q: TrainingQuery) -> dict:
+        return self._trainer().progress(q.run_id)
+
+    def training_run(self, q: TrainingQuery) -> dict:
+        """A completed run's ``run.json``: metadata only, never the model."""
+        return self._trainer().run(q.run_id)
+
+    def cancel_training(self, q: TrainingQuery) -> dict:
+        return self._trainer().cancel(q.run_id)
+
+    # -- experiments -----------------------------------------------------------
+    def _registry(self) -> ExperimentStore:
+        if self.experiments is None:
+            raise ToolUnavailable(
+                "the experiment registry is not available: %s"
+                % (self.experiments_error or "it was not configured"),
+                "experiments",
+            )
+        return self.experiments
+
+    def _clean(self, value: Any, store: ExperimentStore, *paths: Any) -> Any:
+        """``value`` with the server's directories taken out of every string in it: the
+        registry root and the run directory a message may name. What is sent over HTTP
+        shows an experiment's own relative path and nothing absolute.
+        """
+        roots = {str(store.root), os.path.realpath(store.root)}
+        hidden = [(r, "<registry>") for r in roots] + [(str(p), "<run>") for p in paths]
+        hidden = sorted((h for h in hidden if len(h[0]) > 1), key=lambda h: -len(h[0]))
+
+        def scrub(v: Any) -> Any:
+            if isinstance(v, str):
+                for path, label in hidden:
+                    v = v.replace(path, label)
+                return v
+            if isinstance(v, dict):
+                return {k: scrub(x) for k, x in v.items()}
+            if isinstance(v, (list, tuple)):
+                return [scrub(x) for x in v]
+            return v
+
+        return scrub(value)
+
+    @contextlib.contextmanager
+    def _guarded(self, store: ExperimentStore, *paths: Any) -> Iterator[None]:
+        """Registry failures as a client sees them: the error's own meaning and
+        message (a 404, 409 or 400 from the store keep theirs), no server path in
+        it, and the registry's own trouble -- an unreadable or corrupt database, a
+        full disk -- as a ``StoreError`` with a message, never a stack trace.
+        """
+        try:
+            yield
+        except ViewerError as exc:
+            exc.args = tuple(self._clean(a, store, *paths) for a in exc.args)
+            raise
+        except (sqlite3.Error, OSError) as exc:
+            log.exception("experiment registry")
+            raise StoreError(
+                "the experiment registry could not be used (%s); check it with "
+                "/api/experiments/health"
+                % self._clean("%s: %s" % (type(exc).__name__, exc), store, *paths)
+            ) from exc
+
+    def _experiments_status(self) -> dict:
+        store = self.experiments
+        if store is None:
+            return {"available": False, "reason": self.experiments_error or "not configured"}
+        try:
+            rows = store.list(selectable_only=False)
+        except (sqlite3.Error, OSError, ViewerError) as exc:
+            return {
+                "available": False,
+                "root": str(store.root),
+                "reason": self._clean("%s: %s" % (type(exc).__name__, exc), store),
+            }
+        counts = {state: 0 for state in EXPERIMENT_STATES}
+        for row in rows:
+            counts[row["state"]] = counts.get(row["state"], 0) + 1
+        selectable = sum(1 for row in rows if row["selectable"])
+        problems = sum(1 for row in rows if row["state"] == "ready" and not row["selectable"])
+        started = store.startup_health or {}
+        orphans = started.get("orphans") or {}
+        return {
+            "available": True,
+            "reason": "",
+            "root": str(store.root),
+            "counts": counts,
+            "selectable": selectable,
+            "problems": problems,
+            # Cheap and lock-free: the rows and their files' presence. The full
+            # check (checksums, orphans) is GET /api/experiments/health.
+            "healthy": problems == 0
+            and not (counts["pending"] or counts["failed"] or counts["deleting"]),
+            "startup": {
+                "ok": bool(started.get("ok", True)),
+                "orphans": len(orphans.get("artifacts", [])) + len(orphans.get("staging", [])),
+            },
+        }
+
+    def register_experiment(self, req: ExperimentRegisterRequest) -> dict:
+        """Keep a completed training run: pin it against eviction, copy it into the
+        registry, release the pin (on success and on failure alike). Idempotent on the
+        run id: a repeat returns the same record, also once the job itself has been
+        evicted. A run that is not completed is a 409 (running, failed, cancelled), an
+        unknown or evicted one a 404.
+        """
+        store = self._registry()
+        trainer = self._trainer()
+        with self._guarded(store):
+            try:
+                with trainer.pin(req.run_id) as run_dir:
+                    record = self._copy_run(store, run_dir, req)
+            except NotFound:
+                record = self._registered_run(store, req.run_id)
+                if record is None:
+                    raise
+            log.info("experiment %s: run %s registered as %r", record["id"], req.run_id, req.name)
+            return self._clean(record, store)
+
+    def _copy_run(
+        self, store: ExperimentStore, run_dir: Path, req: ExperimentRegisterRequest
+    ) -> dict:
+        """The copy, with the pin held by the caller. What the store refuses of the run
+        itself (a bad ``run.json``, files that do not match it) is the run not being
+        registrable (409): the request was checked at the edge.
+        """
+        with self._guarded(store, run_dir):
+            try:
+                return store.register(run_dir, req.run_id, req.name)
+            except BadRequest as exc:
+                raise Conflict("run %s cannot be registered: %s" % (req.run_id, exc)) from exc
+
+    def _registered_run(self, store: ExperimentStore, run_id: str) -> dict | None:
+        """The ready experiment already made from ``run_id``, if there is one."""
+        for row in store.list(selectable_only=False):
+            if row["source_run_id"] == run_id and row["state"] == "ready":
+                return store.get(row["id"])
+        return None
+
+    def experiments_view(self, q: ExperimentQuery) -> dict:
+        """One experiment (``id``), in any state, with both strategies' reports and the
+        production model's facts; or the list of the selectable ones (``all`` lists
+        every record, whatever its state).
+        """
+        store = self._registry()
+        with self._guarded(store):
+            if q.experiment_id:
+                return self._clean(store.get(q.experiment_id), store)
+            rows = store.list(selectable_only=not q.everything)
+            for row in rows:
+                row["usable"] = self._usable(row)
+            return {"experiments": self._clean(rows, store)}
+
+    def _usable(self, row: dict) -> dict:
+        """Whether a model can be applied here, and why not: what the selector shows beside
+        each experiment. A first look at what the registry recorded; starting a job checks
+        the files themselves again.
+        """
+        if self.predictions is None:
+            return {"ok": False, "reason": "predictions are not available on this server"}
+        if not row.get("selectable"):
+            return {"ok": False, "reason": "its files are missing or it is not ready"}
+        why = self.ligands.model_compatibility(row.get("versions"), None)
+        return {"ok": why is None, "reason": why or ""}
+
+    def update_experiment(self, req: ExperimentUpdateRequest) -> dict:
+        """Change an experiment's name and/or annotations (the whole set is replaced).
+        Everything else is a fact of the run and was refused at the edge.
+        """
+        store = self._registry()
+        with self._guarded(store):
+            if req.name is not None:
+                store.rename(req.experiment_id, req.name)
+            if req.annotations is not None:
+                store.set_annotations(req.experiment_id, dict(req.annotations))
+            return self._clean(store.get(req.experiment_id), store)
+
+    def delete_experiment(self, req: ExperimentIdRequest) -> dict:
+        """Remove an experiment for good, and report each part apart. One that is in
+        use past the wait is a 409 and one whose files or row could not be removed a
+        500; both leave it ``deleting`` and the call can simply be made again.
+        """
+        store = self._registry()
+        with self._guarded(store):
+            report = self._clean(store.delete(req.experiment_id), store)
+        log.info("experiment %s: delete %s", req.experiment_id, report["state"])
+        if report["complete"]:
+            return report
+        if report["leases"] and report["row"] == "retained" and report["artifact_dir"] == "skipped":
+            raise DeleteIncomplete(
+                "experiment %s is in use: %s; it stays 'deleting', so try again when "
+                "the use has ended" % (req.experiment_id, "; ".join(report["errors"])),
+                report,
+            )
+        raise DeleteFailed(
+            "experiment %s was not completely deleted (%s); it stays 'deleting' and the "
+            "request can be repeated" % (req.experiment_id, "; ".join(report["errors"])),
+            report,
+        )
+
+    def experiments_health(self, q: ExperimentHealthQuery) -> dict:
+        """What is wrong with the registry, changing nothing (``deep=false`` skips
+        re-hashing every file).
+        """
+        store = self._registry()
+        with self._guarded(store):
+            return self._clean(store.health(deep=q.deep), store)
+
+    def recover_experiments(self) -> dict:
+        """Finish what can be finished provably: a verified half-done registration, a
+        deletion nothing is using. Everything else is kept and named; orphans are
+        never touched. Only ever called by a request, never on its own.
+        """
+        store = self._registry()
+        with self._guarded(store):
+            return self._clean(store.recover(), store)
+
+    def _dataset_view(self, meta: dict) -> dict:
+        extra, sets = self._prediction_columns(meta["dataset_id"])
+        return {
+            **meta,
+            "schema": [c.describe() for c in rowquery.schema(meta, extra)],
+            "operators": {k: list(v) for k, v in rowquery.OPERATORS.items()},
+            "predictions": [s["view"] for s in sets],
+        }
+
+    # -- applying a registered model to a dataset ---------------------------------
+    def _predictor(self):
+        if self.predictions is None:
+            raise Conflict(
+                "predictions are not available: %s"
+                % (
+                    self.experiments_error
+                    or "this server has no experiment registry or no dataset directory"
+                )
+            )
+        return self.predictions
+
+    def _prediction_columns(self, dataset_id: str) -> tuple[list[rowquery.Column], list[dict]]:
+        """The kept sets of predictions of a dataset as query columns, and the sets.
+
+        Each output is a column that sorts and filters like any other, over every row,
+        before a page is cut. A row the model could not predict is missing in it, and
+        its reason travels with the row. Sets whose experiment was deleted stay, labelled
+        as such: they are what that model said at the time.
+        """
+        store = self._store()
+        columns: list[rowquery.Column] = []
+        sets: list[dict] = []
+        for key in store.prediction_keys(dataset_id):
+            kept = store.prediction(dataset_id, key)
+            if kept is None:
+                continue
+            exp = kept["experiment"]
+            deleted = self._experiment_deleted(exp["id"], exp["checksum"])
+            values = kept["values"]
+            outputs = []
+            for out in kept["outputs"]:
+                label = out["label"] + (" — source model deleted" if deleted else "")
+                meta = {
+                    "set": key,
+                    "output": out["name"],
+                    "units": out.get("units", ""),
+                    "experiment_id": exp["id"],
+                    "experiment_name": exp["name"],
+                    "source_deleted": deleted,
+                }
+                if "class" in out:
+                    meta["class"] = out["class"]
+                outputs.append({**out, "label": label})
+                columns.append(
+                    rowquery.Column(
+                        out["key"],
+                        label,
+                        out["type"],
+                        "prediction",
+                        lambda r, v=values, k=out["key"]: (v.get(str(r["row_id"])) or {}).get(k),
+                        meta,
+                    )
+                )
+            sets.append(
+                {
+                    "key": key,
+                    "values": values,
+                    "errors": kept["errors"],
+                    "view": {
+                        "key": key,
+                        "experiment": {**exp, "deleted": deleted},
+                        "created_utc": kept["created_utc"],
+                        "n_rows": kept["dataset"]["n_rows"],
+                        "n_failed": kept["n_failed"],
+                        "source_deleted": deleted,
+                        "outputs": outputs,
+                    },
+                }
+            )
+        return columns, sets
+
+    def _experiment_deleted(self, experiment_id: str, checksum: str) -> bool:
+        """True when the registry has no such experiment any more. An unreadable registry
+        says nothing, so it is not "deleted".
+        """
+        if self.experiments is None:
+            return False
+        try:
+            self.experiments.get(experiment_id)
+        except NotFound:
+            return True
+        except Exception:
+            return False
+        return False
+
+    def start_prediction(self, req: PredictionStartRequest) -> dict:
+        """Apply a registered model to every row of a ready dataset, as a job. The job
+        captures the dataset's hash and the model's checksum now; polling it, or the
+        dataset's predictions, is how the result is read.
+        """
+        self._store().get(req.dataset_id)  # NotFound before anything is started
+        with self._guarded(self._registry()):
+            out = self._predictor().start(req.dataset_id, req.experiment_id)
+        log.info(
+            "prediction %s: experiment %s on dataset %s",
+            out["id"],
+            req.experiment_id,
+            req.dataset_id,
+        )
+        return out
+
+    def prediction_status(self, q: PredictionQuery) -> dict:
+        return self._predictor().progress(q.job_id)
+
+    def cancel_prediction(self, q: PredictionQuery) -> dict:
+        return self._predictor().cancel(q.job_id)
+
+    def dataset_predictions(self, req: DatasetIdRequest) -> dict:
+        """A dataset's columns (with the predictions' in them), the sets kept for it and
+        its prediction jobs, newest first: what the page reads after a job ends.
+        """
+        store = self._store()
+        meta = store.get(req.dataset_id)
+        extra, sets = self._prediction_columns(req.dataset_id)
+        return {
+            "dataset_id": req.dataset_id,
+            "schema": [c.describe() for c in rowquery.schema(meta, extra)],
+            "predictions": [s["view"] for s in sets],
+            "jobs": self.predictions.for_dataset(req.dataset_id) if self.predictions else [],
+        }
+
+    def delete_predictions(self, req: PredictionSetRequest) -> dict:
+        """Remove one kept set of predictions from a dataset (not the model, not the dataset)."""
+        removed = self._store().delete_prediction(req.dataset_id, req.key)
+        if not removed:
+            raise NotFound(
+                "no such set of predictions %s on dataset %s" % (req.key, req.dataset_id)
+            )
+        return {"dataset_id": req.dataset_id, "key": req.key, "deleted": True}
+
+    def _depict(self, meta: dict, rows: list[dict]) -> None:
+        """Draw the rows on this page, from the cache where they were drawn
+        before. Never more than a page: a dataset is not drawn whole.
+        """
+        dataset_id, version = meta["dataset_id"], str(self.ligands.describe().get("depiction", ""))
+        wanted = [r for r in rows if r["smiles"]]
+        have = self.datasets.cached_depictions(dataset_id, version, [r["row_id"] for r in wanted])
+        todo = [r for r in wanted if r["row_id"] not in have]
+        if todo:
+            drawn = self.ligands.depict([r["smiles"] for r in todo]).get("svgs") or []
+            if len(drawn) != len(todo):
+                raise ToolFailed(
+                    "ligandbench drew %d of %d" % (len(drawn), len(todo)), "ligandbench"
+                )
+            made = {r["row_id"]: svg for r, svg in zip(todo, drawn) if svg}
+            self.datasets.put_depictions(dataset_id, version, made)
+            have.update(made)
+        for r in rows:
+            r["svg"] = have.get(r["row_id"], "")
 
     # -- the session's output directory -------------------------------------
     def create_project(self, req: ProjectRequest) -> dict:

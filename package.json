@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/js/*.test.js",
-    "e2e": "node tests/e2e/ui_snapshot.mjs"
+    "e2e": "node tests/e2e/ui_snapshot.mjs",
+    "e2e:dataset": "node tests/e2e/dataset_smoke.mjs",
+    "e2e:training": "node tests/e2e/training_smoke.mjs",
+    "e2e:registry": "node tests/e2e/registry_smoke.mjs",
+    "e2e:predict": "node tests/e2e/predict_smoke.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.49.1"

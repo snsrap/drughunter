@@ -15,6 +15,10 @@
 
 <header class="top">
   <h1>DrugHunter <small id="version"></small></h1>
+  <nav class="nav" aria-label="Pages">
+    <a href="/" aria-current="page">Viewer</a>
+    <a href="/ligands">Ligands</a>
+  </nav>
   <div class="end">
     <div class="seg theme" id="theme" role="group" aria-label="Colour theme">
       <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
@@ -38,12 +42,14 @@
         <div class="pdbq-msg" id="pdb-msg" aria-live="polite"></div>
         <button class="btn wide" type="button" id="open-file" style="margin:7px 0 6px">Open file&hellip;</button>
         <div class="sub">A .pdb or .cif file of your own (.gz too), or a session saved here —
-          drop one anywhere on the page.</div>
+          drop one anywhere on the page. A .csv of ligands is set up on the
+          <a href="/ligands">Ligands page</a>.</div>
         <input type="file" id="file-input" multiple hidden
-               accept=".pdb,.ent,.brk,.cif,.mmcif,.pdbx,.json,.gz"
-               aria-label="Structure or session file to open">
+               accept=".pdb,.ent,.brk,.cif,.mmcif,.pdbx,.json,.gz,.csv"
+               aria-label="Structure, session or ligand CSV file to open">
       </div>
     </section>
+
 
     <section class="mod">
       <div class="hd"><span class="eyebrow">Receptor</span>
@@ -208,7 +214,7 @@
 </div>
 
 <!-- Shown while files are dragged over the page; fetch.js does the dropping. -->
-<div class="dropzone" id="dropzone" hidden><div>Drop a structure or a session file</div></div>
+<div class="dropzone" id="dropzone" hidden><div>Drop a structure, a session file or a ligand CSV</div></div>
 
 
 <!-- Score poses: the options, each with a note saying what to pick and why.

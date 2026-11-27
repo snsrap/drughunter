@@ -30,6 +30,11 @@ network access.
 It takes a port, `--no-open`, and `--projects DIR` for where session output
 directories are collected (see *The project directory*); at startup it prints
 that path, its temporary work directory, and what each tool's install can do.
+Ligand datasets are kept under `~/.local/share/proteinviewer/datasets` (or
+`PV_DATASET_DIR`); ligandbench runs in the server's interpreter unless
+`LIGANDBENCH_PYTHON` names another. Registered experiments are kept under
+`~/.local/share/proteinviewer/experiments` (or `PV_EXPERIMENT_DIR`; see
+*The experiment registry*).
 
 ## Fetching other structures
 
@@ -480,6 +485,17 @@ and which mode are all recorded in the project (see *The project directory*).
 | `POST /api/prep` | `{token, ph, noRebuild}` → `{data, report, summary}`: the prepared PDB, from the quickprep package |
 | `POST /api/project` | `{name}` → `{id, path, files, bytes}`: start this session's output directory |
 | `GET /api/project?id=` | what is in it now |
+| `POST /api/dataset/upload` | `{name, data}` → `{dataset_id, state: "staged", n_rows, columns, structure_candidates}`: keep a CSV, staged; it cannot train, and expires after 24 hours if never resolved |
+| `POST /api/dataset/resolve` | `{dataset_id, structure_column, target_column, target_kind, qualifier_column, source_units, transform, positive_class}` → the ready dataset (`state: "ready"`, counts, `exclusions`, `content_hash`, `schema`). A staged dataset keeps its id; resolving a ready one makes a new dataset |
+| `POST /api/dataset/cancel` | `{dataset_id}`: delete a staged upload |
+| `GET /api/dataset?id=` | a dataset by id; a ready one is reopened from disk after a restart, a staged one comes back with its columns |
+| `POST /api/dataset/rows` | `{dataset_id, offset, limit, sort: {key, dir}, filters: [{key, op, value}]}` → `{total, rows}`: one page (default 50, at most 100), sorted and filtered before it is cut, with only that page's depictions |
+| `POST /api/dataset/splits` | `{dataset_id, strategy: "random"\|"scaffold", seed}` → five repeated 80/10/10 holdouts of a ready dataset with a target (`status: "ok"`, `repeats`), or `status: "split_unavailable"` with why (an answer, not an error), plus `dataset_id`. A staged dataset is 409, a target-free one 400. Nothing is stored; the result's fields are in [ligandbench.md](ligandbench.md#splits) |
+| `GET /api/dataset/summary?id=` | the dashboard's statistics for a ready dataset, in one answer with no rows (`populations`, `exclusions`, `duplicates`, `target`, `scaffolds`, `missing`: see [ligandbench](ligandbench.md#dataset-summary)). Computed once by ligandbench and kept beside the dataset under its content hash and the summary version; a staged or unknown id is a 404 |
+| `POST /api/training` | `{dataset_id, seed = 0, production_strategy = "scaffold", profile = "full"}` → the run's progress, with its `id`. A staged dataset or a full queue is 409, an unknown dataset 404, a target-free dataset, a bad seed, strategy or profile 400, ligandbench or XGBoost missing 503. See [Training](#training) |
+| `GET /api/training?id=` | the run's progress: `state`, `stage`, `completed`, `total`, `elapsed`, and `error`, `error_code`, `unavailable` or `message` when they apply; 404 for a run that is unknown or has been evicted |
+| `GET /api/training/run?id=` | the completed run's `run.json`: metadata only, never the model. 409 until the run is `done`, 404 if unknown |
+| `POST /api/training/cancel` | `{id}` → the run's progress: a queued or running run is cancelled; one that has ended is left as it is |
 | `POST /api/project/save` | `{project, path, session, overwrite}` → `{path, files, bytes}`: write `session.json` into it, then copy it to `path` |
 
 `/api/pockets`, `/api/prep`, `/api/generate` and `/api/score-poses` each also take `project`: the
@@ -506,6 +522,374 @@ pocketbench detect fpocket structure.cif --ligand IZP --top 5
 pocketbench detect lacuna structure.cif --backend nma --conformers 20
 pocketbench superpose mobile.pdb reference.pdb -o moved.pdb
 ```
+
+## Ligand datasets
+
+Ligand datasets have a page of their own, **Ligands**, at `/ligands` (the link
+beside the title). Opened with nothing loaded it asks you to load a dataset:
+choose a `.csv` (`.gz` too), or drop one anywhere on the page. Each dataset lives
+at its own address, `/ligands/<dataset id>`, so one can be linked to, bookmarked,
+reopened after a reload and returned to with Back -- even an upload still
+waiting for its columns to be chosen is picked up where it was left. A `.csv`
+dropped on the 3D viewer is sent to this page, not opened over the stage: the
+viewer leaves what it has loaded alone and links to the upload.
+
+Upload is two stages: the file is sent as it is and the server answers with its
+columns, then a dialog asks what is in it and the answers are sent back to be
+resolved. Cancel (or Esc) deletes the staged upload; a refusal -- a column that
+holds no SMILES, a pKi from the wrong units -- leaves the dialog open to change
+the answer.
+
+The dialog asks for the **structure column** (chosen for you only when exactly
+one header looks like one), the **target** or "No target — prediction only", the
+**task** (a numeric column is suggested as regression, never assumed: 0 and 1
+can be classes), for regression the **qualifier column** (or none) and the
+**units**, and a **transform** (pKi is offered only for nM). Nothing is
+guessed; see [ligandbench](ligandbench.md) for what each answer means.
+
+Once resolved, the rail shows what was read (file, rows, columns chosen, parse
+failures by record number, rows that can train and why the rest cannot) and the
+**Ligands** panel shows the molecules: a page of depictions at a time, each with
+its name (the first text column, else the record number) and the target the model
+would see. A structure that did not parse stays as a placeholder with its record
+number and reason. Click a card for every original column, the target beside the
+value it came from, and why a row cannot train.
+
+Sorting and filtering are the server's, applied before the page is cut, so a
+10,000-row dataset is only ever shown 50 (at most 100) at a time and only that
+page is drawn. Missing values sort last either way; ties go to the lower row id.
+Number columns filter with `=`, `<`, `≤`, `>`, `≥`; text columns with
+`contains` (any case) and `=` (exact); every column with `is missing`. Filters
+combine with AND. Depictions are cached beside the dataset by content hash, row
+id and depiction version. The pure parts -- the dialog's rules, the query, the
+paging arithmetic, ignoring a stale answer -- are `proteinviewer/app/js/model/dataset.js`
+and tested with `npm test`.
+
+Above the ligands sits the **Dataset summary** panel: source rows, valid
+structures, parse failures and training-eligible rows each shown with the
+population it is a share of; why rows were left out (reasons overlap, and the
+panel says so); duplicates and conflicting labels; the target's distribution
+over the training-eligible rows -- a histogram in the units the model sees for
+regression (pKi, not nM), class counts for classification, "No target" for a
+prediction-only dataset, an empty state when no row can train; scaffold
+concentration; and the missing cells of every source column. It is one request,
+`GET /api/dataset/summary`, made as soon as a dataset is open and answered from
+what the server kept after the first time (a ready dataset never changes; a new
+summary version computes again). It does not wait for the ligand panel, shows a
+loading line while a large dataset is computed, shows an error with *Try again*
+if it fails, and draws one bar per bin or per class, never one element per row.
+Its wording and chart geometry are `proteinviewer/app/js/model/summary.js`,
+tested with `npm test`.
+
+## Training
+
+A ready dataset with a target is trained on by `ligandbench train` (see
+[ligandbench](ligandbench.md)): tuning, evaluation and the production refit,
+written into a run directory. It takes minutes, so it is a background job, as
+generation is: `POST /api/training` returns at once with a run `id`, and the page
+polls `GET /api/training?id=`. The server runs it as a subprocess through the same
+adapter as the other ligandbench commands and imports neither it nor XGBoost.
+Nothing but status and metadata crosses HTTP; the model stays on disk.
+
+States, in order: `queued` (waiting for a turn), `running` (with the child's
+`stage` text and `completed` of `total` fits), `finishing` (the child has said it
+is done and its `run.json` is being read), then one of `done`, `error` or
+`cancelled`. Every way a run can end is one of those three with a message: the
+child crashing, being killed, exiting non-zero, timing out (6 hours), printing
+nothing usable, or leaving no readable `run.json`; the server stopping; a bug in
+the job's own thread. An `error` carries `error`; a `cancelled` run carries
+`message`. When the production strategy cannot be split for this dataset the run
+ends `error` with `error_code: "production_strategy_unavailable"` and the
+reason in `unavailable`; the server never switches strategy by itself, so the
+caller offers a new run with the other one.
+
+At most one training runs at a time and at most eight wait (`Settings.training_limit`,
+`training_queue`); a start beyond that is a 409, not an unbounded backlog. Cancelling
+kills the child and everything it started, not only the child. Each run's directory is
+`<work root>/training/<run id>/`, the work root being the temporary directory the
+server removes on exit, so the child never outlives the server either.
+
+**A completed run is temporary until it is registered.** Finished runs are kept up to
+`Settings.job_limit` (32) and the oldest are then forgotten and their directories
+removed; a restart forgets all of them (a lookup is then a 404). Registering a run
+makes it durable. The registration service *pins* the run while it copies it
+(`Training.pin(run_id)`, a context manager that yields the directory): while any pin is
+held eviction skips the run, pins are counted, and the pin is released on leaving
+the block, also by an exception. Only a `done` run can be pinned: a run that is
+unknown or gone is `NotFound`, one that is running, failed or cancelled `Conflict`.
+The page should say that a completed run is not saved until it is registered, and
+treat a 404 on a run it was showing as "expired".
+
+`profile` is `full` (the 12-candidate search) or `tiny`, the small search the tests
+use; the page sends `full` unless it was opened with `?profile=tiny`. The server
+tests run the training job against a stand-in for `ligandbench train`
+(`tests/training_standin.py`), which writes the progress and files the command's
+contract describes.
+
+## The experiment registry
+
+A training run lives in a temporary job directory. Registering it copies the
+run somewhere that outlives the server, and records what the run says about
+itself, so the experiment can be reopened after a restart without the job (or
+the dataset id it trained on) still existing. This is `proteinviewer/experiments.py`
+(`ExperimentStore`): standard library `sqlite3` and the filesystem, no HTTP, no
+jobs, and it never loads a model -- it keeps bytes and metadata.
+
+```
+~/.local/share/proteinviewer/experiments/        PV_EXPERIMENT_DIR; never the temporary work root
+  registry.sqlite3                               metadata only: no weights, no pickles, no blobs
+  artifacts/<uuid>/                              one registered run, as `ligandbench train` wrote it:
+    run.json  model.json  features.json  splits.json  validation_trace.json  scaffolds.json
+    dataset/source.csv  dataset/dataset.json  dataset/rows.json     the snapshot it trained on
+  staging/<uuid>/                                a run being copied in, or one that could not finish
+```
+
+**One experiment is one completed run**: both strategies' evaluation (or why one
+was unavailable) and one production model. The row holds the facts pulled out of
+`run.json` (model family, dataset id and hash, target/task/units/transform,
+class order and positive class, production strategy and config, split
+algorithm and per-repeat seeds and configs, feature schema, metrics, validation
+trace, dependency and code versions, per-file checksums) and the whole parsed
+`run.json` for a lossless fetch. Only the **name** and the **annotations** (up
+to 32 short `text: text` notes, replaced as a whole) can be edited; the database
+itself refuses an update to anything else, so changing a model, target, split or
+metric means registering a new run. The initiator is the server's OS username,
+or `"local"` when there is none: provenance, not identity.
+
+**States.** `pending` (copy done and verified, not yet in place), `ready`,
+`deleting` (deletion authorised, not finished) and `failed` (a registration
+stopped part way and is waiting to be recovered or discarded; `state_detail`
+says why). `list()` returns only `ready` experiments whose directory is present
+with every file at its recorded size; `list(selectable_only=False)` returns
+everything.
+
+**Registering** (`register(run_dir, run_id, name)`; the caller has pinned
+`run_dir`): the run must be `qsar-run-v1` with `status: "completed"`, every file
+in the directory must be in `run.json`'s `files` map and the reverse (except the
+trainer's transient `progress.json`, which is neither copied nor an error), every
+sha256 and size must match, and a symlink anywhere in the source is refused, not
+followed. Then: copy into `staging/<uuid>/`, verify the copy, insert the
+`pending` row, rename the directory to `artifacts/<uuid>/` (atomic, same
+filesystem), mark `ready`. The source run id is an idempotency key: a repeat
+returns the same record, whatever name it brings. A failure before the row
+exists removes the partial copy and registers nothing; after it, the row is
+`failed` (or still `pending` if the process died) and the files are wherever the
+step left them, never half-registered as `ready`.
+
+**Concurrency.** Mutations take one lock per registry root (the copy, rename and
+commit are a sequence that needs a single owner, which SQLite cannot give), and
+each write is a `BEGIN IMMEDIATE` transaction on its own connection, so a second
+process waits instead of interleaving. Reads use their own connection and take no
+lock. `lease(id)` is a context manager that yields a ready experiment's artifact
+directory and holds a counted lease (in this process) so a delete waits for it.
+
+**Deleting** (`delete(id)`) marks the record `deleting` (it is no longer
+selectable and no new lease starts), waits up to `lease_timeout` seconds
+(default 30) for leases, removes only `artifacts/<id>` and `staging/<id>` --
+paths re-derived from the uuid, never read from the database, refused if they are
+a symlink or resolve outside the root -- and then the row. The report keeps the
+outcomes apart (`artifact_dir`, `staging_dir`, `row`: removed, already absent,
+failed or skipped); anything short of `complete` leaves a `deleting` record and
+the call can simply be repeated.
+
+**Health and recovery.** `ExperimentStore.open(root)` takes `health()` once at
+startup and keeps it as `startup_health`; nothing is repaired or removed.
+`health()` reports registrations and deletions that did not finish, `ready` rows
+whose files are missing or fail their checksums (or have unexpected files or
+symlinks), and unreferenced directories in `artifacts/` and `staging/`.
+Orphans are reported and **never** deleted automatically. `recover()` finishes
+only what it can prove: a `pending` or `failed` registration whose files (in
+`staging/` or already renamed) verify against the recorded checksums becomes
+`ready`, and a `deleting` experiment nobody holds a lease on finishes deleting.
+Everything else stays as it is, flagged.
+
+*Manual recovery* (stop the server first; the database is a plain SQLite file):
+
+- A `failed` record whose files do not verify, or whose files are gone: delete
+  it (`delete(id)` removes its `staging/<id>` too) and register the run again,
+  if the job still exists.
+- A corrupt or missing `ready` experiment: restore `artifacts/<id>` from a
+  backup, or delete the record. Do not edit files in place; the checksums are
+  the record.
+- Orphans: look first (they may be a half-copied run worth keeping), then remove
+  the directory by hand. The registry does not.
+- A database from a newer proteinviewer is refused untouched; open it with that
+  version, or use another registry directory.
+
+*Backup*: copy `registry.sqlite3` and the whole `artifacts/` directory together
+while the server is stopped (or take the database with
+`sqlite3 registry.sqlite3 ".backup copy.sqlite3"` and then copy `artifacts/`;
+copy the database *first*, so every row in the backup has its files). Restore
+both, start the server and read the startup health. `staging/` need not be
+backed up.
+
+### The experiment routes
+
+The server opens the registry at startup (`PV_EXPERIMENT_DIR`, else
+`~/.local/share/proteinviewer/experiments`), prints its health in the startup
+lines -- `experiments: <root>  (N ready; P pending, D deleting, X problem, O orphan items)` --
+and changes nothing it finds: it deletes no orphan and finishes no registration. A
+registry that cannot open (a database from a newer version, an unwritable
+directory) does **not** stop the viewer: every `/api/experiments*` route answers
+**503** with the reason, `GET /api/status` says `experiments.available: false`, and
+everything else works. All routes are JSON; the Ligands page reads them (see
+[The registry panel](#the-registry-panel)).
+
+| Route | Does |
+| --- | --- |
+| `POST /api/experiments` `{run_id, name}` | Register a completed training run; returns the record. |
+| `GET /api/experiments` | `{experiments: [...]}`, the selectable ones, newest first. `?all=true` lists every record, whatever its state. |
+| `GET /api/experiments?id=<uuid>` | One experiment, in any state, with both strategies' reports and the production model's facts. |
+| `POST /api/experiments/update` `{id, name?, annotations?}` | Rename and/or replace the annotations; returns the record. |
+| `POST /api/experiments/delete` `{id}` | Delete for good; returns the per-part report. |
+| `GET /api/experiments/health` | What is wrong, changing nothing. `?deep=false` skips re-hashing the files. |
+| `POST /api/experiments/recover` | Finish what can be finished provably (see above). Only ever by request. |
+
+**Registering.** The service pins the run (`Training.pin`), has the store copy it,
+and releases the pin on success and on failure alike, so a failed copy leaves the run
+still in the job list and still registrable. The request is idempotent on `run_id`: a
+repeat returns the same record with a **200** (the first call is a 200 too; there is no
+201, and a second name does not rename), also after the job itself has been evicted.
+`initiator` is the store's default (the server's OS user, or `local`). `name` is 1-200
+characters on one line; `run_id` is the id `POST /api/training` returned.
+
+**Records.** What the store returns (see the registry section): the row's facts,
+`splits`, `metrics` (both strategies, each with its status, `unavailable` reason,
+aggregate and per-repeat test scores), `production` (the chosen config and its
+selection), `target`, `feature_schema`, `versions`, `checksums`, the whole `run.json`
+as `run`, and `artifact_path` -- the experiment's own path *relative to the registry*
+(`artifacts/<uuid>`). The list carries the summary (no `run`, `metrics` or `splits`), a
+`selectable` flag and a `headline` (below). A single record has no `selectable` flag: only the
+listing checks that the files are in place. Nothing in a response names an absolute directory of the server:
+the registry root and the run's directory are replaced by `<registry>` and `<run>` in
+messages and in a record's `state_detail`. (`GET /api/status` is the exception: it
+reports the registry root, as it does for projects and datasets.)
+
+**Updating.** `annotations` replaces the whole set (up to 32 notes, keys 1-64
+characters, values up to 2000); a field left out is left alone, and at least one must be
+given. Any other field is a **400** naming it: the model, target, splits, metrics, run
+id and the rest are facts of the run (register a new run to change them). An experiment
+that is `deleting` or `failed` cannot be edited (409).
+
+**Deleting.** The response is the store's per-part report: `artifact_dir` and
+`staging_dir` (`removed`, `already_absent`, `failed`, `skipped`), `row` (`removed`,
+`retained`, `failed`), `leases`, `errors` and `complete`. A deletion that completes is a
+200. One still waiting on an active use after `lease_timeout` is a **409** whose body is
+`{"error": ..., "report": {...}}`: the record stays `deleting`, not selectable, and the
+request can be repeated once the use ends. One that could not remove a file or the row
+is a **500** with the same shape (and the record still `deleting`).
+
+**Statuses.**
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Malformed request: bad `run_id`, `name`, `id` (not a uuid), annotations, an immutable field, nothing to change. |
+| 404 | No such training run (unknown, evicted, gone with a restart, and not registered before) or no such experiment. |
+| 409 | The run is not completed (queued, running, failed, cancelled) or its directory does not match its `run.json` / is not a completed `qsar-run-v1` run; the experiment is `deleting` or `failed` and cannot be edited; a delete waiting on a lease. |
+| 500 | The registry's own trouble, with a message and no stack trace: a copy or rename that failed (the message says what was kept, and `recover` finishes a verified one), a deletion that could not remove something, an unreadable or corrupt database (`GET /api/experiments/health` says more). |
+| 503 | The registry did not open at startup; the reason is in the body. |
+
+`GET /api/status` carries `experiments`: `{available, reason, root, counts (per state),
+selectable, problems (ready rows whose files are not in place), healthy, startup}`.
+`healthy` is the cheap check (no unfinished registration or deletion, every ready
+experiment's files present at their recorded size); checksums and orphans are
+`GET /api/experiments/health`.
+
+### The registry panel
+
+On `/ligands`, `js/features/registry.js` (logic in `js/model/registry.js`, tested by `npm test`).
+It does not follow the open dataset: records outlive it.
+
+- **Register.** Under a completed run in the training panel: a name (suggested from the target,
+  1-200 characters, one line) and **Register**, which submits the run id. The server supplies the
+  initiator and the UTC time. A repeat shows "already registered as ..." (the first name is kept);
+  an expired run (404) says to train again; a refused run (409), an unavailable registry (503) and a
+  failed copy are worded apart, and a failed copy can be retried.
+- **Table.** Name, model, initiator, created, dataset, target/task/units, production strategy, the
+  headline metric and a status. Ordinary columns sort with the experiment id as the tie-break.
+  The **headline** is computed by the server (`headline` on each list entry): scaffold test RMSE
+  (regression) or balanced accuracy (classification), else the random strategy's and labelled as a
+  fallback; it carries the repeats defined (`n_defined` of `n_total`) and says `undefined` or
+  `unavailable` instead of inventing a number. Its `group` (task, target, units, strategy, metric) is
+  the rule for sorting: the metric column sorts only when every row shown has the same group, and is
+  otherwise disabled with the reason. No score is ever ranked against an unlike one.
+- **Status.** Only a `ready` record whose files are present is healthy. Missing or changed files,
+  an unfinished registration, a failed one and a pending deletion are each shown, with why.
+- **Detail.** Both strategies' reports, the selected production configuration, each repeat's chosen
+  configuration, target and feature schema, provenance (versions, dataset, registry-relative artifact
+  path) and the state. Repeat metrics are labelled as evaluating the tuning procedure, not an
+  independent test of the final refit.
+- **Edit.** The name and up to 32 notes are the only editable parts; the request carries only what
+  changed. Everything else is read-only.
+- **Delete.** A dialog names the experiment and says its metadata, model and preserved dataset
+  snapshot are removed for good. Only a `complete` report is success; a delete that waits on a use
+  (409) or could not remove something (500) is shown with its parts and the record stays, as
+  *Deletion unfinished*, until it is repeated.
+
+`npm run e2e:registry` walks train -> register -> inspect -> rename and a note -> restart -> confirmed
+delete against the real backend (`?profile=tiny`).
+
+## Predicting with a registered model
+
+On `/ligands`, the ligand panel has a **Registered model** selector and **Predict entire
+dataset** (`js/features/predict.js`, logic in `js/model/prediction.js`, tested by `npm test`). The
+server side is `proteinviewer/predictions.py`; the science is
+[`ligandbench predict`](ligandbench.md#predicting-with-a-run).
+
+**Scope.** Always the whole dataset: the request is `{dataset_id, experiment_id}` and carries
+nothing of the page's filter, sort or page. When the job starts it captures the dataset's id and
+content hash and the experiment's id and model checksum (the sha256 the registry recorded), so a
+later filter, a dataset switch or a re-registration cannot change its input or attach its result
+to another dataset. The result is written under the dataset it was started for, keyed by row id.
+
+**The selector.** Lists the selectable experiments (`GET /api/experiments`, whose entries now carry
+`usable: {ok, reason}` and `versions`) with name, short id, model family, target/task/units and the
+labelled held-out metric from the registry (never prediction-vs-target agreement: the dataset may
+overlap training). A model whose files are missing, or that was trained with an RDKit, XGBoost or
+featuriser this server does not run, is disabled with the reason beside it. Nothing is chosen for
+the user.
+
+**Compatibility.** Starting a job checks the registry's record first (`409 Incompatible` before any
+job exists); the job then holds the experiment's lease, re-checks that the model file is the one
+captured, and `ligandbench predict` checks the artifacts themselves (checksums, schemas, versions,
+feature order and count) before it predicts anything. A failure ends the job with a message
+(`error_code`: `incompatible`, `experiment_unavailable` or `dataset_or_model_changed`) and writes
+nothing.
+
+**Jobs.** Background, bounded: the settings `prediction_limit` (2 running), `prediction_queue`
+(8 waiting). A second job for the same dataset and model is refused while one waits or runs. The
+experiment lease means a deletion waits (409, retryable) while a job is using the model; a model
+deleted before a queued job gets its turn ends that job with `experiment_unavailable`.
+
+| Route | Does |
+| --- | --- |
+| `POST /api/dataset/predict` `{dataset_id, experiment_id}` | Start a job; answers its progress (`id`, `state`, `completed`/`total` rows, `dataset_id`, `dataset_hash`, `experiment_id`, `checksum`, `key`). |
+| `GET /api/dataset/predict?id=<job>` | The job's progress; 404 when the server no longer knows it. |
+| `POST /api/dataset/predict/cancel` `{id}` | Stop a queued or running job. Nothing is written. |
+| `GET /api/dataset/predictions?dataset_id=` | The dataset's columns (with the predictions'), the sets kept for it and its jobs. |
+| `POST /api/dataset/predictions/delete` `{dataset_id, key}` | Remove one kept set. |
+
+**Results.** Kept with the dataset, one file per model and artifact
+(`ready/<dataset>/predictions/pred_<experiment>_<checksum12>.json`), replaced whole: a rerun of the
+same model swaps its own columns in one rename, different models coexist, and a failed, cancelled
+or timed-out job writes nothing, so the last good columns stay. Every source row has an output by
+`row_id`: an unreadable structure or a feature failure has no number and its reason
+(`prediction_errors` on the row), and no prediction moves onto another row. Regression predicts in
+the model's target units (`pKi` stays `pKi`; nothing is inverse-transformed). Classification gives
+the predicted class and one numeric column per class, `p0`, `p1`, ... in the stored class order
+(each column's `meta.class` names its class). Column keys are `pred_<experiment uuid>_<checksum12>_<output>`;
+labels carry the experiment's name, short id and units.
+
+The columns are part of the dataset's query schema (`schema` entries of `kind: "prediction"`, with
+a `meta` of `set`, `output`, `units`, `experiment_name`, `source_deleted`), so sorting and filtering
+by one is the ordinary server-side sort and filter over all rows, before a page is cut. A
+set whose experiment was deleted stays, labelled *source model deleted*: it is what that model said
+at the time. Polling after a dataset switch is ignored by the page (a job names its dataset), and when
+a job ends the page reads back that dataset's columns, not whatever is open now.
+
+`npm run e2e:predict` walks train -> register -> a target-free dataset -> predict -> sort, filter
+and inspect by the prediction, a dataset opened while a job is being polled, and a deleted model,
+against the real backend.
 
 ## Preparing structures
 
@@ -534,22 +918,28 @@ proteinviewer/               the server: Python standard library only
   config.py                    every setting and environment variable, in one place
   process.py                   subprocess plumbing shared by the tool adapters
   pocketbench.py               adapter: detection and superposition (pocketbench/)
+  ligandbench.py               adapter: ligand datasets, read with RDKit (ligandbench/)
   prep.py  generation.py       adapters: quickprep and NEAT-POCKET
   buffer.py                    structures held on disk, per-structure locks, LRU eviction
   project.py  pockets.py       a session's artifacts on disk, and pocket results as files
+  dataset.py  rowquery.py      ligand datasets on disk, and sorting/filtering/paging their rows
+  experiments.py               the experiment registry: SQLite metadata plus artifacts on disk
+  predictions.py               jobs that apply a registered model to a whole dataset
   schemas.py  service.py       parsed requests, and the use cases over them
   web.py                       HTTP: routing, status codes, the cross-site checks
   server.py                    composition root: picks the tools, wires, serves, cleans up
-  app/                         the page: no build step, no install; shipped as package data
-    index.html                   markup only
+  app/                         the pages: no build step, no install; shipped as package data
+    index.html                   the viewer, at /
+    ligands.html                 the ligand datasets, at /ligands and /ligands/<id>
     css/tokens.css  css/app.css  theme colours, then components and layout
-    js/main.js                   boot: registers the views, binds the features, probes the server
+    js/main.js  js/ligands.js    boot of each page: registers the views, binds the features, probes the server
     js/core/                     state store, API client, RCSB fetch, files in and out,
                                    colours, DOM helpers
     js/model/                    pure: tree building, cutting a selection out of its file,
-                                   scope, reading a structure file, the session snapshot
+                                   scope, reading a structure file, the session snapshot,
+                                   a ligand dataset's dialog and queries, safe SVG
     js/scene.js                  the 3D stage (3Dmol), drawn in keyed layers
-    js/features/                 one module per panel: its view, its controls, its actions
+    js/features/                 one module per panel (registry.js: the experiment registry): its view, its controls, its actions
 tests/                       the server's tests; tests/js via npm test; tests/e2e walkthrough
 ```
 
@@ -564,10 +954,11 @@ service and errors into statuses; `server.py` is the one place that names
 concrete tools.
 
 The server holds no science of its own. Reading structures, the pocket model,
-the detectors and superposition are [pocketbench](pocketbench.md); preparation
-is [quickprep](quickprep.md); generation is NEAT-POCKET. Each is run as a
-command and never imported (pocketbench and quickprep ship beside the server in
-drughunter, NEAT-POCKET has an environment of its own), so the server never
+the detectors and superposition are [pocketbench](pocketbench.md); reading
+ligand datasets is [ligandbench](ligandbench.md); preparation is
+[quickprep](quickprep.md); generation is NEAT-POCKET. Each is run as a
+command and never imported (pocketbench, ligandbench and quickprep ship beside
+the server in drughunter, NEAT-POCKET has an environment of its own), so the server never
 parses a structure: it
 buffers text, passes it on, and keeps what comes back. What used to be the
 domain layer here left as pocketbench, as quickprep had before it.
@@ -577,7 +968,8 @@ one lock per kind of work, so two pocket runs on the same structure take turns
 (they share its scratch directory) while a preparation on it does not wait.
 Each generation job runs in its own directory with its own copy of the
 structure, so evicting a structure cannot pull files out from under a job, and
-only the last 32 finished jobs are kept.
+only the last 32 finished jobs are kept. Training jobs (`training.py`) run through the
+ligandbench adapter the same way, with a bounded queue and pinning (see [Training](#training)).
 
 **Page.** All state lives in one object (`js/core/state.js`). A feature's action
 changes it and calls `commit()`, and every view re-renders from it in a fixed
@@ -601,6 +993,9 @@ menu and, if it reports new numbers, show them in `js/features/pockets.js`.
 python3 -m unittest discover -s tests -t .   # server: about a second, no tools needed
 npm test                                     # the page's pure modules, Node 18+
 npm install && npm run e2e -- http://127.0.0.1:8000 /tmp/pv-ui --slow   # the whole UI
+npm run e2e:predict                          # a registered model on a dataset, real backend
+npm run e2e:registry                         # train -> register -> inspect -> rename -> delete, real backend
+npm run e2e:dataset                          # upload -> inspect -> summarise -> sort/filter a ligand CSV; starts its own server
 ```
 
 The server tests use fake tools, so they pass with nothing installed; real

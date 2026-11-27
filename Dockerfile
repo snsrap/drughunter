@@ -7,6 +7,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY proteinviewer proteinviewer
 COPY pocketbench pocketbench
+COPY ligandbench ligandbench
 COPY pocketgen pocketgen
 COPY quickprep quickprep
 COPY serve.py ./

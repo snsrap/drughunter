@@ -36,15 +36,31 @@ from .errors import (
 )
 from .schemas import (
     BufferRequest,
+    DatasetIdRequest,
+    DatasetResolveRequest,
+    DatasetRowsRequest,
+    DatasetSplitRequest,
+    DatasetSummaryRequest,
+    DatasetUploadRequest,
+    ExperimentHealthQuery,
+    ExperimentIdRequest,
+    ExperimentQuery,
+    ExperimentRegisterRequest,
+    ExperimentUpdateRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
+    PredictionQuery,
+    PredictionSetRequest,
+    PredictionStartRequest,
     PrepRequest,
     ProjectRequest,
     ProjectSaveRequest,
     ScoreQuery,
     ScoreRequest,
     SuperposeRequest,
+    TrainingQuery,
+    TrainingStartRequest,
 )
 from .service import ViewerService
 
@@ -63,6 +79,11 @@ STATUS: tuple[tuple[type[ViewerError], int], ...] = (
 )
 
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+#: Pages with a path of their own, served by the one file in ``app/``. The ligands
+#: page is addressed by the dataset it shows -- ``/ligands/ds-0123456789ab`` -- so
+#: a dataset can be linked to and reopened; the page reads its id from the path.
+PAGES = {"/ligands": "/ligands.html"}
 
 
 def status_for(exc: ViewerError) -> int:
@@ -101,6 +122,64 @@ class Api:
             ("POST", "/api/project/save"): lambda r: s.save_project(
                 ProjectSaveRequest.parse(r.body)
             ),
+            ("POST", "/api/dataset/upload"): lambda r: s.upload_dataset(
+                DatasetUploadRequest.parse(r.body)
+            ),
+            ("POST", "/api/dataset/resolve"): lambda r: s.resolve_dataset(
+                DatasetResolveRequest.parse(r.body)
+            ),
+            ("POST", "/api/dataset/cancel"): lambda r: s.cancel_dataset(
+                DatasetIdRequest.parse(r.body)
+            ),
+            ("GET", "/api/dataset"): lambda r: s.dataset_status(DatasetIdRequest.parse(r.query)),
+            ("POST", "/api/dataset/rows"): lambda r: s.dataset_rows(
+                DatasetRowsRequest.parse(r.body)
+            ),
+            ("POST", "/api/dataset/splits"): lambda r: s.dataset_splits(
+                DatasetSplitRequest.parse(r.body)
+            ),
+            ("GET", "/api/dataset/summary"): lambda r: s.dataset_summary(
+                DatasetSummaryRequest.parse(r.query)
+            ),
+            ("POST", "/api/dataset/predict"): lambda r: s.start_prediction(
+                PredictionStartRequest.parse(r.body)
+            ),
+            ("GET", "/api/dataset/predict"): lambda r: s.prediction_status(
+                PredictionQuery.parse(r.query)
+            ),
+            ("POST", "/api/dataset/predict/cancel"): lambda r: s.cancel_prediction(
+                PredictionQuery.parse(r.body)
+            ),
+            ("GET", "/api/dataset/predictions"): lambda r: s.dataset_predictions(
+                DatasetIdRequest.parse(r.query)
+            ),
+            ("POST", "/api/dataset/predictions/delete"): lambda r: s.delete_predictions(
+                PredictionSetRequest.parse(r.body)
+            ),
+            ("POST", "/api/training"): lambda r: s.start_training(
+                TrainingStartRequest.parse(r.body)
+            ),
+            ("GET", "/api/training"): lambda r: s.training_status(TrainingQuery.parse(r.query)),
+            ("GET", "/api/training/run"): lambda r: s.training_run(TrainingQuery.parse(r.query)),
+            ("POST", "/api/training/cancel"): lambda r: s.cancel_training(
+                TrainingQuery.parse(r.body)
+            ),
+            ("POST", "/api/experiments"): lambda r: s.register_experiment(
+                ExperimentRegisterRequest.parse(r.body)
+            ),
+            ("GET", "/api/experiments"): lambda r: s.experiments_view(
+                ExperimentQuery.parse(r.query)
+            ),
+            ("POST", "/api/experiments/update"): lambda r: s.update_experiment(
+                ExperimentUpdateRequest.parse(r.body)
+            ),
+            ("POST", "/api/experiments/delete"): lambda r: s.delete_experiment(
+                ExperimentIdRequest.parse(r.body)
+            ),
+            ("GET", "/api/experiments/health"): lambda r: s.experiments_health(
+                ExperimentHealthQuery.parse(r.query)
+            ),
+            ("POST", "/api/experiments/recover"): lambda r: s.recover_experiments(),
         }
 
     def handle(self, method: str, path: str, req: ApiRequest) -> tuple[int, dict]:
@@ -110,7 +189,13 @@ class Api:
         try:
             return 200, route(req)
         except ViewerError as exc:
-            return status_for(exc), {"error": str(exc)}
+            body: dict[str, Any] = {"error": str(exc)}
+            # An error may carry the report of what it did before it stopped (a delete
+            # that removed some parts and not others), which the client needs to see.
+            report = getattr(exc, "report", None)
+            if isinstance(report, dict):
+                body["report"] = report
+            return status_for(exc), body
         except Exception as exc:  # a bug, not the client's fault
             log.exception("api error on %s %s", method, path)
             return 500, {"error": "internal error: %s: %s" % (type(exc).__name__, exc)}
@@ -148,9 +233,23 @@ class Handler(SimpleHTTPRequestHandler):
         log.info(fmt, *args)
 
     # -- dispatch -----------------------------------------------------------
+    def _page(self, path: str) -> None:
+        """Point a page's path at its file. Only the file named in PAGES is ever
+        served for it, whatever follows the prefix, so nothing here reaches the disk.
+        """
+        for prefix, target in PAGES.items():
+            if path == prefix or path.startswith(prefix + "/"):
+                self.path = target
+                return
+
+    def do_HEAD(self):
+        self._page(self._split()[0])
+        super().do_HEAD()
+
     def do_GET(self):
         path, query = self._split()
         if not path.startswith("/api/"):
+            self._page(path)
             return super().do_GET()
         refused = self._refuse()
         if refused:

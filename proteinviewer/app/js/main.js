@@ -43,6 +43,7 @@ async function probeServer(){
        installed would fail the moment it was asked for. */
     const sc = (j.scoring && j.scoring.scorers) || {};
     s.scorers = Object.keys(sc).filter(n => sc[n] && sc[n].available);
+    s.datasets = !!(j.datasets && j.datasets.available);
     s.projects = !!(j.projects && j.projects.available);
     s.projectRoot = (j.projects && j.projects.root) || "";
   }catch(err){
