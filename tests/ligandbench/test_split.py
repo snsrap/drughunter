@@ -546,6 +546,71 @@ def test_a_valid_split_with_imperfect_proportions_is_accepted_not_rejected_for_t
             assert {r["objective"] for r in result["repeats"]} == {200}
 
 
+# -- the objective, by hand ----------------------------------------------------------
+
+
+def classified(a, b):
+    """``a`` rows of class A then ``b`` of class B, every structure its own group."""
+    pairs = [(mol(None, k + 2), "A" if k < a else "B") for k in range(a + b)]
+    return resolve(csv_of(pairs), classification(positive="A"))
+
+
+def candidate_zero_hits(meta, rows, seeds):
+    """How many of ``seeds`` have candidate 0 -- the plain greedy rule, with no chance of
+    another choice -- land on a valid allocation as good as any allocation can be.
+    """
+    use, _ = eligible_rows(meta, rows)
+    groups = make_groups("random", use, meta["classes"])
+    problem = split_module._problem(groups, meta["classes"], len(use))
+    floor = split_module._lower_bound(problem)
+    best = [split_module._candidate(problem, seed, 0) for seed in seeds]
+    return sum(c.objective == floor and not split_module._violations(problem, c) for c in best)
+
+
+def test_a_classification_objective_is_the_sizes_plus_each_classs_deviation_by_hand():
+    # 20 rows, 11 of class A and 9 of B. The sizes aim at 16 / 2 / 2 and can hit them, so
+    # they cost nothing. Class A aims at 8.8 / 1.1 / 1.1 and B at 7.2 / 0.9 / 0.9, whole
+    # rows only. Each deviation is taken times ten (a target is tenths of a total), so
+    # with A at 9 / 1 / 1: (90-88)^2 + (10-11)^2 + (10-11)^2 = 4 + 1 + 1 = 6, and with B at
+    # 7 / 1 / 1: (70-72)^2 + (10-9)^2 + (10-9)^2 = 6. No other split of A or B is nearer
+    # (A at 8 / 1 / 2 costs 64 + 1 + 81), so the best objective is 0 + 6 + 6 = 12.
+    meta, rows = classified(11, 9)
+    result = split(meta, rows, strategy="random", seed=1)
+    for repeat in result["repeats"]:
+        assert repeat["sizes"] == {"train": 16, "validation": 2, "test": 2}
+        assert repeat["class_counts"] == {
+            "train": {"A": 9, "B": 7},
+            "validation": {"A": 1, "B": 1},
+            "test": {"A": 1, "B": 1},
+        }
+        assert repeat["objective"] == 12
+    # 13 of A and 7 of B: A aims at 10.4 / 1.3 / 1.3, best 11 / 1 / 1 = 36 + 9 + 9 = 54;
+    # B aims at 5.6 / 0.7 / 0.7, best 5 / 1 / 1 = 36 + 9 + 9 = 54; sizes cost 0: 108.
+    meta, rows = classified(13, 7)
+    result = split(meta, rows, strategy="random", seed=1)
+    assert {r["objective"] for r in result["repeats"]} == {108}
+    assert result["repeats"][0]["class_counts"]["train"] == {"A": 11, "B": 5}
+
+
+def test_a_regression_objective_has_no_class_terms():
+    # 40 rows in groups of 33 / 4 / 3: sizes (33, 4, 3) against (32, 4, 4) are off by
+    # (10, 0, -10) once scaled, so 100 + 0 + 100.
+    pairs = [(mol(0, k), k % 2) for k in range(1, 34)]
+    pairs += [(mol(1, k), k % 2) for k in range(1, 5)] + [(mol(2, k), k % 2) for k in range(1, 4)]
+    meta, rows = dataset(pairs, kind="regression")
+    result = split(meta, rows, strategy="scaffold", seed=1)
+    assert {r["objective"] for r in result["repeats"]} == {200}
+
+
+def test_the_greedy_step_weighs_each_classs_count_and_not_only_the_sizes():
+    # With the class terms in the greedy step, candidate 0 alone reaches the best possible
+    # objective for most seeds (179 of 200 on 11 + 9 rows, 149 on 13 + 7); a rule that
+    # looked at sizes alone would reach it for about a third of them (58 and 56).
+    seeds = range(200)
+    assert candidate_zero_hits(*classified(11, 9), seeds) >= 150
+    assert candidate_zero_hits(*classified(13, 7), seeds) >= 120
+
+
 # -- seeds ------------------------------------------------------------------------------
 
 
