@@ -32,7 +32,9 @@ directories are collected (see *The project directory*); at startup it prints
 that path, its temporary work directory, and what each tool's install can do.
 Ligand datasets are kept under `~/.local/share/proteinviewer/datasets` (or
 `PV_DATASET_DIR`); ligandbench runs in the server's interpreter unless
-`LIGANDBENCH_PYTHON` names another.
+`LIGANDBENCH_PYTHON` names another. Registered experiments are kept under
+`~/.local/share/proteinviewer/experiments` (or `PV_EXPERIMENT_DIR`; see
+*The experiment registry*).
 
 ## Fetching other structures
 
@@ -624,6 +626,103 @@ tests run the training job against a stand-in for `ligandbench train`
 (`tests/training_standin.py`), which writes the progress and files the command's
 contract describes.
 
+## The experiment registry
+
+A training run lives in a temporary job directory. Registering it copies the
+run somewhere that outlives the server, and records what the run says about
+itself, so the experiment can be reopened after a restart without the job (or
+the dataset id it trained on) still existing. This is `proteinviewer/experiments.py`
+(`ExperimentStore`): standard library `sqlite3` and the filesystem, no HTTP, no
+jobs, and it never loads a model -- it keeps bytes and metadata.
+
+```
+~/.local/share/proteinviewer/experiments/        PV_EXPERIMENT_DIR; never the temporary work root
+  registry.sqlite3                               metadata only: no weights, no pickles, no blobs
+  artifacts/<uuid>/                              one registered run, as `ligandbench train` wrote it:
+    run.json  model.json  features.json  splits.json  validation_trace.json  scaffolds.json
+    dataset/source.csv  dataset/dataset.json  dataset/rows.json     the snapshot it trained on
+  staging/<uuid>/                                a run being copied in, or one that could not finish
+```
+
+**One experiment is one completed run**: both strategies' evaluation (or why one
+was unavailable) and one production model. The row holds the facts pulled out of
+`run.json` (model family, dataset id and hash, target/task/units/transform,
+class order and positive class, production strategy and config, split
+algorithm and per-repeat seeds and configs, feature schema, metrics, validation
+trace, dependency and code versions, per-file checksums) and the whole parsed
+`run.json` for a lossless fetch. Only the **name** and the **annotations** (up
+to 32 short `text: text` notes, replaced as a whole) can be edited; the database
+itself refuses an update to anything else, so changing a model, target, split or
+metric means registering a new run. The initiator is the server's OS username,
+or `"local"` when there is none: provenance, not identity.
+
+**States.** `pending` (copy done and verified, not yet in place), `ready`,
+`deleting` (deletion authorised, not finished) and `failed` (a registration
+stopped part way and is waiting to be recovered or discarded; `state_detail`
+says why). `list()` returns only `ready` experiments whose directory is present
+with every file at its recorded size; `list(selectable_only=False)` returns
+everything.
+
+**Registering** (`register(run_dir, run_id, name)`; the caller has pinned
+`run_dir`): the run must be `qsar-run-v1` with `status: "completed"`, every file
+in the directory must be in `run.json`'s `files` map and the reverse (except the
+trainer's transient `progress.json`, which is neither copied nor an error), every
+sha256 and size must match, and a symlink anywhere in the source is refused, not
+followed. Then: copy into `staging/<uuid>/`, verify the copy, insert the
+`pending` row, rename the directory to `artifacts/<uuid>/` (atomic, same
+filesystem), mark `ready`. The source run id is an idempotency key: a repeat
+returns the same record, whatever name it brings. A failure before the row
+exists removes the partial copy and registers nothing; after it, the row is
+`failed` (or still `pending` if the process died) and the files are wherever the
+step left them, never half-registered as `ready`.
+
+**Concurrency.** Mutations take one lock per registry root (the copy, rename and
+commit are a sequence that needs a single owner, which SQLite cannot give), and
+each write is a `BEGIN IMMEDIATE` transaction on its own connection, so a second
+process waits instead of interleaving. Reads use their own connection and take no
+lock. `lease(id)` is a context manager that yields a ready experiment's artifact
+directory and holds a counted lease (in this process) so a delete waits for it.
+
+**Deleting** (`delete(id)`) marks the record `deleting` (it is no longer
+selectable and no new lease starts), waits up to `lease_timeout` seconds
+(default 30) for leases, removes only `artifacts/<id>` and `staging/<id>` --
+paths re-derived from the uuid, never read from the database, refused if they are
+a symlink or resolve outside the root -- and then the row. The report keeps the
+outcomes apart (`artifact_dir`, `staging_dir`, `row`: removed, already absent,
+failed or skipped); anything short of `complete` leaves a `deleting` record and
+the call can simply be repeated.
+
+**Health and recovery.** `ExperimentStore.open(root)` takes `health()` once at
+startup and keeps it as `startup_health`; nothing is repaired or removed.
+`health()` reports registrations and deletions that did not finish, `ready` rows
+whose files are missing or fail their checksums (or have unexpected files or
+symlinks), and unreferenced directories in `artifacts/` and `staging/`.
+Orphans are reported and **never** deleted automatically. `recover()` finishes
+only what it can prove: a `pending` or `failed` registration whose files (in
+`staging/` or already renamed) verify against the recorded checksums becomes
+`ready`, and a `deleting` experiment nobody holds a lease on finishes deleting.
+Everything else stays as it is, flagged.
+
+*Manual recovery* (stop the server first; the database is a plain SQLite file):
+
+- A `failed` record whose files do not verify, or whose files are gone: delete
+  it (`delete(id)` removes its `staging/<id>` too) and register the run again,
+  if the job still exists.
+- A corrupt or missing `ready` experiment: restore `artifacts/<id>` from a
+  backup, or delete the record. Do not edit files in place; the checksums are
+  the record.
+- Orphans: look first (they may be a half-copied run worth keeping), then remove
+  the directory by hand. The registry does not.
+- A database from a newer proteinviewer is refused untouched; open it with that
+  version, or use another registry directory.
+
+*Backup*: copy `registry.sqlite3` and the whole `artifacts/` directory together
+while the server is stopped (or take the database with
+`sqlite3 registry.sqlite3 ".backup copy.sqlite3"` and then copy `artifacts/`;
+copy the database *first*, so every row in the backup has its files). Restore
+both, start the server and read the startup health. `staging/` need not be
+backed up.
+
 ## Preparing structures
 
 `Prepare` is backed by [quickprep](quickprep.md), the package beside this one
@@ -656,6 +755,7 @@ proteinviewer/               the server: Python standard library only
   buffer.py                    structures held on disk, per-structure locks, LRU eviction
   project.py  pockets.py       a session's artifacts on disk, and pocket results as files
   dataset.py  rowquery.py      ligand datasets on disk, and sorting/filtering/paging their rows
+  experiments.py               the experiment registry: SQLite metadata plus artifacts on disk
   schemas.py  service.py       parsed requests, and the use cases over them
   web.py                       HTTP: routing, status codes, the cross-site checks
   server.py                    composition root: picks the tools, wires, serves, cleans up

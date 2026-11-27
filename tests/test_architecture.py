@@ -17,7 +17,7 @@ PKG = ROOT / "proteinviewer"
 SHARED = {"errors", "validate", "config"}
 ADAPTERS = {"process", "pocketbench", "ligandbench", "prep", "generation", "training"}
 # Files on disk: no knowledge of a tool or of HTTP.
-STORES = {"buffer", "project", "dataset"}
+STORES = {"buffer", "project", "dataset", "experiments"}
 
 # module -> the package modules it may import. There is no domain layer: what
 # was one -- parsing structures, the pocket model, the detectors -- is the
@@ -37,6 +37,7 @@ ALLOWED = {
     "buffer": {"errors"},
     "project": {"errors"},
     "dataset": {"errors"},
+    "experiments": {"errors"},
     # Pure: columns and rows in, a page out. It knows no molecule and no file.
     "rowquery": {"errors"},
     "schemas": {"errors", "validate"},
