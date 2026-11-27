@@ -51,6 +51,8 @@ from .schemas import (
     ScoreQuery,
     ScoreRequest,
     SuperposeRequest,
+    TrainingQuery,
+    TrainingStartRequest,
 )
 from .service import ViewerService
 
@@ -130,6 +132,14 @@ class Api:
             ),
             ("GET", "/api/dataset/summary"): lambda r: s.dataset_summary(
                 DatasetSummaryRequest.parse(r.query)
+            ),
+            ("POST", "/api/training"): lambda r: s.start_training(
+                TrainingStartRequest.parse(r.body)
+            ),
+            ("GET", "/api/training"): lambda r: s.training_status(TrainingQuery.parse(r.query)),
+            ("GET", "/api/training/run"): lambda r: s.training_run(TrainingQuery.parse(r.query)),
+            ("POST", "/api/training/cancel"): lambda r: s.cancel_training(
+                TrainingQuery.parse(r.body)
             ),
         }
 

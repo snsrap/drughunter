@@ -22,7 +22,7 @@ from typing import Any, Protocol
 from . import rowquery
 from .buffer import BufferedStructure, PocketRun, StructureBuffer
 from .dataset import DatasetStore
-from .errors import BadRequest, Conflict, NotFound, ToolFailed
+from .errors import BadRequest, Conflict, NotFound, ToolFailed, ToolUnavailable
 from .pockets import residue_list, spheres_pdb
 from .project import Project, ProjectStore, csv_text, resolve_destination, safe_name
 from .schemas import (
@@ -42,6 +42,8 @@ from .schemas import (
     ScoreQuery,
     ScoreRequest,
     SuperposeRequest,
+    TrainingQuery,
+    TrainingStartRequest,
 )
 
 __all__ = [
@@ -54,6 +56,7 @@ __all__ = [
     "PoseScoring",
     "ScoringJob",
     "LigandTools",
+    "Trainer",
 ]
 
 log = logging.getLogger("proteinviewer")
@@ -261,6 +264,35 @@ class LigandTools(Protocol):
     def split(self, dataset_dir: str, strategy: str, seed: int) -> dict: ...
     def summarize(self, dataset_dir: str) -> dict: ...
 
+    def training_unavailable(self) -> str | None: ...
+
+    def start_training(
+        self, dataset_dir: str, run_dir: str, seed: int, strategy: str, profile: str
+    ) -> Any: ...
+
+    def training_outcome(self, returncode: int | None, stdout: str, stderr: str) -> dict: ...
+
+
+class Trainer(Protocol):
+    """Training jobs on ready datasets: the registry in training.py."""
+
+    def describe(self) -> dict: ...
+
+    def start(
+        self,
+        dataset_id: str,
+        dataset_dir: str,
+        seed: int,
+        production_strategy: str,
+        profile: str = "full",
+    ) -> dict: ...
+
+    def progress(self, run_id: str) -> dict: ...
+
+    def run(self, run_id: str) -> dict: ...
+
+    def cancel(self, run_id: str) -> dict: ...
+
 
 class ViewerService:
     def __init__(
@@ -275,8 +307,10 @@ class ViewerService:
         version: str = "",
         ligands: LigandTools | None = None,
         datasets: DatasetStore | None = None,
+        training: Trainer | None = None,
     ):
         self.version = version
+        self.training = training
         self.ligands = ligands
         self.datasets = datasets
         self.buffer = buffer
@@ -319,6 +353,7 @@ class ViewerService:
                 "root": str(self.projects.root) if self.projects else "",
             },
             "datasets": self._datasets_status(),
+            "training": self.training.describe() if self.training else {"available": False},
         }
 
     def _datasets_status(self) -> dict:
@@ -711,6 +746,62 @@ class ViewerService:
                 summary = self.ligands.summarize(str(store.directory(req.dataset_id)))
                 store.put_summary(req.dataset_id, version, summary)
         return {"dataset_id": req.dataset_id, **summary}
+
+    # -- training ------------------------------------------------------------
+    def _trainer(self) -> Trainer:
+        if self.training is None:
+            raise ToolUnavailable("this server cannot train models", "ligandbench")
+        return self.training
+
+    def start_training(self, req: TrainingStartRequest) -> dict:
+        """Queue a training run on a ready dataset; returns its progress, with the
+        run's ``id``. Only a resolved dataset with a target can train: a staged one
+        has to be resolved first (409), one without a target is refused (400), and
+        both are refused before any process starts. A missing ligandbench or XGBoost
+        is a 503, a full queue a 409.
+        """
+        trainer = self._trainer()
+        store = self._store()
+        try:
+            meta = store.get(req.dataset_id)
+        except NotFound:
+            if store.staged(req.dataset_id) is not None:
+                raise Conflict(
+                    "dataset %s is staged, not resolved: choose its structure column and "
+                    "target (resolve it) before training on it" % req.dataset_id
+                ) from None
+            raise
+        if not meta.get("trainable"):
+            raise BadRequest(
+                "dataset %s has no target, so it cannot be trained on; resolve it "
+                "again with a target column" % req.dataset_id
+            )
+        started = trainer.start(
+            req.dataset_id,
+            str(store.directory(req.dataset_id)),
+            req.seed,
+            req.production_strategy,
+            req.profile,
+        )
+        log.info(
+            "training %s: dataset %s, seed %d, %s production strategy, %s profile",
+            started.get("id"),
+            req.dataset_id,
+            req.seed,
+            req.production_strategy,
+            req.profile,
+        )
+        return started
+
+    def training_status(self, q: TrainingQuery) -> dict:
+        return self._trainer().progress(q.run_id)
+
+    def training_run(self, q: TrainingQuery) -> dict:
+        """A completed run's ``run.json``: metadata only, never the model."""
+        return self._trainer().run(q.run_id)
+
+    def cancel_training(self, q: TrainingQuery) -> dict:
+        return self._trainer().cancel(q.run_id)
 
     def _dataset_view(self, meta: dict) -> dict:
         return {

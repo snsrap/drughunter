@@ -68,6 +68,23 @@ class FakeService:
     def dataset_rows(self, req):
         return {"offset": req.offset, "limit": req.limit, "depict": req.depict}
 
+    # -- training
+    def start_training(self, req):
+        if req.dataset_id == "staged":
+            raise Conflict("dataset staged is staged, not resolved")
+        if req.dataset_id == "missing":
+            raise ToolUnavailable("training is not available: no XGBoost")
+        return {"id": "run-1", "seed": req.seed, "strategy": req.production_strategy}
+
+    def training_status(self, q):
+        raise NotFound("no such training run %r" % q.run_id)
+
+    def training_run(self, q):
+        raise Conflict("training run %s is running, not completed" % q.run_id)
+
+    def cancel_training(self, q):
+        return {"id": q.run_id, "state": "cancelled"}
+
 
 class WebTest(unittest.TestCase):
     @classmethod
@@ -170,6 +187,49 @@ class WebTest(unittest.TestCase):
         ):
             self.assertEqual(self.api("POST", path, body)[0], 400, path)
         self.assertEqual(self.api("GET", "/api/dataset")[0], 400)
+
+    def test_the_training_routes(self):
+        self.assertEqual(
+            self.api("POST", "/api/training", {"dataset_id": "ds-1"}),
+            (200, {"id": "run-1", "seed": 0, "strategy": "scaffold"}),
+        )
+        self.assertEqual(
+            self.api(
+                "POST",
+                "/api/training",
+                {"dataset_id": "ds-1", "seed": 5, "production_strategy": "random"},
+            ),
+            (200, {"id": "run-1", "seed": 5, "strategy": "random"}),
+        )
+        self.assertEqual(self.api("POST", "/api/training", {"dataset_id": "staged"})[0], 409)
+        self.assertEqual(self.api("POST", "/api/training", {"dataset_id": "missing"})[0], 503)
+        self.assertEqual(self.api("GET", "/api/training?id=run-9")[0], 404)
+        self.assertEqual(self.api("GET", "/api/training/run?id=run-1")[0], 409)
+        self.assertEqual(
+            self.api("POST", "/api/training/cancel", {"id": "run-1"}),
+            (200, {"id": "run-1", "state": "cancelled"}),
+        )
+
+    def test_training_requests_are_checked_at_the_edge(self):
+        for body in (
+            {},
+            {"dataset_id": "ds-1", "seed": -1},
+            {"dataset_id": "ds-1", "seed": 2**32},
+            {"dataset_id": "ds-1", "production_strategy": "best"},
+            {"dataset_id": "ds-1", "profile": "xl"},
+        ):
+            self.assertEqual(self.api("POST", "/api/training", body)[0], 400, body)
+        # A number too large for a float is the client's mistake, not a server error.
+        for raw in (
+            b'{"dataset_id": "ds-1", "seed": 1e400}',
+            b'{"dataset_id": "ds-1", "seed": 1%s}' % (b"0" * 400),
+        ):
+            code, body = self.api("POST", "/api/training", raw)
+            self.assertEqual(code, 400, raw[:40])
+            self.assertIn("seed", body["error"])
+        self.assertEqual(self.api("GET", "/api/training")[0], 400)
+        self.assertEqual(self.api("GET", "/api/training/run")[0], 400)
+        self.assertEqual(self.api("POST", "/api/training/cancel", {})[0], 400)
 
     def test_errors_map_to_statuses(self):
         for token, code in (("busy", 502), ("missing", 503), ("late", 409)):

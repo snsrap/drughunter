@@ -490,6 +490,10 @@ and which mode are all recorded in the project (see *The project directory*).
 | `POST /api/dataset/rows` | `{dataset_id, offset, limit, sort: {key, dir}, filters: [{key, op, value}]}` → `{total, rows}`: one page (default 50, at most 100), sorted and filtered before it is cut, with only that page's depictions |
 | `POST /api/dataset/splits` | `{dataset_id, strategy: "random"\|"scaffold", seed}` → five repeated 80/10/10 holdouts of a ready dataset with a target (`status: "ok"`, `repeats`), or `status: "split_unavailable"` with why (an answer, not an error), plus `dataset_id`. A staged dataset is 409, a target-free one 400. Nothing is stored; the result's fields are in [ligandbench.md](ligandbench.md#splits) |
 | `GET /api/dataset/summary?id=` | the dashboard's statistics for a ready dataset, in one answer with no rows (`populations`, `exclusions`, `duplicates`, `target`, `scaffolds`, `missing`: see [ligandbench](ligandbench.md#dataset-summary)). Computed once by ligandbench and kept beside the dataset under its content hash and the summary version; a staged or unknown id is a 404 |
+| `POST /api/training` | `{dataset_id, seed = 0, production_strategy = "scaffold", profile = "full"}` → the run's progress, with its `id`. A staged dataset or a full queue is 409, an unknown dataset 404, a target-free dataset, a bad seed, strategy or profile 400, ligandbench or XGBoost missing 503. See [Training](#training) |
+| `GET /api/training?id=` | the run's progress: `state`, `stage`, `completed`, `total`, `elapsed`, and `error`, `error_code`, `unavailable` or `message` when they apply; 404 for a run that is unknown or has been evicted |
+| `GET /api/training/run?id=` | the completed run's `run.json`: metadata only, never the model. 409 until the run is `done`, 404 if unknown |
+| `POST /api/training/cancel` | `{id}` → the run's progress: a queued or running run is cancelled; one that has ended is left as it is |
 | `POST /api/project/save` | `{project, path, session, overwrite}` → `{path, files, bytes}`: write `session.json` into it, then copy it to `path` |
 
 `/api/pockets`, `/api/prep`, `/api/generate` and `/api/score-poses` each also take `project`: the
@@ -575,6 +579,51 @@ if it fails, and draws one bar per bin or per class, never one element per row.
 Its wording and chart geometry are `proteinviewer/app/js/model/summary.js`,
 tested with `npm test`.
 
+## Training
+
+A ready dataset with a target is trained on by `ligandbench train` (see
+[ligandbench](ligandbench.md)): tuning, evaluation and the production refit,
+written into a run directory. It takes minutes, so it is a background job, as
+generation is: `POST /api/training` returns at once with a run `id`, and the page
+polls `GET /api/training?id=`. The server runs it as a subprocess through the same
+adapter as the other ligandbench commands and imports neither it nor XGBoost.
+Nothing but status and metadata crosses HTTP; the model stays on disk.
+
+States, in order: `queued` (waiting for a turn), `running` (with the child's
+`stage` text and `completed` of `total` fits), `finishing` (the child has said it
+is done and its `run.json` is being read), then one of `done`, `error` or
+`cancelled`. Every way a run can end is one of those three with a message: the
+child crashing, being killed, exiting non-zero, timing out (6 hours), printing
+nothing usable, or leaving no readable `run.json`; the server stopping; a bug in
+the job's own thread. An `error` carries `error`; a `cancelled` run carries
+`message`. When the production strategy cannot be split for this dataset the run
+ends `error` with `error_code: "production_strategy_unavailable"` and the
+reason in `unavailable`; the server never switches strategy by itself, so the
+caller offers a new run with the other one.
+
+At most one training runs at a time and at most eight wait (`Settings.training_limit`,
+`training_queue`); a start beyond that is a 409, not an unbounded backlog. Cancelling
+kills the child and everything it started, not only the child. Each run's directory is
+`<work root>/training/<run id>/`, the work root being the temporary directory the
+server removes on exit, so the child never outlives the server either.
+
+**A completed run is temporary until it is registered.** Finished runs are kept up to
+`Settings.job_limit` (32) and the oldest are then forgotten and their directories
+removed; a restart forgets all of them (a lookup is then a 404). Registering a run
+makes it durable. The registration service *pins* the run while it copies it
+(`Training.pin(run_id)`, a context manager that yields the directory): while any pin is
+held eviction skips the run, pins are counted, and the pin is released on leaving
+the block, also by an exception. Only a `done` run can be pinned: a run that is
+unknown or gone is `NotFound`, one that is running, failed or cancelled `Conflict`.
+The page should say that a completed run is not saved until it is registered, and
+treat a 404 on a run it was showing as "expired".
+
+`profile` is `full` (the 12-candidate search) or `tiny`, the small search the tests
+use; the page sends `full` unless it was opened with `?profile=tiny`. The server
+tests run the training job against a stand-in for `ligandbench train`
+(`tests/training_standin.py`), which writes the progress and files the command's
+contract describes.
+
 ## Preparing structures
 
 `Prepare` is backed by [quickprep](quickprep.md), the package beside this one
@@ -650,7 +699,8 @@ one lock per kind of work, so two pocket runs on the same structure take turns
 (they share its scratch directory) while a preparation on it does not wait.
 Each generation job runs in its own directory with its own copy of the
 structure, so evicting a structure cannot pull files out from under a job, and
-only the last 32 finished jobs are kept.
+only the last 32 finished jobs are kept. Training jobs (`training.py`) run through the
+ligandbench adapter the same way, with a bounded queue and pinning (see [Training](#training)).
 
 **Page.** All state lives in one object (`js/core/state.js`). A feature's action
 changes it and calls `commit()`, and every view re-renders from it in a fixed

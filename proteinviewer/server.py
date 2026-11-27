@@ -34,6 +34,7 @@ from .pocketbench import Pocketbench
 from .prep import QuickPrep
 from .project import ProjectStore
 from .service import API_VERSION, ViewerService
+from .training import Training
 from .web import LOOPBACK, Api, Handler
 
 __all__ = ["build_service", "make_server", "main"]
@@ -50,6 +51,7 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
         fpocket_bin=settings.fpocket_bin,
         lacuna_bin=settings.lacuna_bin,
     )
+    ligands = Ligandbench(settings.ligandbench_python)
     return ViewerService(
         buffer=StructureBuffer(work_root / "structures", settings.buffer_limit),
         pockets=pockets,
@@ -66,8 +68,18 @@ def build_service(settings: Settings, work_root: Path) -> ViewerService:
         # What a project may not be saved into: the tree the runs write in.
         work_root=work_root,
         version=__version__,
-        ligands=Ligandbench(settings.ligandbench_python),
+        ligands=ligands,
         datasets=DatasetStore(settings.dataset_root or default_dataset_root()),
+        # Run directories are temporary: a completed run is kept only until it is
+        # registered, or until the limit forgets it.
+        training=Training(
+            ligands,
+            work_root / "training",
+            limit=settings.job_limit,
+            concurrency=settings.training_limit,
+            queue=settings.training_queue,
+            timeout=settings.training_timeout,
+        ),
     )
 
 
@@ -90,6 +102,7 @@ def tool_status_lines(service: ViewerService) -> list[str]:
         service.pockets.status_lines()
         + [service.generator.status_line(), service.prep.status_line()]
         + ([service.ligands.status_line()] if hasattr(service.ligands, "status_line") else [])
+        + ([service.training.status_line()] if hasattr(service.training, "status_line") else [])
     )
 
 
@@ -137,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
         else Path(tempfile.mkdtemp(prefix="proteinviewer-"))
     )
     signal.signal(signal.SIGTERM, _stop)
+    service = None
     try:
         service = build_service(settings, work_root)
         try:
@@ -167,6 +181,9 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print()
     finally:
+        # Before the work directory goes: a child writing into it must not outlive it.
+        if service is not None and service.training is not None:
+            service.training.shutdown()
         if not settings.work_root:
             shutil.rmtree(work_root, ignore_errors=True)
     return 0

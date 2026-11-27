@@ -55,7 +55,10 @@ class Settings:
     # Where ligand datasets are kept: PV_DATASET_DIR; default_dataset_root() when unset.
     dataset_root: Path | None = None
     buffer_limit: int = 12  # structures kept on disk at once
-    job_limit: int = 32  # finished generation jobs kept
+    job_limit: int = 32  # finished generation jobs, and finished training runs, kept
+    training_limit: int = 1  # training runs going at once (each is one thread, one process)
+    training_queue: int = 8  # runs that may wait behind them
+    training_timeout: float = 6 * 3600.0  # a run that takes longer is stopped, seconds
     max_body: int = 64 * 1024 * 1024  # deposited mmCIF entries get large
 
     pocketbench_python: str | None = None  # POCKETBENCH_PYTHON
