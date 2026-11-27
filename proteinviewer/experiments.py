@@ -370,7 +370,7 @@ class ExperimentStore:
             ok = row["state"] == "ready" and self._present(row)
             if selectable_only and not ok:
                 continue
-            out.append({**_summary(row), "selectable": ok})
+            out.append({**_summary(row), "selectable": ok, "headline": _headline(row)})
         return out
 
     def _present(self, row) -> bool:
@@ -954,6 +954,51 @@ def _summary(row) -> dict:
         "artifact_path": row["artifact_path"],
         "target": _loads(row["target"]),
     }
+
+
+_HEADLINE_METRIC = {"regression": "rmse", "classification": "balanced_accuracy"}
+
+
+def _headline(row) -> dict | None:
+    """The one number a registry table shows for an experiment, and what it is of.
+
+    Scaffold test RMSE (regression) or balanced accuracy (classification) when the
+    scaffold strategy produced it; otherwise the random strategy's, and ``strategy``
+    says which. ``group`` names what the number can be compared with -- the same
+    task, target, units, strategy and metric -- so a table never sorts unlike scores
+    together. ``status`` is ``ok``, ``undefined`` (no repeat defined it) or
+    ``unavailable`` (neither strategy had a valid split); no number is invented.
+    """
+    task = row["task"]
+    metric = _HEADLINE_METRIC.get(task)
+    if metric is None:
+        return None
+    metrics = _loads(row["metrics"]) or {}
+    target = _loads(row["target"]) or {}
+    for strategy in ("scaffold", "random"):
+        report = metrics.get(strategy)
+        if not isinstance(report, Mapping) or report.get("status") != "ok":
+            continue
+        agg = (report.get("aggregate") or {}).get(metric)
+        if not isinstance(agg, Mapping):
+            continue
+        n_defined, n_total = agg.get("n_defined") or 0, agg.get("n_total")
+        mean = agg.get("mean")
+        defined = n_defined > 0 and isinstance(mean, (int, float))
+        units = target.get("units") or ("pKi" if target.get("transform") == "pki" else None)
+        return {
+            "metric": metric,
+            "strategy": strategy,
+            "value": mean if defined else None,
+            "n_defined": n_defined,
+            "n_total": n_total,
+            "status": "ok" if defined else "undefined",
+            "group": "|".join(
+                [task, str(row["target_column"]), str(units or ""), strategy, metric]
+            ),
+        }
+    return {"metric": metric, "strategy": None, "value": None, "n_defined": 0,
+            "n_total": None, "status": "unavailable", "group": None}
 
 
 def _record(row) -> dict:

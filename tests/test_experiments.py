@@ -430,3 +430,33 @@ def test_open_takes_health_once_and_removes_nothing(tmp_path, run):
     assert [o["name"] for o in report["orphans"]["staging"]] == ["half-copied"]
     assert (root / "artifacts" / "stray").is_dir() and (root / "staging" / "half-copied").is_dir()
     assert ExperimentStore(root).startup_health is None
+
+
+def test_a_listing_carries_the_headline_metric_and_what_it_may_be_compared_with(store, tmp_path):
+    store.register(make_run(tmp_path / "jobs", "a"), "a", "scaffold one")
+    (entry,) = store.list()
+    assert entry["headline"] == {
+        "metric": "rmse", "strategy": "scaffold", "value": 0.7, "n_defined": 2, "n_total": 2,
+        "status": "ok", "group": "regression|pKi|nM|scaffold|rmse",
+    }
+
+
+def test_the_headline_falls_back_to_random_and_says_so(store, tmp_path):
+    from tests.experiments_helpers import strategy
+
+    broken = {"status": "unavailable", "unavailable": {"message": "no split"}, "repeats": [], "aggregate": None}
+    run = make_run(tmp_path / "jobs", "b", doc={"strategies": {"random": strategy(1), "scaffold": broken}})
+    store.register(run, "b", "random only")
+    (entry,) = store.list()
+    assert entry["headline"]["strategy"] == "random"
+    assert entry["headline"]["group"].endswith("|random|rmse")
+
+
+def test_an_undefined_headline_is_not_a_number(store, tmp_path):
+    from tests.experiments_helpers import strategy
+
+    s = strategy(1)
+    s["aggregate"] = {"rmse": {"mean": None, "sd": None, "n_defined": 0, "n_total": 2}}
+    store.register(make_run(tmp_path / "jobs", "c", doc={"strategies": {"random": s, "scaffold": s}}), "c", "u")
+    (entry,) = store.list()
+    assert entry["headline"]["status"] == "undefined" and entry["headline"]["value"] is None
