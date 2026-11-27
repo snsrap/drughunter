@@ -2,7 +2,7 @@
    here, so errors come back as one kind of Error with a readable message. */
 
 /* The response shape this page expects; see proteinviewer/service.py. */
-export const API_VERSION = 5;
+export const API_VERSION = 6;
 
 export class StaleServerError extends Error {}
 
@@ -66,3 +66,13 @@ export function job(id, opts){
   return request("/api/job?id=" + encodeURIComponent(id) +
                  (opts.molecules ? "&mols=1" : "") + (opts.table ? "&table=1" : ""));
 }
+
+/* Ligand datasets. An upload is staged until its columns are chosen:
+   upload -> {dataset_id, state: "staged", columns, n_rows, structure_candidates}, then
+   resolve with the choices -> the dataset, ready. Cancel removes a staged one.
+   Rows come a page at a time, sorted and filtered by the server. */
+export function datasetUpload(name, data){ return post("/api/dataset/upload", {name, data}); }
+export function datasetResolve(body){ return post("/api/dataset/resolve", body); }
+export function datasetCancel(id){ return post("/api/dataset/cancel", {dataset_id: id}); }
+export function dataset(id){ return request("/api/dataset?id=" + encodeURIComponent(id)); }
+export function datasetRows(body){ return post("/api/dataset/rows", body); }

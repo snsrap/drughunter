@@ -30,6 +30,9 @@ network access.
 It takes a port, `--no-open`, and `--projects DIR` for where session output
 directories are collected (see *The project directory*); at startup it prints
 that path, its temporary work directory, and what each tool's install can do.
+Ligand datasets are kept under `~/.local/share/proteinviewer/datasets` (or
+`PV_DATASET_DIR`); ligandbench runs in the server's interpreter unless
+`LIGANDBENCH_PYTHON` names another.
 
 ## Fetching other structures
 
@@ -480,6 +483,11 @@ and which mode are all recorded in the project (see *The project directory*).
 | `POST /api/prep` | `{token, ph, noRebuild}` → `{data, report, summary}`: the prepared PDB, from the quickprep package |
 | `POST /api/project` | `{name}` → `{id, path, files, bytes}`: start this session's output directory |
 | `GET /api/project?id=` | what is in it now |
+| `POST /api/dataset/upload` | `{name, data}` → `{dataset_id, state: "staged", n_rows, columns, structure_candidates}`: keep a CSV, staged; it cannot train, and expires after 24 hours if never resolved |
+| `POST /api/dataset/resolve` | `{dataset_id, structure_column, target_column, target_kind, qualifier_column, source_units, transform, positive_class}` → the ready dataset (`state: "ready"`, counts, `exclusions`, `content_hash`, `schema`). A staged dataset keeps its id; resolving a ready one makes a new dataset |
+| `POST /api/dataset/cancel` | `{dataset_id}`: delete a staged upload |
+| `GET /api/dataset?id=` | a dataset by id; a ready one is reopened from disk after a restart |
+| `POST /api/dataset/rows` | `{dataset_id, offset, limit, sort: {key, dir}, filters: [{key, op, value}]}` → `{total, rows}`: one page (default 50, at most 100), sorted and filtered before it is cut, with only that page's depictions |
 | `POST /api/project/save` | `{project, path, session, overwrite}` → `{path, files, bytes}`: write `session.json` into it, then copy it to `path` |
 
 `/api/pockets`, `/api/prep`, `/api/generate` and `/api/score-poses` each also take `project`: the
@@ -506,6 +514,40 @@ pocketbench detect fpocket structure.cif --ligand IZP --top 5
 pocketbench detect lacuna structure.cif --backend nma --conformers 20
 pocketbench superpose mobile.pdb reference.pdb -o moved.pdb
 ```
+
+## Ligand datasets
+
+A `.csv` of ligands goes through the same **Open file…** button and drop zone as
+a structure, and opens a dialog instead of the 3D view. Upload is two stages:
+the file is sent as it is and the server answers with its columns, then the
+dialog asks what is in it and the answers are sent back to be resolved. Cancel
+(or Esc) deletes the staged upload; a refusal -- a column that holds no SMILES,
+a pKi from the wrong units -- leaves the dialog open to change the answer.
+
+The dialog asks for the **structure column** (chosen for you only when exactly
+one header looks like one), the **target** or "No target — prediction only", the
+**task** (a numeric column is suggested as regression, never assumed: 0 and 1
+can be classes), for regression the **qualifier column** (or none) and the
+**units**, and a **transform** (pKi is offered only for nM). Nothing is
+guessed; see [ligandbench](ligandbench.md) for what each answer means.
+
+Once resolved, the rail shows what was read (file, rows, columns chosen, parse
+failures by record number, rows that can train and why the rest cannot) and the
+**Ligands** panel shows the molecules: a page of depictions at a time, each with
+its name (the first text column, else the record number) and the target the model
+would see. A structure that did not parse stays as a placeholder with its record
+number and reason. Click a card for every original column, the target beside the
+value it came from, and why a row cannot train.
+
+Sorting and filtering are the server's, applied before the page is cut, so a
+10,000-row dataset is only ever shown 50 (at most 100) at a time and only that
+page is drawn. Missing values sort last either way; ties go to the lower row id.
+Number columns filter with `=`, `<`, `≤`, `>`, `≥`; text columns with
+`contains` (any case) and `=` (exact); every column with `is missing`. Filters
+combine with AND. Depictions are cached beside the dataset by content hash, row
+id and depiction version. The pure parts -- the dialog's rules, the query, the
+paging arithmetic, ignoring a stale answer -- are `proteinviewer/app/js/model/dataset.js`
+and tested with `npm test`.
 
 ## Preparing structures
 
@@ -534,9 +576,11 @@ proteinviewer/               the server: Python standard library only
   config.py                    every setting and environment variable, in one place
   process.py                   subprocess plumbing shared by the tool adapters
   pocketbench.py               adapter: detection and superposition (pocketbench/)
+  ligandbench.py               adapter: ligand datasets, read with RDKit (ligandbench/)
   prep.py  generation.py       adapters: quickprep and NEAT-POCKET
   buffer.py                    structures held on disk, per-structure locks, LRU eviction
   project.py  pockets.py       a session's artifacts on disk, and pocket results as files
+  dataset.py  rowquery.py      ligand datasets on disk, and sorting/filtering/paging their rows
   schemas.py  service.py       parsed requests, and the use cases over them
   web.py                       HTTP: routing, status codes, the cross-site checks
   server.py                    composition root: picks the tools, wires, serves, cleans up
@@ -547,7 +591,8 @@ proteinviewer/               the server: Python standard library only
     js/core/                     state store, API client, RCSB fetch, files in and out,
                                    colours, DOM helpers
     js/model/                    pure: tree building, cutting a selection out of its file,
-                                   scope, reading a structure file, the session snapshot
+                                   scope, reading a structure file, the session snapshot,
+                                   a ligand dataset's dialog and queries, safe SVG
     js/scene.js                  the 3D stage (3Dmol), drawn in keyed layers
     js/features/                 one module per panel: its view, its controls, its actions
 tests/                       the server's tests; tests/js via npm test; tests/e2e walkthrough
@@ -564,10 +609,11 @@ service and errors into statuses; `server.py` is the one place that names
 concrete tools.
 
 The server holds no science of its own. Reading structures, the pocket model,
-the detectors and superposition are [pocketbench](pocketbench.md); preparation
-is [quickprep](quickprep.md); generation is NEAT-POCKET. Each is run as a
-command and never imported (pocketbench and quickprep ship beside the server in
-drughunter, NEAT-POCKET has an environment of its own), so the server never
+the detectors and superposition are [pocketbench](pocketbench.md); reading
+ligand datasets is [ligandbench](ligandbench.md); preparation is
+[quickprep](quickprep.md); generation is NEAT-POCKET. Each is run as a
+command and never imported (pocketbench, ligandbench and quickprep ship beside
+the server in drughunter, NEAT-POCKET has an environment of its own), so the server never
 parses a structure: it
 buffers text, passes it on, and keeps what comes back. What used to be the
 domain layer here left as pocketbench, as quickprep had before it.
@@ -601,6 +647,7 @@ menu and, if it reports new numbers, show them in `js/features/pockets.js`.
 python3 -m unittest discover -s tests -t .   # server: about a second, no tools needed
 npm test                                     # the page's pure modules, Node 18+
 npm install && npm run e2e -- http://127.0.0.1:8000 /tmp/pv-ui --slow   # the whole UI
+npm run e2e:dataset                          # upload -> inspect -> sort/filter a ligand CSV; starts its own server
 ```
 
 The server tests use fake tools, so they pass with nothing installed; real

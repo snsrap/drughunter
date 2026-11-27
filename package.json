@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/js/*.test.js",
-    "e2e": "node tests/e2e/ui_snapshot.mjs"
+    "e2e": "node tests/e2e/ui_snapshot.mjs",
+    "e2e:dataset": "node tests/e2e/dataset_smoke.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.49.1"

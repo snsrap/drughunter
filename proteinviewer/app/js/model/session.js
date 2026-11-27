@@ -13,6 +13,8 @@
    itself writes (see boldOnly and safeSvg). Without that, opening someone
    else's session would run their script against this page's API. */
 
+import {safeSvg} from "./svg.js";
+
 export const SESSION_APP = "proteinviewer";
 export const SESSION_VERSION = 1;
 
@@ -244,19 +246,4 @@ function residueMap(o){
 function boldOnly(s){
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
           .replace(/&lt;(\/?)b&gt;/g, "<$1b>");
-}
-
-/* RDKit's depictions are plain drawings: shapes, text and style attributes.
-   Anything else -- a script, an event handler, a reference out to another
-   document -- means the row was not written by this page, so the depiction is
-   dropped rather than cleaned up and trusted. */
-const SVG_TAGS = ["svg", "g", "defs", "path", "rect", "circle", "ellipse", "line",
-                  "polyline", "polygon", "text", "tspan", "title", "desc"];
-function safeSvg(s){
-  if (!/^\s*<svg[\s>]/i.test(s)) return "";
-  if (/\son[a-z]+\s*=|javascript:|<!--|<!\[/i.test(s)) return "";
-  const tags = s.match(/<\/?([A-Za-z][A-Za-z0-9:-]*)/g) || [];
-  for (const t of tags)
-    if (SVG_TAGS.indexOf(t.replace(/^<\/?/, "").toLowerCase()) === -1) return "";
-  return s;
 }

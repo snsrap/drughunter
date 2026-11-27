@@ -12,17 +12,18 @@ Find pockets in protein structures, score them against sites known from
 experiment, prepare the structures they are found in, and generate binders for
 them — from a browser viewer or from the command line.
 
-One package, three parts:
+One package, four parts:
 
 | part | command | what it does | docs |
 | --- | --- | --- | --- |
 | **proteinviewer** | `proteinviewer` | the browser viewer and the local server behind it | [docs/proteinviewer.md](docs/proteinviewer.md) |
 | **pocketbench** | `pocketbench` | pocket detection (fpocket, lacuna), superposition, apo/holo scoring | [docs/pocketbench.md](docs/pocketbench.md) |
+| **ligandbench** | `ligandbench` | ligand datasets: reads a CSV of molecules with RDKit, resolves its structure and target columns, draws structures | [docs/ligandbench.md](docs/ligandbench.md) |
 | **quickprep** | `quickprep` | structure preparation: protonation, missing atoms and loops, refinement, provenance | [docs/quickprep.md](docs/quickprep.md) |
 
-The viewer is only a GUI. Its server runs pocketbench and quickprep as
-commands, in its own interpreter, and imports neither; it holds no science of
-its own. pocketbench and quickprep do not need the viewer: each is a complete
+The viewer is only a GUI. Its server runs pocketbench, ligandbench and quickprep
+as commands, in its own interpreter, and imports none of them; it holds no
+science of its own. They do not need the viewer: each is a complete
 command-line tool and Python library.
 
 ## Install
@@ -36,7 +37,7 @@ pip install drughunter
 This installs the Python tools and the viewer. The external detectors (fpocket,
 lacuna, NEAT-POCKET) are separate; see below.
 
-From a checkout, one environment holds all three. With pyenv:
+From a checkout, one environment holds all four. With pyenv:
 
 ```sh
 pyenv virtualenv 3.11.14 drughunter
@@ -46,7 +47,8 @@ pip install -e '.[test,lacuna]'     # lacuna is optional
 
 Any virtual environment does (`python -m venv .venv`); Python 3.10 or newer.
 This pulls in what quickprep needs (OpenMM, PDBFixer, PDB2PQR, PROPKA, gemmi,
-numpy); the viewer's server and pocketbench need only the standard library.
+numpy) and what ligandbench needs (RDKit); the viewer's server and pocketbench
+need only the standard library.
 
 ### Optional and external tools
 
@@ -135,12 +137,13 @@ Ruff lints and formats (`[tool.ruff]` in `pyproject.toml`). Install the hook onc
 
 ```
 pyproject.toml     one distribution; its version is the git tag, which proteinviewer,
-                     pocketbench and quickprep all report (tests/test_packaging.py)
+                     pocketbench, ligandbench and quickprep all report (tests/test_packaging.py)
 serve.py start.sh  run the viewer from a checkout
 proteinviewer/     the server, standard library only, and the page in app/
 pocketbench/       detection, superposition, scoring; standard library only
+ligandbench/       ligand datasets: CSV, structure identity, targets; RDKit
 quickprep/         preparation; OpenMM, PDBFixer, PDB2PQR, PROPKA, gemmi
-tests/             the server's; tests/pocketbench, tests/quickprep, tests/js, tests/e2e
+tests/             the server's; tests/pocketbench, tests/ligandbench, tests/quickprep, tests/js, tests/e2e
 docs/              one page per part, the lacuna integration, apo/holo validation
 ```
 

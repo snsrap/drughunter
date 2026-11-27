@@ -12,6 +12,7 @@ import {readText, hasFiles} from "../core/files.js";
 import {formatOf, idFromName, titleOf, firstModel, hasAtoms, fileSub} from "../model/structurefile.js";
 import {isSessionText} from "../model/session.js";
 import {openSession} from "./session.js";
+import {openDataset} from "./dataset.js";
 
 export function render(st){
   $("pdbq").querySelector("button").disabled = st.fetch.busy;
@@ -63,10 +64,31 @@ function addFile(name, bytes, text){
          (m.models > 1 ? " · first of " + m.models + " models" : "");
 }
 
+/* A CSV is a dataset of ligands, not a structure: it goes to its own dialog. */
+export const isCsvName = name => /\.csv(\.gz)?$/i.test(name || "");
+
 /* Whatever the user chose or dropped, in the order they gave it. */
 export async function openFiles(files){
-  const list = Array.prototype.slice.call(files || []);
+  let list = Array.prototype.slice.call(files || []);
   if (!list.length) return;
+  /* One dataset at a time -- its dialog is modal -- so the first CSV is taken and
+     any others are said to have been left. */
+  const csvs = list.filter(f => isCsvName(f.name));
+  if (csvs.length){
+    list = list.filter(f => !isCsvName(f.name));
+    const left = csvs.length - 1;
+    let text = null;
+    try{ text = await readText(csvs[0]); }
+    catch(err){
+      state.fetch = {busy: false, msg: fault(csvs[0].name + ": " + err.message)};
+      return commit();
+    }
+    state.fetch = {busy: false, msg: null};
+    if (list.length) await openFiles(list);
+    if (left && !state.fetch.msg)
+      state.fetch.msg = note("Only one ligand file is opened at a time; " + plural(left, "other CSV") + " left.");
+    return openDataset(csvs[0].name, text);
+  }
   state.fetch = {busy: true, msg: note("Reading " + plural(list.length, "file") + "…")};
   state.busy = "reading…";
   commit();

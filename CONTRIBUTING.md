@@ -31,5 +31,5 @@ npm test             # the page's pure modules, Node 18+
 ```
 
 Ruff lints and formats; CI runs `ruff check` and `ruff format --check`. Science
-code goes in `pocketbench` or `quickprep` and never imports `proteinviewer`
+code goes in `pocketbench`, `ligandbench` or `quickprep` and never imports `proteinviewer`
 (`tests/test_architecture.py` checks the layering).

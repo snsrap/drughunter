@@ -18,7 +18,7 @@ export const state = {
   /* What the server can run; filled in by the status probe. */
   server: {known: false, stale: false, error: null,
            fpocket: false, lacuna: [], prep: false, neat: false, superpose: false,
-           projects: false, projectRoot: "",
+           projects: false, projectRoot: "", datasets: false,
            /* Which pose scorers the server found, by name; [] when none can
               run, which is what disables the Score poses button. */
            scorers: [],
@@ -59,6 +59,13 @@ export const state = {
      busy while a scoring job runs, msg what to say about the last one, flag
      the distance that marks a pose as strained. */
   scoreTask: {busy: false, msg: null, flag: 2},
+
+  /* A ligand CSV. `staged` is an upload waiting for its columns to be chosen
+     (the dialog's form beside it); `ready` is the resolved dataset the panel
+     shows. `mol` is that panel's own view: the query, the page it was answered
+     with, and the row open in its detail. */
+  dataset: {staged: null, form: null, ready: null, busy: false, msg: null},
+  mol: {query: null, page: null, loading: false, error: null, sel: null, open: true, serial: 0},
 
   busy: null,                               /* text of the busy pill */
 };
