@@ -2,7 +2,10 @@
 // sort and filter it -- the connected path through the dialog, the server,
 // ligandbench and the grid -- reopen it by its address, and check that a
 // 10,000-row dataset is only ever shown a page at a time. Also that the viewer
-// hands a dropped CSV to that page rather than opening it over the 3D stage.
+// hands a dropped CSV to that page rather than opening it over the 3D stage. The
+// dataset summary beside the grid is checked too: its numbers, its loading and
+// error states, that it does not need the grid, and that it stays a few elements
+// at 10,000 rows.
 //
 //   npm install                      # playwright-core, once
 //   node tests/e2e/dataset_smoke.mjs [OUTDIR]
@@ -58,17 +61,20 @@ const browser = await chromium.launch({
 });
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 1000 }, colorScheme: "light" })).newPage();
 const problems = [], failures = [], pages = [];
-let uploaded = null, expectRefusal = false;
+let uploaded = null, expectRefusal = false, expectSummaryFault = false;
+const summaries = [];
 page.on("console", m => { if (m.type() === "error" && !/^Failed to load resource/.test(m.text())) problems.push(m.text()); });
 page.on("pageerror", e => problems.push("pageerror: " + e.message));
 page.on("response", async r => {
   const u = r.url();
   // The one refusal this walkthrough provokes on purpose, and the 404s of looking for what was cancelled.
-  const expected = (expectRefusal && u.endsWith("/api/dataset/resolve")) || u.includes("/api/dataset?");
+  const expected = (expectRefusal && u.endsWith("/api/dataset/resolve")) || u.includes("/api/dataset?")
+    || (expectSummaryFault && u.includes("/api/dataset/summary"));
   if (r.status() >= 400 && !u.endsWith("/favicon.ico") && !expected) problems.push(r.status() + " " + u);
   try {
     if (u.endsWith("/api/dataset/upload")) uploaded = await r.json();
     if (u.endsWith("/api/dataset/rows") && r.ok()) pages.push(await r.json());
+    if (u.includes("/api/dataset/summary") && r.ok()) summaries.push(await r.json());
   } catch {}
 });
 
@@ -173,6 +179,67 @@ check("the first card is the first record", (await text("#mol-grid .mcard .mname
 check("the prompt is gone and the page is titled for the dataset", await page.locator("#ds-prompt").isHidden() && (await page.title()).startsWith("cdd_export_hiv1_protease.csv"));
 await shot("grid");
 
+// ---- the dataset summary, beside the grid ---------------------------------------------------------------------
+console.log("the dataset summary");
+const sumReady = () => page.waitForFunction(() => !!document.querySelector("#sum-body .sgrid"), null, { timeout: 120000 });
+await sumReady();
+const cddId = new URL(page.url()).pathname.split("/").pop();
+const sum = summaries[0];
+const sumText = await text("#sum-body");
+check("the panel is on the page beside the ligands", await page.locator("#sum-panel").isVisible() && await page.locator("#mtab").isVisible());
+check("one request supplied the whole summary", summaries.length === 1 && sum.dataset_id === cddId, "requests " + summaries.length);
+check("counts name the population they are of", ["Source rows", "Valid structures", "100% of source rows", "Training-eligible", "96.2% of source rows"].every(t => sumText.includes(t)), sumText.slice(0, 300));
+check("the header counts the rows", (await text("#sum-n")).toLowerCase() === "106 rows");
+check("exclusions say they overlap", sumText.includes("4 rows left out of training") && sumText.includes("Reasons overlap"));
+check("the target is a histogram in the units the model sees", sumText.includes("pKi = 9 − log10(Ki in nM)") && sumText.includes("102 training-eligible rows"));
+const bars = await page.locator("#sum-body .sbar").count();
+check("one bar per bin, never more than fifty", bars === sum.target.bins.counts.length && bars > 1 && bars <= 50 && sum.target.bins.counts.reduce((a, b) => a + b, 0) === 102, "bars " + bars);
+check("duplicates say conflicts are not defined for regression", sumText.includes("Duplicate rows") && sumText.includes("Not defined for regression"));
+check("scaffolds are counted by their policy", sumText.includes("Distinct scaffolds") && sumText.includes("Bemis–Murcko scaffolds, murcko-v1") && sumText.includes("Top-10 share"));
+check("every source column has a missing count", (await page.locator("#sum-body .smissing .srow").count()) === 8
+  && (await text("#sum-body .smissing .srow:nth-child(6)")).includes("102"));
+await shot("summary");
+
+// While the server computes, the panel says so and the page stays usable.
+await page.route("**/api/dataset/summary*", async route => { await new Promise(r => setTimeout(r, 4000)); await route.continue(); });
+await page.reload();
+await page.waitForFunction(() => document.getElementById("sum-body").getAttribute("aria-busy") === "true");
+check("while the summary is computed, the panel says so", (await text("#sum-msg")).includes("Computing"));
+await gridOpens(); await idle();
+check("the ligands load and answer meanwhile", (await cards()) === 50 && (await page.locator("#sum-body").getAttribute("aria-busy")) === "true");
+await sumReady();
+check("then the answer replaces the message", (await page.locator("#sum-body").getAttribute("aria-busy")) === "false" && (await text("#sum-msg")) === "");
+await page.unroute("**/api/dataset/summary*");
+
+// A failed summary says why, offers another try, and leaves the ligands alone.
+expectSummaryFault = true;
+await page.route("**/api/dataset/summary*", route => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "ligandbench exploded" }) }));
+await page.reload();
+await page.waitForSelector("#sum-retry");
+check("a failed summary says why and offers another try", (await text("#sum-body")).includes("ligandbench exploded"));
+await gridOpens(); await idle();
+check("and the ligands are unaffected", (await cards()) === 50);
+await page.unroute("**/api/dataset/summary*");
+expectSummaryFault = false;
+await page.click("#sum-retry");
+await sumReady();
+check("trying again gets the answer", (await page.locator("#sum-body .sbar").count()) === bars);
+
+// The summary needs the dataset and nothing of the ligand panel.
+await page.route("**/api/dataset/rows", route => route.abort());
+await page.reload();
+await sumReady();
+await page.waitForFunction(() => document.getElementById("mol-msg").textContent.length > 0);
+check("the summary draws although the ligand panel never loads", (await page.locator("#sum-body .sbar").count()) === bars && (await cards()) === 0, await text("#mol-msg"));
+await page.unroute("**/api/dataset/rows");
+await page.reload();
+await gridOpens(); await idle(); await sumReady();
+
+// Asked again, the server answered from what it kept, and kept one file.
+const kept = fs.readdirSync(path.join(tmp, "datasets", "ready", cddId, "summaries"));
+const real = summaries.filter(s => s.dataset_id === cddId);
+check("the server computed it once and kept it", kept.length === 1 && real.length >= 4 && real.every(s => JSON.stringify(s) === JSON.stringify(real[0])), kept.join(",") + " / " + real.length + " answers");
+
 // ---- the dataset has an address: reload, Back, and a link -------------------------------------------------------
 console.log("its address");
 const cddPath = new URL(page.url()).pathname;
@@ -272,6 +339,25 @@ check("a hundred is the most a page holds", (await cards()) === 100 && (await pa
 for (let i = 0; i < 3; i++) { await page.click("#mol-next"); await idle(); mostCards = Math.max(mostCards, await cards()); }
 check("paging never mounts more than a page", mostCards <= 100, "most " + mostCards);
 check("no request carried over a hundred rows", pages.every(p => p.rows.length <= 100), pages.map(p => p.rows.length).join(","));
+// The summary of 10,000 rows is a few elements, drawn from bins and counts.
+await sumReady();
+check("a dataset with no target says No target, and draws no chart", (await text("#sum-body .sempty")).includes("No target") && (await page.locator("#sum-panel .sbar").count()) === 0);
+check("ten thousand rows in the summary are not ten thousand elements", (await page.locator("#sum-body *").count()) < 300, String(await page.locator("#sum-body *").count()));
+await page.setInputFiles("#ds-file", TEN_K);
+await page.waitForSelector("#datadlg[open]");
+await page.selectOption("#dd-target", "2");   // Activity, 0..96 as numbers
+await page.check("input[name=dd-kind][value=regression]");
+await page.selectOption("#dd-qualifier", "-1");
+await page.selectOption("#dd-units", "u:");
+await page.click("#dd-go");
+await page.waitForFunction(() => /10,000 training-eligible rows/.test(document.getElementById("sum-body").textContent), null, { timeout: 120000 });
+const big = summaries[summaries.length - 1];
+check("ten thousand rows make a histogram of at most fifty bars", big.target.state === "regression" && big.target.bins.counts.length <= 50
+  && big.target.bins.counts.reduce((a, b) => a + b, 0) === 10000, "bins " + big.target.bins.counts.length);
+check("and the page draws one rect per bin and no more", (await page.locator("#sum-body .sbar").count()) === big.target.bins.counts.length
+  && (await page.locator("#sum-body *").count()) < 300, String(await page.locator("#sum-body *").count()));
+check("the summary response is a few kilobytes, whatever the rows", JSON.stringify(big).length < 8000, String(JSON.stringify(big).length));
+await shot("ten-thousand-summary");
 await shot("ten-thousand");
 
 await browser.close();

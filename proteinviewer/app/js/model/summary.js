@@ -53,6 +53,14 @@ export const finishTask = (task, id, data) =>
 export const failTask = (task, id, error) =>
   task.id === id ? {id, status: "error", data: null, error: String(error)} : task;
 
+/* What the server's refusal says, in words that tell the user what to do. A server
+   older than this page has no such endpoint and says only that. */
+export function errorText(message){
+  return /no such endpoint/i.test(message || "")
+    ? "This server predates the dataset summary — restart it."
+    : message || "The summary could not be made.";
+}
+
 /* Which of the panel's four states to show. A "ready" task with no data is a
    fault in the caller, and is shown as an error rather than an empty panel. */
 export function panelState(task){

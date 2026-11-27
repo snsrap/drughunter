@@ -62,6 +62,20 @@
       <div class="pdbq-msg" id="ds-prompt-msg" aria-live="polite"></div>
     </section>
 
+    <!-- What the dataset looks like, in numbers: counts and the populations they are of, the
+         target's distribution, duplicates, scaffolds and missing cells. One request, drawn from
+         bins and counts; it does not wait for, or need, the ligand panel below. features/summary.js. -->
+    <section class="gtab sum" id="sum-panel" hidden aria-label="Dataset summary">
+      <div class="hd">
+        <button class="btn tog" type="button" id="sum-tog" aria-expanded="true" aria-controls="sum-body"
+                aria-label="Collapse the summary panel">&#9662;</button>
+        <span class="eyebrow">Dataset summary</span>
+        <span class="eyebrow" id="sum-n"></span>
+      </div>
+      <div class="pdbq-msg" id="sum-msg" aria-live="polite"></div>
+      <div class="sbody" id="sum-body" aria-busy="false"></div>
+    </section>
+
     <!-- The ligands of an uploaded dataset: a page of depictions at a time, sorted and
          filtered by the server, with every original column behind a click. -->
     <section class="gtab mol page" id="mtab" hidden aria-label="Ligand dataset">

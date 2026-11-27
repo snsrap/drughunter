@@ -76,3 +76,6 @@ export function datasetResolve(body){ return post("/api/dataset/resolve", body);
 export function datasetCancel(id){ return post("/api/dataset/cancel", {dataset_id: id}); }
 export function dataset(id){ return request("/api/dataset?id=" + encodeURIComponent(id)); }
 export function datasetRows(body){ return post("/api/dataset/rows", body); }
+/* The dashboard's statistics for a ready dataset: one answer of counts, bins and
+   class counts, never rows. The server computes it once and keeps it. */
+export function datasetSummary(id){ return request("/api/dataset/summary?id=" + encodeURIComponent(id)); }

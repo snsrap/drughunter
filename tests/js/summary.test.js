@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   MAX_BARS, count, percent, number, idleTask, startTask, finishTask, failTask, panelState,
   populationRows, exclusionView, duplicateRows, scaffoldRows, scaffoldPolicy, missingView,
-  targetLabel, axisLabel, histogramBars, binLabel, axisTicks, classRows, targetView,
+  targetLabel, axisLabel, histogramBars, binLabel, axisTicks, classRows, targetView, errorText,
 } from "../../proteinviewer/app/js/model/summary.js";
 
 const KI = "HIV-1 PR FRET (Q7K): Ki (nM)";
@@ -87,6 +87,12 @@ test("the panel is idle with no dataset, loading while asked, an error when refu
   const failed = panelState(failTask(t, "ds-aaaaaaaaaaaa", "ligandbench is not installed"));
   assert.deepEqual(failed, {kind: "error", message: "ligandbench is not installed"});
   assert.equal(startTask(null).status, "idle");
+});
+
+test("a refusal is worded for the user; a server too old for the endpoint is told to restart", () => {
+  assert.equal(errorText("no such endpoint"), "This server predates the dataset summary — restart it.");
+  assert.equal(errorText("no resolved dataset ds-aaaaaaaaaaaa"), "no resolved dataset ds-aaaaaaaaaaaa");
+  assert.equal(errorText(""), "The summary could not be made.");
 });
 
 test("an answer for a dataset the page has left changes nothing", () => {
