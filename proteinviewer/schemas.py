@@ -30,6 +30,7 @@ __all__ = [
     "DatasetResolveRequest",
     "DatasetIdRequest",
     "DatasetRowsRequest",
+    "DatasetSummaryRequest",
     "DEFAULT_CUTOFF",
     "DEFAULT_PAGE",
     "MAX_PAGE",
@@ -424,3 +425,17 @@ class DatasetRowsRequest:
             tuple(MappingProxyType(dict(f)) for f in filters),
             p.get("depict", True) is not False,
         )
+
+
+@dataclass(frozen=True)
+class DatasetSummaryRequest:
+    """``GET /api/dataset/summary?id=...``: the statistics of a ready dataset."""
+
+    dataset_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> DatasetSummaryRequest:
+        dataset_id = validate.text(p, "dataset_id") or validate.text(p, "id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(dataset_id)

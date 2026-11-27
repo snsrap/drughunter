@@ -30,6 +30,7 @@ from .schemas import (
     DatasetIdRequest,
     DatasetResolveRequest,
     DatasetRowsRequest,
+    DatasetSummaryRequest,
     DatasetUploadRequest,
     GenerateRequest,
     JobQuery,
@@ -256,6 +257,8 @@ class LigandTools(Protocol):
 
     def depict(self, smiles: list[str]) -> dict: ...
 
+    def summarize(self, dataset_dir: str) -> dict: ...
+
 
 class ViewerService:
     def __init__(
@@ -290,6 +293,9 @@ class ViewerService:
         self._score_jobs: dict[str, tuple[str, str]] = {}
         self._scores_written: set[str] = set()
         self._lock = threading.Lock()
+        # One summary at a time per dataset: the first request computes it and the
+        # ones that arrived meanwhile read what it kept.
+        self._summary_locks: dict[str, threading.Lock] = {}
 
     def status(self) -> dict:
         """Which tools this server can run. Probing some of them starts an
@@ -645,6 +651,26 @@ class ViewerService:
             "limit": req.limit,
             "rows": rows,
         }
+
+    def dataset_summary(self, req: DatasetSummaryRequest) -> dict:
+        """The dashboard's statistics for a ready dataset, in one answer: counts
+        with their populations, duplicates, the target's histogram or class
+        counts, scaffold concentration and missing cells. No row is in it.
+
+        A ready dataset never changes, so what ligandbench computes is kept
+        beside it, under the summary version ligandbench reports, and every
+        later request -- from any page, after a restart -- reads that. A new
+        version of the summary computes again and leaves the old file alone.
+        """
+        store = self._store()
+        store.get(req.dataset_id)  # a staged or unknown id is NotFound here, as for its rows
+        version = str(self.ligands.describe().get("summary", ""))
+        with self._summary_locks.setdefault(req.dataset_id, threading.Lock()):
+            summary = store.cached_summary(req.dataset_id, version)
+            if summary is None:
+                summary = self.ligands.summarize(str(store.directory(req.dataset_id)))
+                store.put_summary(req.dataset_id, version, summary)
+        return {"dataset_id": req.dataset_id, **summary}
 
     def _dataset_view(self, meta: dict) -> dict:
         return {

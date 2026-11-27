@@ -39,6 +39,7 @@ from .schemas import (
     DatasetIdRequest,
     DatasetResolveRequest,
     DatasetRowsRequest,
+    DatasetSummaryRequest,
     DatasetUploadRequest,
     GenerateRequest,
     JobQuery,
@@ -122,6 +123,9 @@ class Api:
             ("GET", "/api/dataset"): lambda r: s.dataset_status(DatasetIdRequest.parse(r.query)),
             ("POST", "/api/dataset/rows"): lambda r: s.dataset_rows(
                 DatasetRowsRequest.parse(r.body)
+            ),
+            ("GET", "/api/dataset/summary"): lambda r: s.dataset_summary(
+                DatasetSummaryRequest.parse(r.query)
             ),
         }
 
