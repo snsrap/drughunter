@@ -24,6 +24,7 @@ async function request(url, init){
   if (!r.ok){
     const err = new Error(j.error || ("HTTP " + r.status));
     err.status = r.status;     /* a caller can tell a vanished run (404) from a refusal */
+    if (j.report) err.report = j.report;   /* a delete that did not finish says which parts did */
     throw err;
   }
   return j;
@@ -91,3 +92,12 @@ export function startTraining(body){ return post("/api/training", body); }
 export function trainingProgress(id){ return request("/api/training?id=" + encodeURIComponent(id)); }
 export function trainingRun(id){ return request("/api/training/run?id=" + encodeURIComponent(id)); }
 export function cancelTraining(id){ return post("/api/training/cancel", {id}); }
+
+/* The experiment registry: register a completed run by its id and a name; list
+   (selectable ones, or every record with all=true); read one record in full; rename
+   and edit annotations; delete for good (answers the per-part report). */
+export function registerExperiment(runId, name){ return post("/api/experiments", {run_id: runId, name}); }
+export function experiments(all){ return request("/api/experiments" + (all ? "?all=true" : "")); }
+export function experiment(id){ return request("/api/experiments?id=" + encodeURIComponent(id)); }
+export function updateExperiment(body){ return post("/api/experiments/update", body); }
+export function deleteExperiment(id){ return post("/api/experiments/delete", {id}); }
