@@ -128,7 +128,10 @@ def test_an_edited_feature_record_is_refused(copy, tmp_path):
     text = json.dumps(feats)
     (run / "features.json").write_text(text)
     doc = json.loads((run / "run.json").read_text())
-    doc["files"]["features.json"] = {"sha256": hashlib.sha256(text.encode()).hexdigest(), "bytes": len(text)}
+    doc["files"]["features.json"] = {
+        "sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "bytes": len(text),
+    }
     (run / "run.json").write_text(json.dumps(doc))
     result, where = predict(run, directory, tmp_path)
     refused(result, where, "feature schema")

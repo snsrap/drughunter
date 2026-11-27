@@ -22,7 +22,9 @@ BAD_SMILES = "this is not a structure"
 
 def lb(*args) -> dict:
     proc = subprocess.run(
-        [sys.executable, "-m", "ligandbench", *map(str, args)], capture_output=True, text=True,
+        [sys.executable, "-m", "ligandbench", *map(str, args)],
+        capture_output=True,
+        text=True,
         env={**os.environ},
     )
     assert proc.returncode == 0, (args, proc.stdout, proc.stderr)
@@ -52,7 +54,18 @@ def resolve(csv_path: Path, config: dict, out: Path) -> Path:
 
 def train(dataset_dir: Path, out: Path, *, seed: int = 0, strategy: str = "random") -> Path:
     out.mkdir(parents=True)
-    lb("train", dataset_dir, "--out", out, "--seed", seed, "--production-strategy", strategy, "--profile", "tiny")
+    lb(
+        "train",
+        dataset_dir,
+        "--out",
+        out,
+        "--seed",
+        seed,
+        "--production-strategy",
+        strategy,
+        "--profile",
+        "tiny",
+    )
     return out
 
 

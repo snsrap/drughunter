@@ -998,8 +998,15 @@ def _headline(row) -> dict | None:
                 [task, str(row["target_column"]), str(units or ""), strategy, metric]
             ),
         }
-    return {"metric": metric, "strategy": None, "value": None, "n_defined": 0,
-            "n_total": None, "status": "unavailable", "group": None}
+    return {
+        "metric": metric,
+        "strategy": None,
+        "value": None,
+        "n_defined": 0,
+        "n_total": None,
+        "status": "unavailable",
+        "group": None,
+    }
 
 
 def _record(row) -> dict:

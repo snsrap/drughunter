@@ -118,7 +118,8 @@ def build_set(
                 "name": "value",
                 "type": "number",
                 "units": units,
-                "label": "%s%s · predicted %s%s" % (name, tail, column, " (%s)" % units if units else ""),
+                "label": "%s%s · predicted %s%s"
+                % (name, tail, column, " (%s)" % units if units else ""),
             }
         )
     elif kind in ("binary", "multiclass"):
@@ -144,7 +145,9 @@ def build_set(
                 }
             )
     else:
-        raise ToolFailed("ligandbench predict returned a target of kind %r" % (kind,), "ligandbench")
+        raise ToolFailed(
+            "ligandbench predict returned a target of kind %r" % (kind,), "ligandbench"
+        )
 
     values: dict[str, dict] = {}
     errors: dict[str, str] = {}
@@ -163,7 +166,11 @@ def build_set(
     return {
         "schema": PREDICTION_SCHEMA,
         "key": key,
-        "dataset": {"id": dataset["dataset_id"], "hash": dataset["content_hash"], "n_rows": len(rows)},
+        "dataset": {
+            "id": dataset["dataset_id"],
+            "hash": dataset["content_hash"],
+            "n_rows": len(rows),
+        },
         "experiment": {
             "id": experiment["id"],
             "name": experiment["name"],
@@ -320,7 +327,9 @@ class Predictions:
             raise Conflict("experiment %s is %s, not ready" % (experiment_id, record["state"]))
         with self.experiments.lease(experiment_id):  # its files are in place, right now
             pass
-        why = self.tool.model_compatibility(record.get("versions"), (record.get("run") or {}).get("schema"))
+        why = self.tool.model_compatibility(
+            record.get("versions"), (record.get("run") or {}).get("schema")
+        )
         if why:
             raise Incompatible("this model cannot be applied here: %s" % why)
         checksum = model_checksum(record)
@@ -366,7 +375,9 @@ class Predictions:
                 del self._jobs[job_id]
                 self._queue.remove(job)
                 shutil.rmtree(directory, ignore_errors=True)
-                raise ToolFailed("cannot start a prediction thread: %s" % exc, "ligandbench") from exc
+                raise ToolFailed(
+                    "cannot start a prediction thread: %s" % exc, "ligandbench"
+                ) from exc
             self._threads = [t for t in self._threads if t.is_alive()] + [thread]
         self._prune()
         return job.progress()
@@ -447,7 +458,9 @@ class Predictions:
             with job._lock:
                 if job.proc is not None and not job.proc_done:
                     _kill(job.proc)
-            job.finish("error", error="prediction failed unexpectedly: %s: %s" % (type(exc).__name__, exc))
+            job.finish(
+                "error", error="prediction failed unexpectedly: %s: %s" % (type(exc).__name__, exc)
+            )
         finally:
             if slot:
                 with self._cv:
@@ -481,7 +494,10 @@ class Predictions:
             with lease as run_dir:
                 # Under the lease nothing can delete it. Is it still the model that was asked for?
                 now = self.experiments.get(spec["experiment_id"])
-                if model_checksum(now) != spec["checksum"] or _sha(Path(run_dir) / "model.json") != spec["checksum"]:
+                if (
+                    model_checksum(now) != spec["checksum"]
+                    or _sha(Path(run_dir) / "model.json") != spec["checksum"]
+                ):
                     job.finish(
                         "error",
                         code=CHANGED,
@@ -503,7 +519,9 @@ class Predictions:
         dataset_dir = self.datasets.directory(spec["dataset_id"])
         meta = self.datasets.get(spec["dataset_id"])
         if meta.get("content_hash") != spec["dataset_hash"]:
-            job.finish("error", code=CHANGED, error="the dataset is not the one this job was started with")
+            job.finish(
+                "error", code=CHANGED, error="the dataset is not the one this job was started with"
+            )
             return
         try:
             proc = self.tool.start_prediction(str(run_dir), str(dataset_dir), str(job.dir / "out"))
@@ -531,15 +549,21 @@ class Predictions:
             job.finish("cancelled", message=job.message or "cancelled")
             return
         if timed_out:
-            job.finish("error", error="prediction timed out after %gs and was stopped" % self.timeout)
+            job.finish(
+                "error", error="prediction timed out after %gs and was stopped" % self.timeout
+            )
             return
         try:
             outcome = self.tool.prediction_outcome(proc.returncode, stdout, stderr)
             if outcome.get("status") != "completed":
-                raise ToolFailed("ligandbench predict reported %r" % outcome.get("status"), "ligandbench")
+                raise ToolFailed(
+                    "ligandbench predict reported %r" % outcome.get("status"), "ligandbench"
+                )
             result = _read_json(job.dir / "out" / "predictions.json")
             if not result:
-                raise ToolFailed("prediction finished but left no readable predictions.json", "ligandbench")
+                raise ToolFailed(
+                    "prediction finished but left no readable predictions.json", "ligandbench"
+                )
             experiment = {
                 "id": spec["experiment_id"],
                 "name": record["name"],

@@ -42,12 +42,12 @@ from .schemas import (
     ExperimentQuery,
     ExperimentRegisterRequest,
     ExperimentUpdateRequest,
-    PredictionQuery,
-    PredictionSetRequest,
-    PredictionStartRequest,
     GenerateRequest,
     JobQuery,
     PocketRequest,
+    PredictionQuery,
+    PredictionSetRequest,
+    PredictionStartRequest,
     PrepRequest,
     ProjectRequest,
     ProjectSaveRequest,
@@ -307,7 +307,9 @@ class LigandTools(Protocol):
 
     def prediction_unavailable(self) -> str | None: ...
 
-    def model_compatibility(self, versions: Mapping[str, Any] | None, schema: str | None) -> str | None: ...
+    def model_compatibility(
+        self, versions: Mapping[str, Any] | None, schema: str | None
+    ) -> str | None: ...
 
     def start_prediction(self, run_dir: str, dataset_dir: str, out_dir: str) -> Any: ...
 
@@ -429,7 +431,9 @@ class ViewerService:
             "datasets": self._datasets_status(),
             "training": self.training.describe() if self.training else {"available": False},
             "experiments": self._experiments_status(),
-            "predictions": self.predictions.describe() if self.predictions else {"available": False},
+            "predictions": self.predictions.describe()
+            if self.predictions
+            else {"available": False},
         }
 
     def _datasets_status(self) -> dict:
@@ -1101,7 +1105,10 @@ class ViewerService:
         if self.predictions is None:
             raise Conflict(
                 "predictions are not available: %s"
-                % (self.experiments_error or "this server has no experiment registry or no dataset directory")
+                % (
+                    self.experiments_error
+                    or "this server has no experiment registry or no dataset directory"
+                )
             )
         return self.predictions
 
@@ -1187,7 +1194,12 @@ class ViewerService:
         self._store().get(req.dataset_id)  # NotFound before anything is started
         with self._guarded(self._registry()):
             out = self._predictor().start(req.dataset_id, req.experiment_id)
-        log.info("prediction %s: experiment %s on dataset %s", out["id"], req.experiment_id, req.dataset_id)
+        log.info(
+            "prediction %s: experiment %s on dataset %s",
+            out["id"],
+            req.experiment_id,
+            req.dataset_id,
+        )
         return out
 
     def prediction_status(self, q: PredictionQuery) -> dict:
@@ -1214,7 +1226,9 @@ class ViewerService:
         """Remove one kept set of predictions from a dataset (not the model, not the dataset)."""
         removed = self._store().delete_prediction(req.dataset_id, req.key)
         if not removed:
-            raise NotFound("no such set of predictions %s on dataset %s" % (req.key, req.dataset_id))
+            raise NotFound(
+                "no such set of predictions %s on dataset %s" % (req.key, req.dataset_id)
+            )
         return {"dataset_id": req.dataset_id, "key": req.key, "deleted": True}
 
     def _depict(self, meta: dict, rows: list[dict]) -> None:

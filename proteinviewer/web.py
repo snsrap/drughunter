@@ -50,6 +50,9 @@ from .schemas import (
     GenerateRequest,
     JobQuery,
     PocketRequest,
+    PredictionQuery,
+    PredictionSetRequest,
+    PredictionStartRequest,
     PrepRequest,
     ProjectRequest,
     ProjectSaveRequest,
@@ -57,9 +60,6 @@ from .schemas import (
     ScoreRequest,
     SuperposeRequest,
     TrainingQuery,
-    PredictionQuery,
-    PredictionSetRequest,
-    PredictionStartRequest,
     TrainingStartRequest,
 )
 from .service import ViewerService

@@ -35,10 +35,10 @@ from .config import (
 )
 from .dataset import DatasetStore
 from .experiments import ExperimentStore, StoreError
-from .predictions import Predictions
 from .generation import NeatPocket, Scoring
 from .ligandbench import Ligandbench
 from .pocketbench import Pocketbench
+from .predictions import Predictions
 from .prep import QuickPrep
 from .project import ProjectStore
 from .service import API_VERSION, ViewerService

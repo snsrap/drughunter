@@ -226,7 +226,9 @@ class Ligandbench:
             return "this ligandbench cannot apply a saved model (it predates prediction)"
         return None
 
-    def model_compatibility(self, versions: Mapping[str, Any] | None, schema: str | None) -> str | None:
+    def model_compatibility(
+        self, versions: Mapping[str, Any] | None, schema: str | None
+    ) -> str | None:
         """Why a model trained with ``versions`` cannot be applied by this installation,
         or None. A first look from what the registry recorded, for the selector: the
         command itself checks again, against the files, before it predicts.
@@ -240,11 +242,15 @@ class Ligandbench:
         for name in ("rdkit", "xgboost"):
             if versions.get(name) != self.info.get(name):
                 return "trained with %s %s; this server runs %s %s" % (
-                    name, versions.get(name) or "(unrecorded)", name, self.info.get(name)
+                    name,
+                    versions.get(name) or "(unrecorded)",
+                    name,
+                    self.info.get(name),
                 )
         if versions.get("featuriser") != self.info.get("featuriser"):
             return "its features come from featuriser %s; this build implements %s" % (
-                versions.get("featuriser") or "(unrecorded)", self.info.get("featuriser")
+                versions.get("featuriser") or "(unrecorded)",
+                self.info.get("featuriser"),
             )
         return None
 
@@ -261,8 +267,13 @@ class Ligandbench:
         cmd = self._cmd("predict", run_dir, dataset_dir, "--out", out_dir)
         try:
             return subprocess.Popen(
-                cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, env=env, start_new_session=True,
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+                start_new_session=True,
             )
         except OSError as exc:
             raise ToolFailed("ligandbench could not be started: %s" % exc, self.name) from exc
@@ -280,7 +291,8 @@ class Ligandbench:
             )
         if out is None:
             raise ToolFailed(
-                "ligandbench predict printed no result (exit %s): %s" % (returncode, tail), self.name
+                "ligandbench predict printed no result (exit %s): %s" % (returncode, tail),
+                self.name,
             )
         if returncode == 0:
             return out

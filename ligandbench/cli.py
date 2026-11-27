@@ -337,7 +337,9 @@ def cmd_predict(a) -> int:
     def note(done: int, total: int) -> None:
         _write_atomic(
             out / "progress.json",
-            json.dumps({"state": "running", "stage": "predicting", "completed": done, "total": total}),
+            json.dumps(
+                {"state": "running", "stage": "predicting", "completed": done, "total": total}
+            ),
         )
 
     result = predict_rows(a.run_dir, rows, progress=note)
