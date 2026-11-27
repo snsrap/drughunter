@@ -11,11 +11,12 @@ import * as api from "./core/api.js";
 import * as dataset from "./features/dataset.js";
 import * as molecules from "./features/molecules.js";
 import * as summary from "./features/summary.js";
+import * as training from "./features/training.js";
 import * as theme from "./features/theme.js";
 
-/* The summary and the ligand panel each follow the open dataset on their own;
-   neither reads anything of the other. */
-const FEATURES = [dataset, summary, molecules];
+/* The summary, the training panel and the ligand panel each follow the open dataset on
+   their own; none reads anything of another. */
+const FEATURES = [dataset, summary, training, molecules];
 
 /* Ask once, on load, so a server that cannot read ligand files is said so before
    anyone chooses a file. */
@@ -35,6 +36,7 @@ async function probeServer(){
 
 function start(){
   subscribe(summary.follow);   /* ahead of the views, so the one after it draws the request it starts */
+  subscribe(training.follow);  /* likewise: a new dataset is a new panel before it is drawn */
   FEATURES.forEach(m => subscribe(m.render));
   FEATURES.forEach(m => m.bind());
   theme.bind();

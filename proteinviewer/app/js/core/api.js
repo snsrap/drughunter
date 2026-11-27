@@ -21,7 +21,11 @@ async function request(url, init){
     throw new Error("server returned HTTP " + r.status + ", not JSON");
   }
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  if (!r.ok){
+    const err = new Error(j.error || ("HTTP " + r.status));
+    err.status = r.status;     /* a caller can tell a vanished run (404) from a refusal */
+    throw err;
+  }
   return j;
 }
 
@@ -79,3 +83,11 @@ export function datasetRows(body){ return post("/api/dataset/rows", body); }
 /* The dashboard's statistics for a ready dataset: one answer of counts, bins and
    class counts, never rows. The server computes it once and keeps it. */
 export function datasetSummary(id){ return request("/api/dataset/summary?id=" + encodeURIComponent(id)); }
+
+/* Training: POST starts a job and answers its progress dict; GET polls it; the
+   completed run's record is its own request, and cancel stops a queued or running
+   one. A run is known by the id the first answer gives. */
+export function startTraining(body){ return post("/api/training", body); }
+export function trainingProgress(id){ return request("/api/training?id=" + encodeURIComponent(id)); }
+export function trainingRun(id){ return request("/api/training/run?id=" + encodeURIComponent(id)); }
+export function cancelTraining(id){ return post("/api/training/cancel", {id}); }
