@@ -68,7 +68,7 @@ log = logging.getLogger("proteinviewer")
 #: 5: /api/score-poses and /api/score-job; status says what can score a pose.
 #: 6: /api/dataset/* (upload, resolve, cancel, rows); status says whether ligand
 #: datasets can be read.
-API_VERSION = 6
+API_VERSION = 7
 
 #: The molecule-table columns written to a project's CSV, in table order. The
 #: depictions in the same rows are left out; they are in molecules.json.

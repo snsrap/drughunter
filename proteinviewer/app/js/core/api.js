@@ -2,7 +2,7 @@
    here, so errors come back as one kind of Error with a readable message. */
 
 /* The response shape this page expects; see proteinviewer/service.py. */
-export const API_VERSION = 6;
+export const API_VERSION = 7;
 
 export class StaleServerError extends Error {}
 
