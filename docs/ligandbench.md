@@ -11,7 +11,7 @@ ProteinViewer's server runs it as a command and never imports it
 not need the viewer either; it is a command-line tool and a Python library.
 
 ```sh
-ligandbench info                                    # RDKit version, depiction version
+ligandbench info                                    # RDKit, depiction and summary versions
 ligandbench inspect export.csv                      # columns, types, structure candidates
 ligandbench resolve export.csv --config c.json --out DIR   # rows.json + dataset.json
 ligandbench depict request.json                     # {"smiles": [...]} -> SVGs

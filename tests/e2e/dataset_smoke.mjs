@@ -320,6 +320,13 @@ await page.locator("#mol-grid .mcard.bad").first().click();
 const why = await text("#mol-detail");
 check("a placeholder says why", why.includes("not a valid SMILES") && why.includes("the structure did not parse"), why.slice(0, 160));
 
+// Its summary: a classification is class counts, and the unparsed rows are counted.
+await sumReady();
+const clsText = await text("#sum-body");
+check("a classification target is class counts with the positive class marked", clsText.toLowerCase().includes("target classes") && clsText.includes("(positive)")
+  && (await page.locator("#sum-body .ssec:nth-child(2) .srow").count()) === 2 && (await page.locator("#sum-body .sbar").count()) === 0, clsText.slice(0, 200));
+check("the summary counts the rows that did not parse, of the source rows", /Parse failures\s*2\s*40% of source rows/.test(clsText), clsText.slice(0, 200));
+
 // ---- ten thousand rows -------------------------------------------------------------------------------------
 console.log("ten thousand rows");
 pages.length = 0;
