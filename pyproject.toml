@@ -19,8 +19,8 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 # The viewer's server and pocketbench run on the standard library alone; these
-# are quickprep's, and rdkit is ligandbench's (the server never imports it: it
-# runs `python -m ligandbench`). External tools (fpocket, lacuna, NEAT-POCKET)
+# are quickprep's, and rdkit and xgboost are ligandbench's (the server never imports
+# them: it runs `python -m ligandbench`). External tools (fpocket, lacuna, NEAT-POCKET)
 # are found at startup, not installed from here.
 dependencies = [
     "openmm>=8.1",
@@ -30,6 +30,7 @@ dependencies = [
     "gemmi>=0.6",
     "numpy",
     "rdkit",
+    "xgboost>=2.1",
 ]
 dynamic = ["version"]
 

@@ -6,9 +6,11 @@
     depict  REQUEST                     SVGs for the SMILES a JSON file lists
     split   DIR --strategy S --seed N   five repeated holdouts of a resolved dataset
     summarize DIR                       the dashboard's numbers for a resolved dataset in DIR
+    train DIR --out RUN --seed N --production-strategy S
+                                        tune, evaluate and refit an XGBoost model into RUN
 
 Every command prints one JSON object. The exit code says whose problem a
-failure is -- 2 a file or choice that cannot be used, 3 RDKit missing -- and the
+failure is -- 2 a file or choice that cannot be used, 3 RDKit or XGBoost missing -- and the
 error is printed as ``{"error", "kind"}``, which is how ProteinViewer's server
 reads it.
 """
@@ -16,9 +18,12 @@ reads it.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import shutil
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
@@ -51,10 +56,17 @@ def cmd_info(a) -> int:
     from .depict import DEPICTION_VERSION
     from .summary import SUMMARY_VERSION
 
+    try:
+        import xgboost
+
+        boost = {"xgboost": xgboost.__version__}
+    except ImportError as exc:  # not fatal to the other commands: said here, and train exits 3
+        boost = {"xgboost": None, "xgboost_error": str(exc)}
     _out(
         {
             "version": __version__,
             "rdkit": chem.require_rdkit(),
+            **boost,
             "depiction": DEPICTION_VERSION,
             "summary": SUMMARY_VERSION,
         }
@@ -182,6 +194,123 @@ def cmd_summarize(a) -> int:
     return 0
 
 
+#: What a ready dataset directory keeps, and so what a run's ``dataset/`` snapshot copies.
+#: (``DatasetStore`` also caches depictions and summaries there; those are not the dataset.)
+DATASET_FILES = ("source.csv", "dataset.json", "rows.json")
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _progress_writer(out: Path):
+    """``note(state, stage, completed, total)`` rewrites ``progress.json``. A call
+    without counts (``None``) repeats the last ones, so ``writing`` and ``done`` still
+    say how many fits there were.
+    """
+    last = [0, 0]
+
+    def note(state: str, stage: str, completed: int | None = None, total: int | None = None):
+        if completed is not None:
+            last[:] = [completed, total or 0]
+        payload = {"state": state, "stage": stage, "completed": last[0], "total": last[1]}
+        _write_atomic(out / "progress.json", json.dumps(payload))
+
+    return note
+
+
+def _file_map(out: Path) -> dict:
+    """``{relative path: {"sha256", "bytes"}}`` for every file under ``out`` except
+    ``run.json`` (written after this) and the transient ``progress.json``.
+    """
+    found = {}
+    for path in sorted(p for p in out.rglob("*") if p.is_file()):
+        rel = path.relative_to(out).as_posix()
+        if rel in ("run.json", "progress.json"):
+            continue
+        data = path.read_bytes()
+        found[rel] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+    return found
+
+
+def cmd_train(a) -> int:
+    """Tune, evaluate and refit an XGBoost model on the dataset in DIR, into the
+    empty directory ``--out``. ``run.json`` is written last: no ``run.json``, no run.
+    An unavailable production strategy is an answer (exit 0), not an error.
+    """
+    _rdkit()
+    from . import model
+    from .split import canonical_json
+    from .train import RUN_SCHEMA, require_xgboost, train
+
+    require_xgboost()
+    if a.production_strategy is None:
+        raise BadInput("say which production strategy: random or scaffold")
+    try:
+        seed = int(a.seed)
+    except ValueError:
+        raise BadInput("the seed must be a whole number, not %r" % a.seed) from None
+    out = Path(a.out)
+    if not out.is_dir() or any(out.iterdir()):
+        raise BadInput("--out %s must be an existing, empty directory" % out)
+    directory = Path(a.dataset)
+    if not directory.is_dir():
+        raise BadInput(
+            "cannot read the dataset directory %s: it is not a directory (it should hold the "
+            "source.csv, dataset.json and rows.json of a ready dataset)" % directory
+        )
+    meta = _json_object(directory / "dataset.json", "the dataset's metadata")
+    rows = _json_object(directory / "rows.json", "the dataset's rows").get("rows")
+    if not isinstance(rows, list):
+        raise BadInput("%s has no list of rows" % (directory / "rows.json"))
+    for name in DATASET_FILES:
+        if not (directory / name).is_file():
+            raise BadInput("the dataset directory %s has no %s" % (directory, name))
+
+    note = _progress_writer(out)
+    run = train(
+        meta,
+        rows,
+        seed=seed,
+        production_strategy=a.production_strategy,
+        profile=a.profile,
+        dataset_id=directory.resolve().name,
+        progress=note,
+    )
+    if run.unavailable is not None:
+        note("done", "the production strategy is unavailable")
+        _out(
+            {
+                "status": "production_strategy_unavailable",
+                "strategy": run.production_strategy,
+                "unavailable": run.unavailable,
+            }
+        )
+        return 0
+
+    note("writing", "writing the run directory")
+    model.save(out, run.booster, run.features)
+    _write_atomic(out / "splits.json", canonical_json(run.splits))
+    _write_atomic(out / "validation_trace.json", canonical_json(run.validation_trace))
+    _write_atomic(out / "scaffolds.json", canonical_json(run.scaffolds))
+    (out / "dataset").mkdir()
+    for name in DATASET_FILES:
+        shutil.copyfile(directory / name, out / "dataset" / name)
+    record = {
+        "schema": RUN_SCHEMA,
+        "status": "completed",
+        "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        **run.report,
+        "files": _file_map(out),
+    }
+    _write_atomic(out / "run.json", canonical_json(record))
+    note("done", "done")
+    _out({"status": "completed", "run": "run.json"})
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="ligandbench", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -208,6 +337,17 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser("summarize", help="the dashboard's statistics for a resolved dataset")
     p.add_argument("directory", help="the directory resolve wrote dataset.json and rows.json into")
     p.set_defaults(run=cmd_summarize)
+    p = sub.add_parser("train", help="tune, evaluate and refit an XGBoost QSAR model")
+    p.add_argument(
+        "dataset", help="a ready dataset's directory (source.csv, dataset.json, rows.json)"
+    )
+    p.add_argument("--out", required=True, help="an existing, empty directory for the run")
+    p.add_argument("--seed", default="0", help="a whole number; the same seed, the same run")
+    p.add_argument(
+        "--production-strategy", help="random or scaffold: which split chooses the model"
+    )
+    p.add_argument("--profile", default="full", help="full (12 candidates) or tiny (CI)")
+    p.set_defaults(run=cmd_train)
     return ap
 
 
