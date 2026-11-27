@@ -260,19 +260,22 @@ check("a good seed clears it", (await tc("#trn-seed-err")) === "" && await page.
 // ---- a run that completes -----------------------------------------------------------------------------------
 console.log("a run that completes");
 await page.click("#trn-go");
-await hasText("#trn-status", "Running");
+// A real tiny run can be over before the page polls, so the mid-run checks are the stub's (its run is held
+// open); a real run is judged by what it must always do: the request, then its completed run.
+if (STUB) await hasText("#trn-status", "Running");
+else while (!posts().length) await page.waitForTimeout(50);
 const sent = posts()[0] && JSON.parse(posts()[0].body);
 check("the request is the form's, with the tiny profile the page was opened with",
   sent && sent.seed === 0 && sent.production_strategy === "scaffold" && sent.profile === "tiny" && /^ds-[0-9a-f]{12}$/.test(sent.dataset_id), JSON.stringify(sent));
-check("progress is a bar with a stage, a count and the time", await page.locator("#trn-status progress").isVisible()
-  && (await tc("#trn-status")).length > 0);
 if (STUB) {
+  check("progress is a bar with a stage, a count and the time", await page.locator("#trn-status progress").isVisible()
+    && (await tc("#trn-status")).length > 0);
   await hasText("#trn-status", "tuning");
   const st = await tc("#trn-status");
   check("the stage and completed/total are shown", st.includes("tuning") && st.includes("3 of 6 fits"), st);
   check("the bar is half full", (await page.locator("#trn-status progress").evaluate(p => p.value)) === 0.5);
 }
-check("while it runs, Cancel is there and the form is locked", await page.locator("#trn-cancel").isVisible()
+if (STUB) check("while it runs, Cancel is there and the form is locked", await page.locator("#trn-cancel").isVisible()
   && await page.locator("#trn-seed").isDisabled() && await page.locator("#trn-go").isDisabled());
 await shot("running");
 await settleDone();
@@ -369,7 +372,9 @@ if (STUB) {
 // ---- cancel -----------------------------------------------------------------------------------------------------
 console.log("cancel");
 await train(STUB ? 4 : 0);
-await hasText("#trn-status", "Running");
+// A real tiny run can finish before the page next polls, so only the stub run is certain to be running.
+if (STUB) await hasText("#trn-status", "Running");
+else await until(() => /Queued|Running|Finishing|Done/.test(document.getElementById("trn-status").textContent), null, 30000);
 if (await page.locator("#trn-cancel").isVisible()) {
   await page.click("#trn-cancel");
   await until(() => /Cancelled|Done/.test(document.getElementById("trn-status").textContent), null, 60000);
