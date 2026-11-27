@@ -451,6 +451,12 @@ def split(
         "dataset": {
             "content_hash": meta.get("content_hash"),
             "identity": meta.get("identity"),
+            # What decided which rows may train: the structure column and the target as it
+            # was confirmed (column, task, qualifier column, units, transform), under the
+            # dataset layout's format. The rows themselves are in row_ids and excluded.
+            "format": meta.get("format"),
+            "structure_column": meta.get("structure_column"),
+            "target": dict(meta["target"]) if meta.get("target") else None,
             "task": meta["target_kind"],
             "classes": classes,
             "n_rows": len(rows),

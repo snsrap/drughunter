@@ -5,6 +5,7 @@ datasets. Nothing below trusts the allocator's own word: every property of a
 split is recomputed from the rows (``check_repeat``).
 """
 
+import hashlib
 import json
 import os
 import subprocess
@@ -679,6 +680,17 @@ def test_the_result_records_what_a_rerun_would_need():
     assert result["dataset"] == {
         "content_hash": meta["content_hash"],
         "identity": meta["identity"],
+        "format": 1,
+        "structure_column": "smiles",
+        "target": {
+            "column": "y",
+            "kind": "classification",
+            "positive_class": "1",
+            "qualifier_column": None,
+            "transform": None,
+            "source_units": None,
+            "output_units": None,
+        },
         "task": "classification",
         "classes": ["1", "0"] if rows[0]["target"] == "1" else ["0", "1"],
         "n_rows": 100,
@@ -731,6 +743,56 @@ def test_an_unknown_strategy_and_a_target_free_dataset_are_refused():
     )
     with pytest.raises(BadInput, match="no target"):
         split(bare, bare_rows, strategy="random", seed=1)
+
+
+def test_the_result_records_which_rules_decided_eligibility():
+    # a row trains when its structure parses and its target is present, valid and exact: so
+    # what the record keeps is the target as it was confirmed -- column, task, qualifier
+    # column, units and transform -- with the structure column and the dataset's format,
+    # beside the identity policy, the content hash and every exclusion with its reasons
+    meta, rows = cdd()
+    result = split(meta, rows, strategy="random", seed=1)
+    d = result["dataset"]
+    assert d["format"] == meta["format"] == 1 and d["structure_column"] == "SMILES"
+    assert d["target"] == {
+        "column": "HIV-1 PR FRET (Q7K): Ki (nM)",
+        "kind": "regression",
+        "positive_class": None,
+        "qualifier_column": "HIV-1 PR FRET (Q7K): Ki Qualifier",
+        "transform": "pki",
+        "source_units": "nM",
+        "output_units": "pKi",
+    }
+    assert d["target"] == meta["target"] and d["identity"] == meta["identity"]
+    assert d["task"] == "regression" and d["classes"] == []
+    assert all(e["reasons"] == ["censored"] for e in result["excluded"])
+    assert "ligandbench" not in result and "ligandbench" not in d, "the package version is not kept"
+
+
+# What 049af42 -- the first allocator -- assigned: the SHA-256 of the five repeats in canonical
+# form. Anything that changes an assignment for these inputs changes ALGORITHM_VERSION, and then
+# these change on purpose; a change to the record around the assignments must not.
+GOLDEN = {
+    ("cdd", "random"): "623a0501ab539ee6eb64538139c3aade613a6c437135a83b87cbd40d2580275c",
+    ("cdd", "scaffold"): "49ce2f217744300c1bcbb0143bea20d964b2caba346eb5fc707ae9e7d3b85f1d",
+    (
+        "classification",
+        "random",
+    ): "a7ebfd9fe5e4298dbf690bcb7b71d913ae3fcd640e14aa819ecf45ba307d53ca",
+    (
+        "classification",
+        "scaffold",
+    ): "f490db781fff25325e265bb5ef563c57cf685403d371210aa12cf617d57436df",
+}
+
+
+@pytest.mark.parametrize("which, strategy", sorted(GOLDEN))
+def test_the_assignments_for_known_inputs_are_what_the_first_allocator_made(which, strategy):
+    assert ALGORITHM_VERSION == "group-greedy-v1"
+    meta, rows = cdd() if which == "cdd" else scaffold_dataset()
+    result = split(meta, rows, strategy=strategy, seed=1)
+    digest = hashlib.sha256(canonical_json(result["repeats"]).encode()).hexdigest()
+    assert digest == GOLDEN[(which, strategy)]
 
 
 # -- the CDD export -----------------------------------------------------------------------
