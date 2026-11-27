@@ -32,6 +32,8 @@ __all__ = [
     "DatasetRowsRequest",
     "DatasetSplitRequest",
     "DatasetSummaryRequest",
+    "TrainingStartRequest",
+    "TrainingQuery",
     "DEFAULT_CUTOFF",
     "DEFAULT_PAGE",
     "MAX_PAGE",
@@ -49,9 +51,19 @@ MAX_PAGE = 100
 TARGET_KINDS = ("regression", "classification")
 TRANSFORMS = ("identity", "pki")
 SPLIT_STRATEGIES = ("random", "scaffold")
+#: ``tiny`` is the small search CI runs; ``full`` is the real one.
+TRAINING_PROFILES = ("full", "tiny")
 #: Seeds are whole numbers from 0 to this: ligandbench's own limit, and what a
 #: browser and a command line both carry without loss.
 MAX_SEED = 2**32 - 1
+
+
+def _seed(p: Mapping[str, Any]) -> int:
+    """A whole number from 0 to ``MAX_SEED``; 0 when left out."""
+    seed = validate.integer(p, "seed", 0, lo=0)
+    if seed > MAX_SEED:  # not validate's own hi=, which prints it as 4.29497e+09
+        raise BadRequest("seed must be at most %d" % MAX_SEED)
+    return seed
 
 
 @dataclass(frozen=True)
@@ -451,10 +463,7 @@ class DatasetSplitRequest:
         if not validate.text(p, "strategy"):
             raise BadRequest("say which strategy: %s" % " or ".join(SPLIT_STRATEGIES))
         strategy = validate.choice(p, "strategy", SPLIT_STRATEGIES, "")
-        seed = validate.integer(p, "seed", 0, lo=0)
-        if seed > MAX_SEED:  # not validate's own hi=, which prints it as 4.29497e+09
-            raise BadRequest("seed must be at most %d" % MAX_SEED)
-        return cls(dataset_id, strategy, seed)
+        return cls(dataset_id, strategy, _seed(p))
 
 
 @dataclass(frozen=True)
@@ -469,3 +478,48 @@ class DatasetSummaryRequest:
         if not dataset_id:
             raise BadRequest("name the dataset")
         return cls(dataset_id)
+
+
+@dataclass(frozen=True)
+class TrainingStartRequest:
+    """``POST /api/training``: train a model on a ready dataset.
+
+    ``seed`` is a whole number from 0 (0 when left out), as for a split.
+    ``production_strategy`` names the split whose validation scores choose the
+    model that is refitted on every eligible row; it is fixed before any test
+    score exists and defaults to ``scaffold``. ``profile`` is the search: ``full``
+    unless a test asks for ``tiny``.
+    """
+
+    dataset_id: str
+    seed: int
+    production_strategy: str
+    profile: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> TrainingStartRequest:
+        dataset_id = validate.text(p, "dataset_id")
+        if not dataset_id:
+            raise BadRequest("name the dataset")
+        return cls(
+            dataset_id,
+            _seed(p),
+            validate.choice(p, "production_strategy", SPLIT_STRATEGIES, "scaffold"),
+            validate.choice(p, "profile", TRAINING_PROFILES, "full"),
+        )
+
+
+@dataclass(frozen=True)
+class TrainingQuery:
+    """``GET /api/training?id=...``, ``GET /api/training/run?id=...`` and
+    ``POST /api/training/cancel`` (the id in the body, as ``id``).
+    """
+
+    run_id: str
+
+    @classmethod
+    def parse(cls, p: Mapping[str, Any]) -> TrainingQuery:
+        run_id = validate.text(p, "id") or validate.text(p, "run_id")
+        if not run_id:
+            raise BadRequest("name the training run")
+        return cls(run_id)
